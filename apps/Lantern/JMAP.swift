@@ -110,7 +110,12 @@ final class JMAPClient: @unchecked Sendable {
         var out: [String: [String: Any]] = [:]
         for r in responses where r.count == 3 {
             guard let name = r[0] as? String, let args = r[1] as? [String: Any], let id = r[2] as? String else { continue }
-            if name == "error" { throw JMAPError.method(args["type"] as? String ?? "error", args["description"] as? String) }
+            if name == "error" {
+                let method = calls.first { ($0.count == 3 ? $0[2] as? String : nil) == id }?.first as? String ?? id
+                let detail = [method, args["description"] as? String, (args["properties"] as? [String])?.joined(separator: ", ")]
+                    .compactMap { $0 }.joined(separator: ", ")
+                throw JMAPError.method(args["type"] as? String ?? "error", detail)
+            }
             out[id] = args
         }
         return out
@@ -136,14 +141,29 @@ final class JMAPClient: @unchecked Sendable {
         return try Self.decode([Identity].self, from: r["i"]?["list"])
     }
 
+    /// Header properties are optional extras: if a server turns them down, Lantern carries on without them.
+    private var headersRefused = false
+
     /// The newest emails matching a filter, with what the lists need (no bodies).
     func emails(filter: [String: Any], limit: Int = 80, collapseThreads: Bool = false) async throws -> [Email] {
+        do {
+            return try await fetchEmails(filter: filter, limit: limit, collapseThreads: collapseThreads, headers: !headersRefused)
+        } catch JMAPError.method(let type, _) where type == "invalidArguments" && !headersRefused {
+            headersRefused = true
+            return try await fetchEmails(filter: filter, limit: limit, collapseThreads: collapseThreads, headers: false)
+        }
+    }
+
+    private func fetchEmails(filter: [String: Any], limit: Int, collapseThreads: Bool, headers: Bool) async throws -> [Email] {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var query: [String: Any] = ["accountId": acc, "filter": filter,
+                                    "sort": [["property": "receivedAt", "isAscending": false]], "limit": limit]
+        if collapseThreads { query["collapseThreads"] = true }
+        let properties = headers ? Email.listProperties : Email.listProperties.filter { !$0.hasPrefix("header:") }
         let r = try await call([
-            ["Email/query", ["accountId": acc, "filter": filter, "sort": [["property": "receivedAt", "isAscending": false]],
-                             "limit": limit, "collapseThreads": collapseThreads], "q"],
+            ["Email/query", query, "q"],
             ["Email/get", ["accountId": acc, "#ids": ["resultOf": "q", "name": "Email/query", "path": "/ids"],
-                           "properties": Email.listProperties], "g"]
+                           "properties": properties], "g"]
         ])
         return try Self.decode([Email].self, from: r["g"]?["list"])
     }
