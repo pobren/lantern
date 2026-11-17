@@ -42,7 +42,7 @@ struct RootView: View {
         .sheet(item: $opened) { item in
             MessageView(item: item, onReply: { composing = ComposeDraft.reply(to: item, store: store) })
                 .environmentObject(store)
-                .frame(minWidth: 680, minHeight: 560)
+                .frame(minWidth: 820, idealWidth: 900, minHeight: 680, idealHeight: 820)
         }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
         .overlay(alignment: .bottom) {

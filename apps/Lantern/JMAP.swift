@@ -181,6 +181,55 @@ final class JMAPClient: @unchecked Sendable {
         return Quote.newText(text)
     }
 
+    /// The email as a reader sees it: its HTML (or its plain text turned into HTML), with pictures sent inside the
+    /// email (cid: links) swapped for data: addresses so they show without any further fetching.
+    func page(of id: String) async throws -> String {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": [id],
+                                               "properties": ["htmlBody", "textBody", "bodyValues", "attachments"],
+                                               "bodyProperties": ["partId", "blobId", "type", "cid", "name", "size"],
+                                               "fetchHTMLBodyValues": true, "maxBodyValueBytes": 2_000_000], "p"]])
+        guard let first = (r["p"]?["list"] as? [[String: Any]])?.first else { return "" }
+        let values = (first["bodyValues"] as? [String: [String: Any]]) ?? [:]
+        let parts = (first["htmlBody"] as? [[String: Any]]) ?? (first["textBody"] as? [[String: Any]]) ?? []
+        var html = ""
+        for part in parts {
+            guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
+            if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
+            else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+        }
+        // Pictures inside the email, linked by cid:, become data: addresses.
+        let inline = ((first["attachments"] as? [[String: Any]]) ?? []) + parts
+        for part in inline {
+            guard var cid = part["cid"] as? String, let blobId = part["blobId"] as? String,
+                  let type = part["type"] as? String, type.lowercased().hasPrefix("image/"),
+                  (part["size"] as? Int ?? 0) < 5_000_000 else { continue }
+            cid = cid.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+            guard html.contains("cid:\(cid)"), let data = try? await download(blobId: blobId, type: type) else { continue }
+            html = html.replacingOccurrences(of: "cid:\(cid)", with: "data:\(type);base64,\(data.base64EncodedString())")
+        }
+        return html
+    }
+
+    /// Fetches a file the server holds (an attachment or a picture) with the account's token.
+    func download(blobId: String, type: String) async throws -> Data {
+        guard let s = session, let acc = accountId else { throw JMAPError.missing("an account") }
+        let enc: (String) -> String = { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? $0 }
+        let address = s.downloadUrl
+            .replacingOccurrences(of: "{accountId}", with: enc(acc))
+            .replacingOccurrences(of: "{blobId}", with: enc(blobId))
+            .replacingOccurrences(of: "{type}", with: enc(type))
+            .replacingOccurrences(of: "{name}", with: "file")
+        guard let url = URL(string: address) else { throw JMAPError.badServer }
+        let (data, response) = try await http.data(for: request(url))
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw JMAPError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
+        return data
+    }
+
+    static func escape(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+    }
+
     /// Changes keywords or mailboxes on several emails at once, as JMAP patches ("keywords/$seen": true).
     func update(_ patches: [String: [String: Any]]) async throws {
         guard let acc = accountId, !patches.isEmpty else { return }

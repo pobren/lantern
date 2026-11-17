@@ -1,13 +1,16 @@
-// Reading one email: who it's from, the words, and what to do with it.
+// Reading one email: who it's from, the email as its sender laid it out, and what to do with it.
 
 import SwiftUI
 
 struct MessageView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("remoteImages") private var remoteImages = true
     let item: Item
     let onReply: () -> Void
-    @State private var text: String?
+    @State private var html: String?
+    @State private var loading = true
+    @State private var showImagesOnce = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,48 +28,67 @@ struct MessageView: View {
             }
             .padding(.horizontal, 24).frame(height: 58)
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(item.email.title).font(Look.display(26)).foregroundStyle(Look.ink).textSelection(.enabled)
-                    HStack(spacing: 12) {
-                        Avatar(address: item.email.sender, size: 40)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.email.sender.display).font(.system(size: 14, weight: .semibold))
-                            Text(item.email.sender.email).font(.caption).foregroundStyle(Look.muted)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(When.short(item.email.date)).font(.caption).foregroundStyle(Look.muted)
-                            HStack(spacing: 5) { AccountDot(account: item.account, size: 6); Text(item.account.label) }
-                                .font(.caption).foregroundStyle(Look.muted)
-                        }
-                    }
-                    if let to = item.email.to, !to.isEmpty {
-                        Text("To " + to.map(\.display).joined(separator: ", ")).font(.caption).foregroundStyle(Look.muted)
-                    }
-                    if item.email.hasAttachment == true {
-                        Label("Has attachments. Open them in Fastmail for now.", systemImage: "paperclip").font(.callout).foregroundStyle(Look.muted)
-                    }
-                    if let body = text {
-                        Text(body).font(.system(size: 14.5)).lineSpacing(4).foregroundStyle(Look.ink).textSelection(.enabled)
+            header.padding(.horizontal, 40).padding(.top, 24).padding(.bottom, 14)
+            if !remoteImages && !showImagesOnce && (html?.contains("http") ?? false) {
+                HStack(spacing: 10) {
+                    Image(systemName: "photo")
+                    Text("Pictures from the web are hidden to protect your privacy.").font(.callout)
+                    Spacer()
+                    Button { showImagesOnce = true } label: { Label("Show pictures", systemImage: "eye") }
+                    Button { remoteImages = true } label: { Label("Always show", systemImage: "checkmark") }
+                }
+                .foregroundStyle(Look.muted)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Look.ground))
+                .padding(.horizontal, 40).padding(.bottom, 10)
+            }
+            Divider().padding(.horizontal, 40)
+            Group {
+                if let html {
+                    EmailWebView(html: html, remoteImages: remoteImages || showImagesOnce)
+                } else if loading {
+                    ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        Text(item.email.preview ?? "").font(.system(size: 14.5)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
-                    if item.email.isBulk {
-                        Label("This is a mailing list. You can unsubscribe from the link in the email.", systemImage: "newspaper")
-                            .font(.caption).foregroundStyle(Look.muted)
                     }
                 }
-                .padding(.horizontal, 40).padding(.vertical, 28)
-                .frame(maxWidth: 820, alignment: .leading)
-                .frame(maxWidth: .infinity)
             }
+            .padding(.horizontal, 32).padding(.top, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.white)
         .task {
-            text = await store.body(item)
+            html = await store.page(item)
+            loading = false
             await store.markRead(item)
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(item.email.title).font(Look.display(24)).foregroundStyle(Look.ink).textSelection(.enabled).lineLimit(3)
+            HStack(spacing: 12) {
+                Avatar(address: item.email.sender, size: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.email.sender.display).font(.system(size: 14, weight: .semibold))
+                    Text(item.email.sender.email).font(.caption).foregroundStyle(Look.muted)
+                    if let to = item.email.to, !to.isEmpty {
+                        Text("To " + to.map(\.display).joined(separator: ", ")).font(.caption).foregroundStyle(Look.muted).lineLimit(1)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(When.short(item.email.date)).font(.caption).foregroundStyle(Look.muted)
+                    HStack(spacing: 5) { AccountDot(account: item.account, size: 6); Text(item.account.label) }
+                        .font(.caption).foregroundStyle(Look.muted)
+                    if item.email.hasAttachment == true {
+                        Label("Attachments", systemImage: "paperclip").font(.caption).foregroundStyle(Look.muted)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

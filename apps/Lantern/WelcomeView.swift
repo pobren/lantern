@@ -88,9 +88,15 @@ struct AddAccountView: View {
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @State private var adding: ServerKind?
+    @AppStorage("remoteImages") private var remoteImages = true
 
     var body: some View {
         Form {
+            Section("Reading") {
+                Toggle("Load pictures from the web in emails", isOn: $remoteImages)
+                Text("Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Accounts") {
                 ForEach(store.accounts) { s in
                     HStack {
@@ -111,7 +117,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 320)
+        .frame(width: 460, height: 420)
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
     }
 }

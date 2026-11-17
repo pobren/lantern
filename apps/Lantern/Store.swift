@@ -207,6 +207,16 @@ final class Store: ObservableObject {
         return text
     }
 
+    private var pages: [String: String] = [:]
+
+    /// The email laid out as its sender designed it, for the reading view.
+    func page(_ item: Item) async -> String? {
+        if let cached = pages[item.id] { return cached }
+        guard let s = state(for: item.account), let html = try? await s.client.page(of: item.email.id), !html.isEmpty else { return nil }
+        pages[item.id] = html
+        return html
+    }
+
     func markRead(_ item: Item) async {
         guard item.email.isUnread, let s = state(for: item.account) else { return }
         await act(s) { try await s.client.update([item.email.id: ["keywords/$seen": true]]) }
