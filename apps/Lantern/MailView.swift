@@ -40,6 +40,8 @@ struct RootView: View {
         let screen = Demo.screen ?? "email"
         #if os(macOS)
         let openEmail = true
+        // The folder column is see-through glass that the screenshot picture can't draw, so Mac shots show two columns.
+        columns = .doubleColumn
         if ProcessInfo.processInfo.arguments.contains("-JCDark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
         NSLog("JCDEBUG showing \(screen), \(store.list.count) emails"); fflush(stdout)
         // A tidy, consistent window size for the Mac shots (1440 by 900 with a caption above).
