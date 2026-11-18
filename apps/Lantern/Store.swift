@@ -368,12 +368,27 @@ final class Store: ObservableObject {
         await move(item, to: trash)
     }
 
+    /// Whether you're looking at this conversation in Spam, so the button offers Not spam instead.
+    func inSpam(_ item: Item) -> Bool {
+        guard let s = state(for: item.account) else { return false }
+        return source(for: item, in: s)?.role == "junk"
+    }
+
+    /// Mark as spam moves the conversation to Spam; Not spam moves it back to the Inbox. The $junk and $notjunk
+    /// keywords tell Fastmail's spam filter, so it learns from it, the same as doing it on the web.
+    func markSpam(_ item: Item, _ spam: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        guard let target = s.box(spam ? "junk" : "inbox") else { problem = "\(item.account.label) has no \(spam ? "Spam" : "Inbox") folder."; return }
+        let keys: [String: Any] = spam ? ["keywords/$junk": true, "keywords/$notjunk": NSNull()] : ["keywords/$notjunk": true, "keywords/$junk": NSNull()]
+        await move(item, to: target, also: keys)
+    }
+
     /// Moves the whole conversation out of the folder you're looking at and into another one.
-    func move(_ item: Item, to target: Mailbox) async {
+    func move(_ item: Item, to target: Mailbox, also extra: [String: Any] = [:]) async {
         guard let s = state(for: item.account), let from = source(for: item, in: s), from.id != target.id else { return }
         let thread = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
         let ids = thread.filter { $0.mailboxIds[from.id] == true }.map(\.id)
-        let patch: [String: Any] = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true]
+        let patch: [String: Any] = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true].merging(extra) { a, _ in a }
         takeOut(item)
         if from.role == "inbox" { s.inbox.removeAll { $0.threadId == item.email.threadId } }
         await act(s, reloadList: false) {

@@ -176,6 +176,7 @@ struct ReadingPane: View {
             Button { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
                 .help("Delete (⌘⌫)").keyboardShortcut(.delete, modifiers: .command)
             MoveMenu(item: item).help("Move to a folder")
+            spamButton
             more
         }
         #else
@@ -190,6 +191,15 @@ struct ReadingPane: View {
         }
         ToolbarItem(placement: .topBarTrailing) { more }
         #endif
+    }
+
+    private var spamButton: some View {
+        let spam = store.inSpam(item)
+        return Button { Task { await store.markSpam(item, !spam) } } label: {
+            Label(spam ? "Not spam" : "Mark as spam", systemImage: spam ? "tray.and.arrow.up" : "xmark.bin")
+        }
+        .help(spam ? "Not spam: move back to the Inbox (⇧⌘J)" : "Mark as spam (⇧⌘J)")
+        .keyboardShortcut("j", modifiers: [.command, .shift])
     }
 
     @ViewBuilder private var replyButtons: some View {
@@ -207,6 +217,9 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            #if os(iOS)
+            spamButton
+            #endif
             Divider()
             Button { save() } label: { Label("Save as…", systemImage: "square.and.arrow.down") }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
