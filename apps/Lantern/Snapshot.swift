@@ -5,6 +5,7 @@
 #if os(macOS)
 import AppKit
 import WebKit
+import SwiftUI
 
 enum Snapshot {
     @MainActor static func save(_ name: String) async {
@@ -65,6 +66,34 @@ enum Snapshot {
             if let web = sub as? WKWebView { found.append(web) } else { found += webViews(in: sub) }
         }
         return found
+    }
+}
+#endif
+
+#if os(macOS)
+/// Screenshot runs on GitHub's Macs sometimes start with no window at all, so the app opens one itself there.
+final class ScreenshotAppDelegate: NSObject, NSApplicationDelegate {
+    private var extra: NSWindow?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard Demo.launchedForScreens else { return }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            let open = NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+            NSLog("JCDEBUG launched, window open: %@", open ? "yes" : "no")
+            guard !open else { return }
+            let root = RootView().environmentObject(Store()).tint(Look.accent)
+            let w = NSWindow(contentRect: NSRect(x: 60, y: 60, width: 1280, height: 740),
+                             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                             backing: .buffered, defer: false)
+            w.title = "JMAP Connect"
+            w.contentViewController = NSHostingController(rootView: root)
+            w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)
+            w.makeKeyAndOrderFront(nil)
+            self.extra = w
+        }
     }
 }
 #endif

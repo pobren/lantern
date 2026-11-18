@@ -9,6 +9,9 @@ import BackgroundTasks
 @main
 struct LanternApp: App {
     @StateObject private var store = Store()
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(ScreenshotAppDelegate.self) private var screenshots
+    #endif
     @Environment(\.scenePhase) private var phase
     static let refreshTask = "dev.paulobrien.lantern.refresh"
 
