@@ -185,6 +185,7 @@ struct Sidebar: View {
         }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
+        .modifier(SolidForScreenshots())
         .navigationTitle("Mail")
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
@@ -455,5 +456,20 @@ struct MoveMenu: View {
                 }
             }
         } label: { Label("Move to", systemImage: "folder") }
+    }
+}
+
+/// The Mac sidebar is see-through glass, which the screenshot picture can't draw, so it's solid in screenshot runs only.
+private struct SolidForScreenshots: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        if Demo.launchedForScreens {
+            content.scrollContentBackground(.hidden).background(Color(nsColor: .windowBackgroundColor))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }

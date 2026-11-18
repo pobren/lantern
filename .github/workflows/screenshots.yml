@@ -105,7 +105,7 @@ jobs:
           [ -n "$APP" ] || { echo "No Mac app built"; exit 1; }
           mkdir -p screenshots/raw/mac
           n=0
-          for screen in email compose settings dark; do
+          for screen in email compose settings; do
             n=$((n + 1))
             arg=$screen; extra=()
             if [ "$screen" = dark ]; then arg=email; extra=(-JCDark); fi
