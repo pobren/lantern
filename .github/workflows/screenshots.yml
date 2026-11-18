@@ -62,7 +62,13 @@ jobs:
             xcrun simctl bootstatus "$udid" -b
             xcrun simctl status_bar "$udid" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
               --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+            # No "slide to type" tip over the keyboard.
+            xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+            xcrun simctl spawn "$udid" defaults write com.apple.Preferences DidShowContinuousPathIntroduction -bool true || true
             xcrun simctl install "$udid" "$APP"
+            # A first launch to warm up, so the first shot isn't taken while the app is still starting.
+            xcrun simctl launch "$udid" dev.paulobrien.lantern -JCDemo -JCScreen email
+            sleep 15
             mkdir -p "screenshots/raw/$device"
             local n=0
             for screen in "$@"; do
@@ -77,8 +83,22 @@ jobs:
             done
             xcrun simctl shutdown "$udid" || true
           }
-          shoot iphone "$IPHONE" inbox email compose folders dark
+          shoot iphone "$IPHONE" inbox email compose dark settings
           shoot ipad "$IPAD" email compose folders dark settings
+      - name: Let screencapture see app windows (Screen Recording permission on this throwaway Mac)
+        continue-on-error: true
+        run: |
+          now=$(date +%s)
+          for db in "/Library/Application Support/com.apple.TCC/TCC.db" "$HOME/Library/Application Support/com.apple.TCC/TCC.db"; do
+            [ -f "$db" ] || continue
+            for client in /usr/sbin/screencapture /bin/bash /bin/zsh /bin/sh /usr/bin/env "$(command -v bash)"; do
+              sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$client',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" \
+                && echo "granted $client in $db" || echo "couldn't grant $client in $db"
+            done
+          done
+          for p in $(ps -axo comm | grep -iE "runner|provisioner" | sort -u); do
+            sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$p',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" && echo "granted $p" || true
+          done
       - name: Shoot the Mac
         run: |
           APP=$(find build/mac -name "JMAP Connect.app" -path "*Debug/*" -not -path "*iphonesimulator*" | head -1)
@@ -102,11 +122,14 @@ jobs:
             arg=$screen; [ "$screen" = dark ] && arg=email
             pkill -x "JMAP Connect" 2>/dev/null || true
             sleep 1
-            "$APP/Contents/MacOS/JMAP Connect" -JCDemo -JCScreen "$arg" "${extra[@]}" -NSQuitAlwaysKeepsWindows NO &
+            "$APP/Contents/MacOS/JMAP Connect" -JCDemo -JCScreen "$arg" "${extra[@]}" -NSQuitAlwaysKeepsWindows NO > /tmp/app.log 2>&1 &
             sleep 10
             osascript -e 'tell application "JMAP Connect" to activate' 2>/dev/null || true
             sleep 2
-            ID=$(swift /tmp/winid.swift 2>/dev/null || true)
+            # The app prints its window's number once the screen is ready.
+            ID=$(grep -o 'JCWINDOW [0-9]*' /tmp/app.log | tail -1 | cut -d' ' -f2)
+            [ -n "$ID" ] || ID=$(swift /tmp/winid.swift 2>/dev/null || true)
+            echo "$screen: window ${ID:-none}"
             if [ -n "$ID" ]; then
               screencapture -o -x -l "$ID" "screenshots/raw/mac/$n-$screen.png"
             else

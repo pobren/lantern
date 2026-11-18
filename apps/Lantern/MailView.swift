@@ -62,6 +62,14 @@ struct RootView: View {
         default:
             break
         }
+        #if os(macOS)
+        // The screenshot workflow reads this to capture just the window.
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+            print("JCWINDOW \(w.windowNumber)")
+            fflush(stdout)
+        }
+        #endif
     }
 
     var body: some View {
