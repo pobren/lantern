@@ -61,7 +61,7 @@ def app_info():
         # Email is messaging between people; nothing else in the questionnaire applies.
         attrs = {}
         for k, v in age["attributes"].items():
-            if k in ("kidsAgeBand", "ageRatingOverride", "koreaAgeRatingOverride", "ageRatingOverrideV2", "developerAgeRatingInfoUrl"):
+            if k == "kidsAgeBand" or any(w in k.lower() for w in ("override", "url", "grac", "korea")):
                 continue
             attrs[k] = False if isinstance(v, bool) else "NONE"
         if "messagingAndChat" in attrs:
@@ -197,11 +197,12 @@ def fill(platform):
         detail = call("GET", f"/v1/appStoreVersions/{vid}/appStoreReviewDetail", quiet=True).get("data")
     except RuntimeError:
         detail = None
-    if detail:
-        call("PATCH", f"/v1/appStoreReviewDetails/{detail['id']}", {"data": {"type": "appStoreReviewDetails", "id": detail["id"], "attributes": review_attrs}})
+    if not detail:
+        # Apple won't create review details without a phone number, which only Paul adds. Once he has,
+        # running this again fills in the notes.
+        print("   Review notes skipped until a contact phone number is added in App Store Connect")
     else:
-        call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails", "attributes": review_attrs,
-            "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
+        call("PATCH", f"/v1/appStoreReviewDetails/{detail['id']}", {"data": {"type": "appStoreReviewDetails", "id": detail["id"], "attributes": review_attrs}})
 
     # The build.
     if BUILD:
