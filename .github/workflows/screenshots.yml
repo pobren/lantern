@@ -40,10 +40,10 @@ jobs:
           set -o pipefail
           xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
             -destination "generic/platform=iOS Simulator" -derivedDataPath build/ios \
-            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= | tail -n 30
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= > /tmp/ios.log 2>&1 || { grep -E "error:" /tmp/ios.log | sort -u | head -40; tail -n 20 /tmp/ios.log; exit 1; }
           xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
             -destination "generic/platform=macOS" -derivedDataPath build/mac \
-            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO | tail -n 30
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO > /tmp/mac.log 2>&1 || { grep -E "error:" /tmp/mac.log | sort -u | head -40; tail -n 20 /tmp/mac.log; exit 1; }
       - name: Shoot iPhone and iPad
         run: |
           APP=$(find build/ios -name "JMAP Connect.app" -path "*iphonesimulator*" | head -1)

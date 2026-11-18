@@ -20,11 +20,6 @@ enum Demo {
     }
 }
 
-extension EmailAddress {
-    /// "Name <address>", as it appears in an email's headers.
-    var full: String { name.map { "\($0) <\(email)>" } ?? email }
-}
-
 /// Answers the app's requests to the sample server, as if it were a real JMAP server across the internet.
 final class DemoProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == Demo.host }
@@ -116,7 +111,7 @@ final class DemoServer: @unchecked Sendable {
             let parts = path.split(separator: "/").map(String.init)
             guard let i = parts.firstIndex(of: "download"), i + 2 < parts.count else { return (404, Data(), "text/plain") }
             let blobId = parts[i + 2].removingPercentEncoding ?? parts[i + 2]
-            if let (data, type) = blobs[blobId] { return (200, data, type) }
+            if let blob = blobs[blobId] { return (200, blob.0, blob.1) }
             if let m = mails.values.first(where: { "eml-" + $0.id == blobId }) { return (200, Data(eml(m).utf8), "message/rfc822") }
             return (404, Data(), "text/plain")
         }
