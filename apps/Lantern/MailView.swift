@@ -287,7 +287,8 @@ struct MessageList: View {
     var body: some View {
         List(selection: $store.selection) {
             ForEach(store.list) { item in
-                Row(item: item, showAccount: store.accounts.count > 1 && store.folder == .allInboxes)
+                Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
+                    place: store.searchingAllMail ? store.place(of: item) : nil)
                     .tag(item.id)
                     .onDrag { NSItemProvider(object: item.id as NSString) }
                     #if os(iOS)
@@ -326,7 +327,7 @@ struct MessageList: View {
         }
         #endif
         .overlay { if store.listLoading && store.list.isEmpty { ProgressView() } }
-        .navigationTitle(store.folderTitle)
+        .navigationTitle(store.listTitle)
         #if os(macOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
@@ -343,14 +344,29 @@ struct MessageList: View {
                 .padding(.horizontal, 9).frame(height: 30)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
                 .padding(.horizontal, 12).padding(.vertical, 8)
+                if !store.search.isEmpty {
+                    Picker("Search in", selection: $store.searchScope) {
+                        Text("All mail").tag(SearchScope.allMail)
+                        Text(store.folderTitle).tag(SearchScope.thisFolder)
+                    }
+                    .pickerStyle(.segmented).labelsHidden()
+                    .padding(.horizontal, 12).padding(.bottom, 8)
+                }
                 Divider()
             }
             .background(.bar)
         }
         #else
         .searchable(text: $store.search, prompt: "Search")
+        .searchScopes($store.searchScope) {
+            Text("All mail").tag(SearchScope.allMail)
+            Text(store.folderTitle).tag(SearchScope.thisFolder)
+        }
         .onSubmit(of: .search) { Task { await store.reloadList() } }
         #endif
+        .onChange(of: store.searchScope) { _, _ in
+            if !store.search.trimmingCharacters(in: .whitespaces).isEmpty { Task { await store.reloadList() } }
+        }
         .onChange(of: store.search) { _, words in
             if words.isEmpty { Task { await store.reloadList() } }
         }
@@ -405,6 +421,7 @@ struct MessageList: View {
 struct Row: View {
     let item: Item
     let showAccount: Bool
+    var place: String? = nil
 
     var body: some View {
         let e = item.email
@@ -430,9 +447,13 @@ struct Row: View {
                     .font(Look.size(13.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                if showAccount {
-                    HStack(spacing: 5) { AccountDot(account: item.account, size: 6); Text(item.account.label) }
-                        .font(.caption2).foregroundStyle(.secondary)
+                if showAccount || place != nil {
+                    HStack(spacing: 5) {
+                        if showAccount { AccountDot(account: item.account, size: 6); Text(item.account.label) }
+                        if let place { Image(systemName: "folder"); Text(place) }
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
             }
         }

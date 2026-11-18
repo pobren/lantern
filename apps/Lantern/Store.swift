@@ -84,6 +84,8 @@ struct FolderEntry: Identifiable {
     var id: String { box.id }
 }
 
+enum SearchScope: Hashable { case allMail, thisFolder }
+
 @MainActor
 final class Store: ObservableObject {
     @Published var accounts: [AccountState] = []
@@ -94,6 +96,8 @@ final class Store: ObservableObject {
     @Published var list: [Item] = []
     @Published var listLoading = false
     @Published var search = ""
+    /// Where a search looks: every folder (apart from Bin and Spam) in every account, or just the folder on screen.
+    @Published var searchScope: SearchScope = .allMail
     private var listLimit = 100
     @Published var mayHaveMore = false
 
@@ -260,30 +264,42 @@ final class Store: ObservableObject {
         defer { listLoading = false }
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let wanted = folder
+        let scope = searchScope
         var items: [Item] = []
-        switch wanted {
-        case .allInboxes:
-            if words.isEmpty && listLimit <= 100 {
-                items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
-            } else {
-                for s in accounts {
-                    guard let inbox = s.box("inbox") else { continue }
-                    var filter: [String: Any] = ["inMailbox": inbox.id]
-                    if !words.isEmpty { filter["text"] = words }
-                    do {
-                        items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
-                    } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
-                }
+        if !words.isEmpty && scope == .allMail {
+            for s in accounts {
+                var filter: [String: Any] = ["text": words]
+                let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
+                if !skip.isEmpty { filter["inMailboxOtherThan"] = skip }
+                do {
+                    items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
+                } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
             }
-        case .mailbox(let accountId, let boxId):
-            guard let s = state(id: accountId) else { break }
-            var filter: [String: Any] = ["inMailbox": boxId]
-            if !words.isEmpty { filter["text"] = words }
-            do {
-                items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
-            } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+        } else {
+            switch wanted {
+            case .allInboxes:
+                if words.isEmpty && listLimit <= 100 {
+                    items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
+                } else {
+                    for s in accounts {
+                        guard let inbox = s.box("inbox") else { continue }
+                        var filter: [String: Any] = ["inMailbox": inbox.id]
+                        if !words.isEmpty { filter["text"] = words }
+                        do {
+                            items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
+                        } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+                    }
+                }
+            case .mailbox(let accountId, let boxId):
+                guard let s = state(id: accountId) else { break }
+                var filter: [String: Any] = ["inMailbox": boxId]
+                if !words.isEmpty { filter["text"] = words }
+                do {
+                    items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
+                } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+            }
         }
-        guard wanted == folder else { return }       // the person moved on while this was loading
+        guard wanted == folder, scope == searchScope, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }  // the person moved on while this was loading
         list = items.sorted { $0.email.date > $1.email.date }
         mayHaveMore = items.count >= listLimit
     }
@@ -295,15 +311,35 @@ final class Store: ObservableObject {
         }
     }
 
+    /// True while the list shows results from every folder, rather than the folder in the sidebar.
+    var searchingAllMail: Bool {
+        searchScope == .allMail && !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The middle column's title: the folder, or "All mail" while searching everywhere.
+    var listTitle: String { searchingAllMail ? "All mail" : folderTitle }
+
+    /// The folder an email lives in, shown on search results from every folder.
+    func place(of item: Item) -> String? {
+        guard let s = state(for: item.account) else { return nil }
+        return source(for: item, in: s)?.name
+    }
+
     /// Unread across every inbox, for the sidebar and the Dock.
     var unreadInboxes: Int {
         accounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
     }
 
     /// The folder an item is being looked at in, so archive and move know where to take it from.
+    /// Search results from every folder come from wherever the email actually lives: the folder on screen if it's
+    /// there, then the Inbox, then any other folder or label it's in.
     private func source(for item: Item, in s: AccountState) -> Mailbox? {
-        if case .mailbox(let a, let id) = folder, a == s.id { return s.box(id: id) }
-        return s.box("inbox")
+        let everywhere = searchingAllMail
+        if case .mailbox(let a, let id) = folder, a == s.id, !everywhere || item.email.mailboxIds[id] == true { return s.box(id: id) }
+        guard everywhere else { return s.box("inbox") }
+        let ids = Set(item.email.mailboxIds.filter(\.value).keys)
+        if let inbox = s.box("inbox"), ids.contains(inbox.id) { return inbox }
+        return s.mailboxes.first { ids.contains($0.id) } ?? s.box("inbox")
     }
 
     // MARK: Reading

@@ -206,6 +206,7 @@ final class DemoServer: @unchecked Sendable {
         let filter = (args["filter"] as? [String: Any]) ?? [:]
         var found = Array(mails.values)
         if let box = filter["inMailbox"] as? String { found = found.filter { $0.mailboxIds[box] == true } }
+        if let skip = filter["inMailboxOtherThan"] as? [String] { found = found.filter { m in !m.mailboxIds.keys.contains { skip.contains($0) } } }
         if let words = (filter["text"] as? String)?.lowercased(), !words.isEmpty {
             found = found.filter { m in
                 ([m.subject, m.text] + m.from.map(\.full) + m.to.map(\.full)).contains { $0.lowercased().contains(words) }
