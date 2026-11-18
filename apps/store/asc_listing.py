@@ -27,7 +27,7 @@ def call(method, path, body=None, ok=(200, 201, 204), quiet=False):
         detail = r.text[:800]
         if not quiet:
             print(f"!! {method} {path} -> {r.status_code} {detail}")
-        raise RuntimeError(f"{method} {path}: {r.status_code} {detail}")
+        raise RuntimeError(f"{method} {path}: {r.status_code} {r.text}")
     return r.json() if r.text else {}
 
 
@@ -36,8 +36,8 @@ def step(name, fn):
         fn()
         print(f"OK  {name}")
     except Exception as e:
-        problems.append(f"{name}: {e}")
-        print(f"FAIL {name}: {e}")
+        problems.append(f"{name}: {str(e)[:600]}")
+        print(f"FAIL {name}: {str(e)[:600]}")
 
 
 app = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE}&fields[apps]=name,primaryLocale")["data"][0]
@@ -58,17 +58,37 @@ def app_info():
     # Age rating: an email app with no content of its own (4+).
     try:
         age = call("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
+        # Email is messaging between people; nothing else in the questionnaire applies.
         attrs = {}
         for k, v in age["attributes"].items():
-            if isinstance(v, bool):
-                attrs[k] = False
-            elif isinstance(v, str) and v in ("NONE", "INFREQUENT_OR_MILD", "FREQUENT_OR_INTENSE"):
-                attrs[k] = "NONE"
-            elif v is None and k not in ("kidsAgeBand", "ageRatingOverride", "koreaAgeRatingOverride", "ageRatingOverrideV2", "developerAgeRatingInfoUrl"):
-                attrs[k] = False if k.startswith(("is", "has", "unrestricted", "gambling", "lootBox", "advertising", "ageAssurance", "healthOrWellness", "messagingAndChat", "parentalControls", "userGeneratedContent")) else "NONE"
-        call("PATCH", f"/v1/ageRatingDeclarations/{age['id']}", {"data": {"type": "ageRatingDeclarations", "id": age["id"], "attributes": attrs}})
+            if k in ("kidsAgeBand", "ageRatingOverride", "koreaAgeRatingOverride", "ageRatingOverrideV2", "developerAgeRatingInfoUrl"):
+                continue
+            attrs[k] = False if isinstance(v, bool) else "NONE"
+        if "messagingAndChat" in attrs:
+            attrs["messagingAndChat"] = True
+        for _ in range(6):  # Apple says which fields want true/false and which want a level; adjust and retry.
+            try:
+                call("PATCH", f"/v1/ageRatingDeclarations/{age['id']}", {"data": {"type": "ageRatingDeclarations", "id": age["id"], "attributes": attrs}}, quiet=True)
+                break
+            except RuntimeError as e:
+                text, changed = str(e), False
+                try:
+                    errors = json.loads(text[text.index("{"):]).get("errors", [])
+                except ValueError:
+                    errors = []
+                for err in errors:
+                    key = err.get("source", {}).get("pointer", "").split("/")[-1]
+                    if key in attrs:
+                        if "BOOLEAN" in err.get("detail", "") and not isinstance(attrs[key], bool):
+                            attrs[key], changed = (key == "messagingAndChat"), True
+                        elif "STRING" in err.get("detail", "") and isinstance(attrs[key], bool):
+                            attrs[key], changed = "NONE", True
+                        elif "not a valid" in err.get("detail", "") or "not allowed" in err.get("detail", "").lower():
+                            attrs.pop(key); changed = True
+                if not changed:
+                    raise
     except Exception as e:
-        problems.append(f"age rating: {e}")
+        problems.append(f"age rating: {str(e)[:600]}")
 
 
 step("Name, subtitle, privacy policy, categories and age rating", app_info)
@@ -174,9 +194,12 @@ def fill(platform):
     r = L["review"]
     review_attrs = {k: r[k] for k in ("contactFirstName", "contactLastName", "contactEmail", "demoAccountRequired", "notes")}
     try:
-        detail = call("GET", f"/v1/appStoreVersions/{vid}/appStoreReviewDetail", quiet=True)["data"]
-        call("PATCH", f"/v1/appStoreReviewDetails/{detail['id']}", {"data": {"type": "appStoreReviewDetails", "id": detail["id"], "attributes": review_attrs}})
+        detail = call("GET", f"/v1/appStoreVersions/{vid}/appStoreReviewDetail", quiet=True).get("data")
     except RuntimeError:
+        detail = None
+    if detail:
+        call("PATCH", f"/v1/appStoreReviewDetails/{detail['id']}", {"data": {"type": "appStoreReviewDetails", "id": detail["id"], "attributes": review_attrs}})
+    else:
         call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails", "attributes": review_attrs,
             "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
 
