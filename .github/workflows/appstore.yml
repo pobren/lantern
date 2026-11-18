@@ -1,9 +1,11 @@
 # Sends the App Store listing (text, screenshots, categories, price, review notes) to App Store Connect
 # and attaches a build to the iPhone and iPad version and the Mac version. It never submits for review.
-# Run it by hand from the Actions tab, giving the build number (for example 135).
+# Runs when a commit message contains [listing] or [listing 135] (135 = build to attach), or by hand from the Actions tab.
 name: App Store listing
 
 on:
+  push:
+    paths: ["apps/store/**", ".github/workflows/appstore.yml"]
   workflow_dispatch:
     inputs:
       build:
@@ -12,6 +14,7 @@ on:
 
 jobs:
   listing:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[listing')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,4 +25,8 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           BUILD: ${{ inputs.build }}
-        run: python3 apps/store/asc_listing.py
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$BUILD" ]; then BUILD=$(printf '%s' "$MSG" | grep -o '\[listing [0-9]*\]' | grep -o '[0-9]*' | head -1); fi
+          echo "Build to attach: ${BUILD:-none}"
+          BUILD="$BUILD" python3 apps/store/asc_listing.py
