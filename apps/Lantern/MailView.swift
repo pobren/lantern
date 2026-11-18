@@ -1,0 +1,258 @@
+// The main window, laid out the way people expect a mail app to be: folders on the left, the list of
+// conversations in the middle, the open conversation on the right. On iPhone the same three columns become
+// three screens you move through.
+
+import SwiftUI
+
+struct RootView: View {
+    @EnvironmentObject var store: Store
+    @State private var composing: ComposeDraft?
+    @State private var settings = false
+    @State private var columns: NavigationSplitViewVisibility = .all
+
+    var body: some View {
+        Group {
+            if store.hasAccounts {
+                NavigationSplitView(columnVisibility: $columns) {
+                    Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true })
+                } content: {
+                    MessageList(compose: { composing = ComposeDraft.new(store: store) })
+                } detail: {
+                    if let item = store.selectedItem {
+                        ReadingPane(item: item, compose: { composing = $0 })
+                            .id(item.id)
+                    } else {
+                        Empty()
+                    }
+                }
+                .task { await store.start() }
+            } else {
+                WelcomeView()
+            }
+        }
+        .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
+        .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
+        .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
+        .overlay(alignment: .bottom) {
+            if let problem = store.problem {
+                Label(problem, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 18)
+                    .onTapGesture { store.problem = nil }
+                    .task(id: problem) {
+                        try? await Task.sleep(nanoseconds: 6_000_000_000)
+                        if store.problem == problem { store.problem = nil }
+                    }
+            }
+        }
+    }
+}
+
+private struct Empty: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "envelope.open").font(.system(size: 34, weight: .light)).foregroundStyle(.tertiary)
+            Text("No conversation selected").foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Look.paper)
+    }
+}
+
+// MARK: Folders
+
+struct Sidebar: View {
+    @EnvironmentObject var store: Store
+    let compose: () -> Void
+    let settings: () -> Void
+
+    private var picked: Binding<Folder?> {
+        Binding(get: { store.folder }, set: { f in if let f { Task { await store.open(f) } } })
+    }
+
+    var body: some View {
+        List(selection: picked) {
+            Section {
+                Label(store.accounts.count > 1 ? "All inboxes" : "Inbox", systemImage: "tray.2")
+                    .badge(store.unreadInboxes)
+                    .tag(Folder.allInboxes)
+            }
+            ForEach(store.accounts) { s in
+                Section {
+                    ForEach(s.tree) { entry in
+                        if !(store.accounts.count == 1 && entry.box.role == "inbox") {
+                            Label(entry.box.name, systemImage: entry.box.icon)
+                                .padding(.leading, CGFloat(entry.depth) * 14)
+                                .badge(entry.box.showsUnread ? (entry.box.unreadEmails ?? 0) : 0)
+                                .tag(Folder.mailbox(account: s.id, id: entry.box.id))
+                        }
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        AccountDot(account: s.account, size: 7)
+                        Text(s.account.label).lineLimit(1)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Mail")
+        #if os(macOS)
+        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
+                    .buttonStyle(.borderless)
+                Spacer()
+            }
+            .padding(12)
+        }
+        #else
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: settings) { Image(systemName: "gearshape") }.accessibilityLabel("Settings")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: compose) { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
+            }
+        }
+        #endif
+    }
+}
+
+// MARK: The list
+
+struct MessageList: View {
+    @EnvironmentObject var store: Store
+    let compose: () -> Void
+
+    var body: some View {
+        List(selection: $store.selection) {
+            ForEach(store.list) { item in
+                Row(item: item, showAccount: store.accounts.count > 1 && store.folder == .allInboxes)
+                    .tag(item.id)
+                    .contextMenu { actions(item) }
+                    .swipeActions(edge: .leading) {
+                        Button { Task { await store.setUnread(item, !item.email.isUnread) } } label: {
+                            Label(item.email.isUnread ? "Read" : "Unread", systemImage: item.email.isUnread ? "envelope.open" : "envelope.badge")
+                        }
+                        .tint(Look.accent)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+                        Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
+                            .tint(.gray)
+                    }
+                    .onAppear { if item.id == store.list.last?.id { Task { await store.loadMore() } } }
+            }
+            if store.list.isEmpty && !store.listLoading {
+                Text(store.search.isEmpty ? "Nothing here" : "No emails match")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 40)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .overlay { if store.listLoading && store.list.isEmpty { ProgressView() } }
+        .navigationTitle(store.folderTitle)
+        .searchable(text: $store.search, prompt: "Search")
+        .onSubmit(of: .search) { Task { await store.reloadList() } }
+        .onChange(of: store.search) { _, words in
+            if words.isEmpty { Task { await store.reloadList() } }
+        }
+        .refreshable { await store.refresh() }
+        #if os(macOS)
+        .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
+        .toolbar {
+            ToolbarItem {
+                Button { Task { await store.refresh() } } label: { Label("Check for new mail", systemImage: "arrow.clockwise") }
+                    .help("Check for new mail")
+            }
+            ToolbarItem {
+                Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
+                    .help("New message (⌘N)")
+            }
+        }
+        #else
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
+            }
+        }
+        #endif
+    }
+
+    @ViewBuilder private func actions(_ item: Item) -> some View {
+        Button { Task { await store.setUnread(item, !item.email.isUnread) } } label: {
+            Label(item.email.isUnread ? "Mark as read" : "Mark as unread", systemImage: "envelope.badge")
+        }
+        Button { Task { await store.flag(item) } } label: {
+            Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
+        }
+        Divider()
+        Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
+        MoveMenu(item: item)
+        Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+    }
+}
+
+/// One conversation in the list: who, when, what about, and the first words.
+struct Row: View {
+    let item: Item
+    let showAccount: Bool
+
+    var body: some View {
+        let e = item.email
+        HStack(alignment: .top, spacing: 11) {
+            Avatar(address: e.sender, size: 36)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    if e.isUnread { Circle().fill(Look.accent).frame(width: 7, height: 7).accessibilityLabel("Unread") }
+                    Text(e.sender.display)
+                        .font(.system(size: 14, weight: e.isUnread ? .semibold : .regular))
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    if e.isFlagged { Image(systemName: "star.fill").font(.caption2).foregroundStyle(Look.star).accessibilityLabel("Starred") }
+                    if e.hasAttachment == true { Image(systemName: "paperclip").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Attachment") }
+                    Text(When.short(e.date))
+                        .font(.system(size: 12, weight: e.isUnread ? .semibold : .regular))
+                        .foregroundStyle(e.isUnread ? Look.accent : .secondary)
+                }
+                Text(e.title)
+                    .font(.system(size: 13.5, weight: e.isUnread ? .medium : .regular))
+                    .lineLimit(1)
+                Text(e.preview ?? "")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                if showAccount {
+                    HStack(spacing: 5) { AccountDot(account: item.account, size: 6); Text(item.account.label) }
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Every folder of the item's account, to move a conversation into.
+struct MoveMenu: View {
+    @EnvironmentObject var store: Store
+    let item: Item
+
+    var body: some View {
+        Menu {
+            if let s = store.state(for: item.account) {
+                ForEach(s.tree) { entry in
+                    Button(String(repeating: "  ", count: entry.depth) + entry.box.name) {
+                        Task { await store.move(item, to: entry.box) }
+                    }
+                }
+            }
+        } label: { Label("Move to", systemImage: "folder") }
+    }
+}

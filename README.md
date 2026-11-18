@@ -1,23 +1,26 @@
 # Lantern
 
-A calm, native Mac mail app for Fastmail, built on JMAP. It also works with Mail App and any other JMAP server.
+A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app for Mac, iPhone and iPad, and it works with any other JMAP server too.
 
-## What's in version 0.1
+## What's in version 0.2
 
-- **Today**: your inbox sorted into three piles. Needs you (real people), updates and receipts, and reading for later.
-- **People**: email as conversations, one person at a time, with quoted replies trimmed away.
-- **Focus**: one unread email at a time in a dark room, with keyboard keys for reply (R), done (E), later (L), skip (S) and read (Space).
-- **Inbox**: the plain list, for when you want it.
-- Send from any of your addresses across accounts, reply, archive, star and delete.
+- The layout people expect: folders on the left, conversations in the middle, the open conversation on the right. On iPhone the three columns become three screens.
+- All inboxes together, or any folder of any account, with unread counts.
+- Conversations: earlier emails fold to one line; open any of them.
+- Reply, reply all and forward (with the original quoted), from any of your addresses.
+- Archive, delete, move to a folder, star, mark as read or unread. Swipe on iPhone, right click or keyboard on Mac.
+- Search, pull to refresh, and more mail as you scroll.
+- Attachments open in Quick Look.
+- Emails show as their senders designed them, with scripts blocked and pictures from the web optional.
 - New mail arrives instantly over JMAP push.
-- Tokens are kept in the Mac's keychain. Mail goes straight from your Mac to your provider; there is no Lantern server.
+- Tokens are kept in the keychain. Mail goes straight from your device to your provider; there is no Lantern server.
 
 ## How it's built
 
-- SwiftUI for macOS 14 and later, no third party code.
+- SwiftUI for macOS 14 and iOS 17 and later, no third party code.
 - `apps/project.yml` is an XcodeGen project; the Xcode project is generated in CI.
 - `.github/workflows/check.yml` checks every Swift file parses on each push (Linux, cheap).
-- `.github/workflows/testflight.yml` builds, signs and sends the app to TestFlight when a commit message starts with `[testflight]`, or by hand from the Actions tab. It needs the secrets `ASC_KEY`, `ASC_KEY_ID`, `ASC_ISSUER_ID` and `APPLE_TEAM_ID`.
+- `.github/workflows/testflight.yml` builds, signs and sends the apps to TestFlight when a commit message starts with `[testflight]` (both), `[testflight ios]` or `[testflight mac]`, or by hand from the Actions tab. It needs the secrets `ASC_KEY`, `ASC_KEY_ID`, `ASC_ISSUER_ID` and `APPLE_TEAM_ID`.
 
 ## Signing in
 

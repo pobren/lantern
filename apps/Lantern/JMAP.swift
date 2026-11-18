@@ -141,34 +141,34 @@ final class JMAPClient: @unchecked Sendable {
         return try Self.decode([Identity].self, from: r["i"]?["list"])
     }
 
-    /// Header properties are optional extras: if a server turns them down, Lantern carries on without them.
-    private var headersRefused = false
-
-    /// The newest emails matching a filter, with what the lists need (no bodies).
-    func emails(filter: [String: Any], limit: Int = 80, collapseThreads: Bool = false) async throws -> [Email] {
-        do {
-            return try await fetchEmails(filter: filter, limit: limit, collapseThreads: collapseThreads, headers: !headersRefused)
-        } catch JMAPError.method(let type, _) where type == "invalidArguments" && !headersRefused {
-            headersRefused = true
-            return try await fetchEmails(filter: filter, limit: limit, collapseThreads: collapseThreads, headers: false)
-        }
-    }
-
-    private func fetchEmails(filter: [String: Any], limit: Int, collapseThreads: Bool, headers: Bool) async throws -> [Email] {
+    /// The newest emails matching a filter, with what the lists need (no bodies). `position` pages further down.
+    func emails(filter: [String: Any], limit: Int = 100, position: Int = 0, collapseThreads: Bool = true) async throws -> [Email] {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var query: [String: Any] = ["accountId": acc, "filter": filter,
-                                    "sort": [["property": "receivedAt", "isAscending": false]], "limit": limit]
-        if collapseThreads { query["collapseThreads"] = true }
-        let properties = headers ? Email.listProperties : Email.listProperties.filter { !$0.hasPrefix("header:") }
+                                    "sort": [["property": "receivedAt", "isAscending": false]],
+                                    "limit": limit, "position": position, "collapseThreads": collapseThreads]
+        if filter.isEmpty { query.removeValue(forKey: "filter") }
         let r = try await call([
             ["Email/query", query, "q"],
             ["Email/get", ["accountId": acc, "#ids": ["resultOf": "q", "name": "Email/query", "path": "/ids"],
-                           "properties": properties], "g"]
+                           "properties": Email.listProperties], "g"]
         ])
         return try Self.decode([Email].self, from: r["g"]?["list"])
     }
 
-    /// The plain text of one email, for reading.
+    /// Every email in a conversation, oldest first.
+    func thread(_ threadId: String) async throws -> [Email] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([
+            ["Thread/get", ["accountId": acc, "ids": [threadId]], "t"],
+            ["Email/get", ["accountId": acc, "#ids": ["resultOf": "t", "name": "Thread/get", "path": "/list/*/emailIds"],
+                           "properties": Email.listProperties], "g"]
+        ])
+        let list = try Self.decode([Email].self, from: r["g"]?["list"])
+        return list.sorted { $0.date < $1.date }
+    }
+
+    /// The plain text of one email, for quoting in replies and forwards.
     func body(of id: String) async throws -> String {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         let r = try await call([["Email/get", ["accountId": acc, "ids": [id],
@@ -178,18 +178,18 @@ final class JMAPClient: @unchecked Sendable {
         let parts = (first["textBody"] as? [[String: Any]]) ?? []
         let values = (first["bodyValues"] as? [String: [String: Any]]) ?? [:]
         let text = parts.compactMap { $0["partId"] as? String }.compactMap { values[$0]?["value"] as? String }.joined(separator: "\n\n")
-        return Quote.newText(text)
+        return text.replacingOccurrences(of: "\r\n", with: "\n")
     }
 
     /// The email as a reader sees it: its HTML (or its plain text turned into HTML), with pictures sent inside the
     /// email (cid: links) swapped for data: addresses so they show without any further fetching.
-    func page(of id: String) async throws -> String {
+    func page(of id: String) async throws -> (html: String, attachments: [Attachment]) {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         let r = try await call([["Email/get", ["accountId": acc, "ids": [id],
                                                "properties": ["htmlBody", "textBody", "bodyValues", "attachments"],
                                                "bodyProperties": ["partId", "blobId", "type", "cid", "name", "size"],
                                                "fetchHTMLBodyValues": true, "maxBodyValueBytes": 2_000_000], "p"]])
-        guard let first = (r["p"]?["list"] as? [[String: Any]])?.first else { return "" }
+        guard let first = (r["p"]?["list"] as? [[String: Any]])?.first else { return ("", []) }
         let values = (first["bodyValues"] as? [String: [String: Any]]) ?? [:]
         let parts = (first["htmlBody"] as? [[String: Any]]) ?? (first["textBody"] as? [[String: Any]]) ?? []
         var html = ""
@@ -199,16 +199,24 @@ final class JMAPClient: @unchecked Sendable {
             else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
         }
         // Pictures inside the email, linked by cid:, become data: addresses.
-        let inline = ((first["attachments"] as? [[String: Any]]) ?? []) + parts
-        for part in inline {
+        let files = (first["attachments"] as? [[String: Any]]) ?? []
+        var used = Set<String>()
+        for part in files + parts {
             guard var cid = part["cid"] as? String, let blobId = part["blobId"] as? String,
                   let type = part["type"] as? String, type.lowercased().hasPrefix("image/"),
                   (part["size"] as? Int ?? 0) < 5_000_000 else { continue }
             cid = cid.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
             guard html.contains("cid:\(cid)"), let data = try? await download(blobId: blobId, type: type) else { continue }
             html = html.replacingOccurrences(of: "cid:\(cid)", with: "data:\(type);base64,\(data.base64EncodedString())")
+            used.insert(blobId)
         }
-        return html
+        // Files to open or save: everything attached, except pictures already shown inside the email.
+        let attachments: [Attachment] = files.compactMap { f in
+            guard let blobId = f["blobId"] as? String, !used.contains(blobId) else { return nil }
+            let type = (f["type"] as? String) ?? "application/octet-stream"
+            return Attachment(blobId: blobId, name: (f["name"] as? String) ?? "Attachment", type: type, size: (f["size"] as? Int) ?? 0)
+        }
+        return (html, attachments)
     }
 
     /// Fetches a file the server holds (an attachment or a picture) with the account's token.
@@ -241,7 +249,7 @@ final class JMAPClient: @unchecked Sendable {
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent.
     func send(from identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String,
-              inReplyTo: String?, drafts: String, sent: String) async throws {
+              inReplyTo: String?, references: [String] = [], drafts: String, sent: String) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var draft: [String: Any] = [
             "mailboxIds": [drafts: true],
@@ -253,7 +261,7 @@ final class JMAPClient: @unchecked Sendable {
             "textBody": [["partId": "body", "type": "text/plain"]]
         ]
         if !cc.isEmpty { draft["cc"] = cc.map { ["name": $0.name ?? "", "email": $0.email] } }
-        if let inReplyTo { draft["inReplyTo"] = [inReplyTo]; draft["references"] = [inReplyTo] }
+        if let inReplyTo { draft["inReplyTo"] = [inReplyTo]; draft["references"] = references + [inReplyTo] }
         let r = try await call([
             ["Email/set", ["accountId": acc, "create": ["draft": draft]], "c"],
             ["EmailSubmission/set", ["accountId": acc,

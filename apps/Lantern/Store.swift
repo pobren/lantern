@@ -1,5 +1,5 @@
-// The app's state: the accounts, what's in each inbox, and the actions (read, done, later, send).
-// Lists come from every account together; each item remembers which account it belongs to.
+// The app's state: the accounts and their folders, the list on screen, the open conversation, and every action
+// (read, star, archive, move, delete, send). Lists can mix accounts; each item remembers where it came from.
 
 import Foundation
 import SwiftUI
@@ -12,14 +12,21 @@ struct Account: Codable, Identifiable, Hashable {
     var username: String
 
     var colour: Color { kind == "fastmail" ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
-    var label: String { kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : username }
+    var kindName: String { kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
+    var label: String { username.isEmpty ? (kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "Mail") : username }
 }
 
-/// One email, with the account it came from.
+/// One email (in a list, the newest of its conversation), with the account it came from.
 struct Item: Identifiable, Hashable {
     let account: Account
     let email: Email
     var id: String { account.id + "/" + email.id }
+}
+
+/// What the middle column shows: every inbox together, or one folder of one account.
+enum Folder: Hashable {
+    case allInboxes
+    case mailbox(account: String, id: String)
 }
 
 @MainActor
@@ -29,7 +36,6 @@ final class AccountState: ObservableObject, Identifiable {
     @Published var mailboxes: [Mailbox] = []
     @Published var identities: [Identity] = []
     @Published var inbox: [Email] = []
-    @Published var sent: [Email] = []
     var id: String { account.id }
 
     init(account: Account, client: JMAPClient) {
@@ -38,25 +44,51 @@ final class AccountState: ObservableObject, Identifiable {
     }
 
     func box(_ role: String) -> Mailbox? { mailboxes.first { $0.role == role } }
+    func box(id: String) -> Mailbox? { mailboxes.first { $0.id == id } }
+
+    /// Folders in sidebar order, each with how deep it sits under its parents.
+    var tree: [FolderEntry] {
+        var out: [FolderEntry] = []
+        func add(_ parent: String?, _ depth: Int) {
+            let children = mailboxes.filter { $0.parentId == parent }
+                .sorted { ($0.rank, $0.sortOrder ?? 0, $0.name.lowercased()) < ($1.rank, $1.sortOrder ?? 0, $1.name.lowercased()) }
+            for c in children {
+                out.append(FolderEntry(box: c, depth: depth))
+                add(c.id, depth + 1)
+            }
+        }
+        add(nil, 0)
+        return out
+    }
+}
+
+/// A folder in the sidebar, with how far it is indented under its parents.
+struct FolderEntry: Identifiable {
+    let box: Mailbox
+    let depth: Int
+    var id: String { box.id }
 }
 
 @MainActor
 final class Store: ObservableObject {
     @Published var accounts: [AccountState] = []
-    @Published var loading = false
     @Published var problem: String?
-    @Published var bodies: [String: String] = [:]
-    @Published var laterUntil: [String: Date] = [:]
-    @Published var focusDone = 0
+
+    // The middle column.
+    @Published var folder: Folder = .allInboxes
+    @Published var list: [Item] = []
+    @Published var listLoading = false
+    @Published var search = ""
+    private var listLimit = 100
+    @Published var mayHaveMore = false
+
+    // The reading pane.
+    @Published var selection: Item.ID?
 
     private var listeners: [String: Task<Void, Never>] = [:]
     private let savedKey = "accounts"
-    private let laterKey = "later"
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: laterKey), let saved = try? JSONDecoder().decode([String: Date].self, from: data) {
-            laterUntil = saved.filter { $0.value > Date() }
-        }
         guard let data = UserDefaults.standard.data(forKey: savedKey),
               let saved = try? JSONDecoder().decode([Account].self, from: data) else { return }
         for account in saved {
@@ -66,6 +98,9 @@ final class Store: ObservableObject {
     }
 
     var hasAccounts: Bool { !accounts.isEmpty }
+    func state(for account: Account) -> AccountState? { accounts.first { $0.id == account.id } }
+    func state(id: String) -> AccountState? { accounts.first { $0.id == id } }
+    var selectedItem: Item? { list.first { $0.id == selection } }
 
     // MARK: Accounts
 
@@ -77,15 +112,17 @@ final class Store: ObservableObject {
             session = session.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/.well-known/jmap"
         }
         guard let url = URL(string: session) else { throw JMAPError.badServer }
-        let client = JMAPClient(sessionURL: url, token: token.trimmingCharacters(in: .whitespacesAndNewlines))
+        let secret = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        let client = JMAPClient(sessionURL: url, token: secret)
         let s = try await client.connect()
         let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: session, username: s.username)
-        Keychain.save(account.id, token.trimmingCharacters(in: .whitespacesAndNewlines))
+        Keychain.save(account.id, secret)
         let state = AccountState(account: account, client: client)
         accounts.append(state)
         save()
         await load(state)
         listen(state)
+        await reloadList()
     }
 
     func remove(_ state: AccountState) {
@@ -93,7 +130,9 @@ final class Store: ObservableObject {
         listeners[state.id] = nil
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
+        if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }
         save()
+        Task { await reloadList() }
     }
 
     private func save() {
@@ -108,21 +147,20 @@ final class Store: ObservableObject {
     }
 
     func refresh() async {
-        loading = true
-        defer { loading = false }
-        for state in accounts { await load(state) }
+        await withTaskGroup(of: Void.self) { group in
+            for state in accounts { group.addTask { await self.load(state) } }
+        }
+        await reloadList()
     }
 
+    /// Folders, addresses and the inbox for one account.
     private func load(_ state: AccountState) async {
         do {
             if state.client.session == nil { try await state.client.connect() }
             state.mailboxes = try await state.client.mailboxes()
             if state.identities.isEmpty { state.identities = (try? await state.client.identities()) ?? [] }
             if let inbox = state.box("inbox") {
-                state.inbox = try await state.client.emails(filter: ["inMailbox": inbox.id], limit: 150)
-            }
-            if let sent = state.box("sent") {
-                state.sent = try await state.client.emails(filter: ["inMailbox": sent.id], limit: 100)
+                state.inbox = try await state.client.emails(filter: ["inMailbox": inbox.id], limit: 100)
             }
             problem = nil
         } catch {
@@ -138,135 +176,224 @@ final class Store: ObservableObject {
         let id = state.id
         listeners[id] = Task { [weak self] in
             await client.listen { [weak self] in
-                await self?.reload(id)
+                await self?.changed(id)
             }
         }
     }
 
-    private func reload(_ id: String) async {
-        guard let state = accounts.first(where: { $0.id == id }) else { return }
+    private func changed(_ id: String) async {
+        guard let state = state(id: id) else { return }
         await load(state)
+        switch folder {
+        case .allInboxes: await reloadList(quietly: true)
+        case .mailbox(let account, _) where account == id: await reloadList(quietly: true)
+        default: break
+        }
     }
 
-    // MARK: What the screens show
+    // MARK: The list
 
-    var inboxItems: [Item] {
-        accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
-            .filter { (laterUntil[$0.id] ?? .distantPast) < Date() }
-            .sorted { $0.email.date > $1.email.date }
+    func open(_ f: Folder) async {
+        guard f != folder || list.isEmpty else { return }
+        folder = f
+        selection = nil
+        list = []
+        listLimit = 100
+        await reloadList()
     }
 
-    func pile(_ p: Pile) -> [Item] { inboxItems.filter { Pile.of($0.email) == p } }
-
-    /// What's waiting on you: unread first, then anything in the last two days you haven't dealt with.
-    var needsYou: [Item] {
-        pile(.needsYou).filter { $0.email.isUnread || $0.email.isFlagged || $0.email.date > Date().addingTimeInterval(-2 * 86_400) }
+    func loadMore() async {
+        guard mayHaveMore, !listLoading else { return }
+        listLimit += 100
+        await reloadList(quietly: true)
     }
 
-    /// Focus mode works through unread mail, oldest first, one at a time.
-    var focusQueue: [Item] { inboxItems.filter { $0.email.isUnread }.sorted { $0.email.date < $1.email.date } }
-
-    /// People you write with, from the inbox and Sent, newest conversation first. Newsletters and robots stay out.
-    var people: [Person] {
-        var byEmail: [String: Person] = [:]
-        for s in accounts {
-            let mine = Set(s.identities.map { $0.email.lowercased() } + [s.account.username.lowercased()])
-            for e in s.inbox where !e.isBulk && !e.isAutomated {
-                let key = e.sender.email.lowercased()
-                guard !key.isEmpty, !mine.contains(key) else { continue }
-                byEmail[key, default: Person(address: e.sender, emails: [])].emails.append(e)
-            }
-            for e in s.sent {
-                for to in (e.to ?? []) {
-                    let key = to.email.lowercased()
-                    guard !mine.contains(key) else { continue }
-                    byEmail[key, default: Person(address: to, emails: [])].emails.append(e)
+    /// Fetches the middle column again: the folder on screen, narrowed by the search box if anything is typed in it.
+    func reloadList(quietly: Bool = false) async {
+        if !quietly { listLoading = true }
+        defer { listLoading = false }
+        let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wanted = folder
+        var items: [Item] = []
+        switch wanted {
+        case .allInboxes:
+            if words.isEmpty && listLimit <= 100 {
+                items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
+            } else {
+                for s in accounts {
+                    guard let inbox = s.box("inbox") else { continue }
+                    var filter: [String: Any] = ["inMailbox": inbox.id]
+                    if !words.isEmpty { filter["text"] = words }
+                    do {
+                        items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
+                    } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
                 }
             }
+        case .mailbox(let accountId, let boxId):
+            guard let s = state(id: accountId) else { break }
+            var filter: [String: Any] = ["inMailbox": boxId]
+            if !words.isEmpty { filter["text"] = words }
+            do {
+                items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
+            } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
         }
-        return byEmail.values.filter { p in p.emails.contains { !$0.mailboxIds.isEmpty } }
-            .sorted { ($0.latest?.date ?? .distantPast) > ($1.latest?.date ?? .distantPast) }
+        guard wanted == folder else { return }       // the person moved on while this was loading
+        list = items.sorted { $0.email.date > $1.email.date }
+        mayHaveMore = items.count >= listLimit
     }
 
-    func isMine(_ e: Email) -> Bool {
-        accounts.contains { s in
-            let mine = Set(s.identities.map { $0.email.lowercased() } + [s.account.username.lowercased()])
-            return mine.contains(e.sender.email.lowercased())
+    var folderTitle: String {
+        switch folder {
+        case .allInboxes: return accounts.count > 1 ? "All inboxes" : "Inbox"
+        case .mailbox(let a, let id): return state(id: a)?.box(id: id)?.name ?? "Mail"
         }
     }
 
-    func state(for account: Account) -> AccountState? { accounts.first { $0.id == account.id } }
+    /// Unread across every inbox, for the sidebar and the Dock.
+    var unreadInboxes: Int {
+        accounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
+    }
+
+    /// The folder an item is being looked at in, so archive and move know where to take it from.
+    private func source(for item: Item, in s: AccountState) -> Mailbox? {
+        if case .mailbox(let a, let id) = folder, a == s.id { return s.box(id: id) }
+        return s.box("inbox")
+    }
+
+    // MARK: Reading
+
+    private var pages: [String: (html: String, attachments: [Attachment])] = [:]
+
+    func conversation(_ item: Item) async -> [Email] {
+        guard let s = state(for: item.account) else { return [item.email] }
+        let all = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
+        // Keep drafts and anything in the bin out of a conversation, unless that's where you're looking.
+        let trash = s.box("trash")?.id
+        let lookingInTrash = source(for: item, in: s)?.role == "trash"
+        let shown = all.filter { e in !e.isDraft && (lookingInTrash || trash == nil || e.mailboxIds.keys.contains { $0 != trash }) }
+        return shown.isEmpty ? [item.email] : shown
+    }
+
+    /// The email laid out as its sender designed it, plus its attachments.
+    func page(_ email: Email, account: Account) async -> (html: String, attachments: [Attachment])? {
+        let key = account.id + "/" + email.id
+        if let cached = pages[key] { return cached }
+        guard let s = state(for: account), let page = try? await s.client.page(of: email.id) else { return nil }
+        pages[key] = page
+        return page
+    }
+
+    func text(_ email: Email, account: Account) async -> String {
+        guard let s = state(for: account) else { return email.preview ?? "" }
+        return (try? await s.client.body(of: email.id)) ?? (email.preview ?? "")
+    }
+
+    /// Saves an attachment to a temporary file, ready to preview or share.
+    func file(_ a: Attachment, account: Account) async -> URL? {
+        guard let s = state(for: account) else { return nil }
+        do {
+            let data = try await s.client.download(blobId: a.blobId, type: a.type)
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(a.blobId, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let safe = a.name.replacingOccurrences(of: "/", with: "-")
+            let url = folder.appendingPathComponent(safe.isEmpty ? "Attachment" : safe)
+            try data.write(to: url)
+            return url
+        } catch {
+            problem = "Couldn't open \(a.name): \(error.localizedDescription)"
+            return nil
+        }
+    }
 
     // MARK: Actions
 
-    func body(_ item: Item) async -> String {
-        if let cached = bodies[item.id] { return cached }
-        guard let s = state(for: item.account) else { return item.email.preview ?? "" }
-        let text = (try? await s.client.body(of: item.email.id)) ?? (item.email.preview ?? "")
-        bodies[item.id] = text
-        return text
+    func markRead(_ emails: [Email], account: Account) async {
+        let ids = emails.filter(\.isUnread).map(\.id)
+        guard !ids.isEmpty, let s = state(for: account) else { return }
+        replace(account: account, ids: Set(ids)) { $0.with(keyword: "$seen", on: true) }
+        await act(s, reloadList: false) {
+            try await s.client.update(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$seen": true] as [String: Any]) }))
+        }
     }
 
-    private var pages: [String: String] = [:]
-
-    /// The email laid out as its sender designed it, for the reading view.
-    func page(_ item: Item) async -> String? {
-        if let cached = pages[item.id] { return cached }
-        guard let s = state(for: item.account), let html = try? await s.client.page(of: item.email.id), !html.isEmpty else { return nil }
-        pages[item.id] = html
-        return html
-    }
-
-    func markRead(_ item: Item) async {
-        guard item.email.isUnread, let s = state(for: item.account) else { return }
-        await act(s) { try await s.client.update([item.email.id: ["keywords/$seen": true]]) }
-    }
-
-    /// Done = read and out of the inbox, into Archive.
-    func done(_ item: Item) async {
-        guard let s = state(for: item.account), let inbox = s.box("inbox") else { return }
-        var patch: [String: Any] = ["keywords/$seen": true, "mailboxIds/\(inbox.id)": NSNull()]
-        if let archive = s.box("archive") { patch["mailboxIds/\(archive.id)"] = true }
-        s.inbox.removeAll { $0.id == item.email.id }
-        await act(s) { try await s.client.update([item.email.id: patch]) }
+    func setUnread(_ item: Item, _ unread: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        replace(account: item.account, ids: [item.email.id]) { $0.with(keyword: "$seen", on: !unread) }
+        await act(s, reloadList: false) { try await s.client.update([item.email.id: ["keywords/$seen": unread ? NSNull() as Any : true as Any]]) }
     }
 
     func flag(_ item: Item) async {
         guard let s = state(for: item.account) else { return }
-        await act(s) { try await s.client.update([item.email.id: ["keywords/$flagged": item.email.isFlagged ? NSNull() : true]]) }
+        let on = !item.email.isFlagged
+        replace(account: item.account, ids: [item.email.id]) { $0.with(keyword: "$flagged", on: on) }
+        await act(s, reloadList: false) { try await s.client.update([item.email.id: ["keywords/$flagged": on ? true as Any : NSNull() as Any]]) }
+    }
+
+    func archive(_ item: Item) async {
+        guard let s = state(for: item.account) else { return }
+        guard let archive = s.box("archive") else { problem = "\(item.account.label) has no Archive folder."; return }
+        await move(item, to: archive)
     }
 
     func delete(_ item: Item) async {
-        guard let s = state(for: item.account), let inbox = s.box("inbox"), let trash = s.box("trash") else { return }
-        s.inbox.removeAll { $0.id == item.email.id }
-        await act(s) { try await s.client.update([item.email.id: ["mailboxIds/\(inbox.id)": NSNull(), "mailboxIds/\(trash.id)": true]]) }
+        guard let s = state(for: item.account), let trash = s.box("trash") else { return }
+        if source(for: item, in: s)?.id == trash.id {
+            problem = "That conversation is already in the bin."
+            return
+        }
+        await move(item, to: trash)
     }
 
-    /// Later = out of sight until tomorrow morning at 8, then back in Today and Focus.
-    func putOff(_ item: Item) {
-        let cal = Calendar.current
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: Date())) ?? Date()
-        laterUntil[item.id] = cal.date(byAdding: .hour, value: 8, to: tomorrow)
-        if let data = try? JSONEncoder().encode(laterUntil) { UserDefaults.standard.set(data, forKey: laterKey) }
-    }
-
-    func markAllSeen(_ items: [Item]) async {
-        for s in accounts {
-            let ids = items.filter { $0.account.id == s.id && $0.email.isUnread }.map(\.email.id)
-            guard !ids.isEmpty else { continue }
-            await act(s) { try await s.client.update(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$seen": true] as [String: Any]) })) }
+    /// Moves the whole conversation out of the folder you're looking at and into another one.
+    func move(_ item: Item, to target: Mailbox) async {
+        guard let s = state(for: item.account), let from = source(for: item, in: s), from.id != target.id else { return }
+        let thread = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
+        let ids = thread.filter { $0.mailboxIds[from.id] == true }.map(\.id)
+        let patch: [String: Any] = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true]
+        takeOut(item)
+        if from.role == "inbox" { s.inbox.removeAll { $0.threadId == item.email.threadId } }
+        await act(s, reloadList: false) {
+            try await s.client.update(Dictionary(uniqueKeysWithValues: (ids.isEmpty ? [item.email.id] : ids).map { ($0, patch) }))
         }
     }
 
     func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String, replyTo: Email?) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         try await s.client.send(from: identity, to: to, cc: cc, subject: subject, text: text,
-                                inReplyTo: replyTo?.messageId?.first, drafts: drafts.id, sent: sent.id)
+                                inReplyTo: replyTo?.messageId?.first, references: replyTo?.references ?? [],
+                                drafts: drafts.id, sent: sent.id)
         await load(s)
     }
 
-    private func act(_ s: AccountState, _ work: () async throws -> Void) async {
+    /// Takes an item off the list and moves the selection to the next one down, the way a mail app should.
+    private func takeOut(_ item: Item) {
+        guard let i = list.firstIndex(where: { $0.id == item.id }) else { return }
+        let wasSelected = selection == item.id
+        list.remove(at: i)
+        if wasSelected { selection = i < list.count ? list[i].id : list.last?.id }
+    }
+
+    /// Changes emails on screen straight away, before the server confirms.
+    private func replace(account: Account, ids: Set<String>, _ change: (Email) -> Email) {
+        list = list.map { $0.account.id == account.id && ids.contains($0.email.id) ? Item(account: account, email: change($0.email)) : $0 }
+        if let s = state(for: account) { s.inbox = s.inbox.map { ids.contains($0.id) ? change($0) : $0 } }
+    }
+
+    private func act(_ s: AccountState, reloadList again: Bool = true, _ work: () async throws -> Void) async {
         do { try await work() } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
-        await load(s)
+        // Unread counts and folders come back from the server; the list itself was already changed on screen.
+        if let boxes = try? await s.client.mailboxes() { s.mailboxes = boxes; objectWillChange.send() }
+        if again { await reloadList(quietly: true) }
+    }
+}
+
+extension Email {
+    /// A copy with one keyword set or cleared.
+    func with(keyword: String, on: Bool) -> Email {
+        var k = keywords ?? [:]
+        if on { k[keyword] = true } else { k.removeValue(forKey: keyword) }
+        return Email(id: id, threadId: threadId, mailboxIds: mailboxIds, keywords: k, from: from, to: to, cc: cc,
+                     replyTo: replyTo, subject: subject, preview: preview, receivedAt: receivedAt,
+                     hasAttachment: hasAttachment, messageId: messageId, references: references)
     }
 }
