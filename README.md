@@ -2,7 +2,7 @@
 
 A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app for Mac, iPhone and iPad, and it works with any other JMAP server too.
 
-## What's in version 0.2
+## What's in version 0.3
 
 - The layout people expect: folders on the left, conversations in the middle, the open conversation on the right. On iPhone the three columns become three screens.
 - All inboxes together, or any folder of any account, with unread counts.
@@ -10,7 +10,9 @@ A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app
 - Reply, reply all and forward (with the original quoted), from any of your addresses.
 - Archive, delete, move to a folder, star, mark as read or unread. Swipe on iPhone, right click or keyboard on Mac.
 - Search, pull to refresh, and more mail as you scroll.
-- Attachments open in Quick Look.
+- Attachments open in Quick Look. Attach files (and photos on iPhone) when you write, or drag them in on Mac.
+- Signatures per address, saved to your account so they match everywhere.
+- New mail notifications and an unread badge. Instant on Mac while Lantern is open; on iPhone and iPad, background checks when iOS allows.
 - Emails show as their senders designed them, with scripts blocked and pictures from the web optional.
 - New mail arrives instantly over JMAP push.
 - Tokens are kept in the keychain. Mail goes straight from your device to your provider; there is no Lantern server.

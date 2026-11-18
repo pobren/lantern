@@ -76,7 +76,17 @@ struct Identity: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let email: String
+    var textSignature: String?
     var label: String { name.isEmpty ? email : "\(name) <\(email)>" }
+}
+
+/// A file you've added to an email you're writing, once it's on the server.
+struct Outgoing: Identifiable, Hashable {
+    let blobId: String
+    let name: String
+    let type: String
+    let size: Int
+    var id: String { blobId }
 }
 
 /// A file attached to an email.

@@ -161,12 +161,19 @@ final class Store: ObservableObject {
             if state.identities.isEmpty { state.identities = (try? await state.client.identities()) ?? [] }
             if let inbox = state.box("inbox") {
                 state.inbox = try await state.client.emails(filter: ["inMailbox": inbox.id], limit: 100)
+                Notifier.newMail(in: state.inbox, account: state.account)
             }
             problem = nil
         } catch {
             problem = "\(state.account.label): \(error.localizedDescription)"
         }
         objectWillChange.send()
+        Notifier.badge(unreadInboxes)
+    }
+
+    /// For iPhone and iPad in the background: check every inbox once, notify about anything new, update the badge.
+    func backgroundCheck() async {
+        for state in accounts { await load(state) }
     }
 
     /// New mail arrives instantly: the server tells us over JMAP push and we fetch again.
@@ -357,12 +364,38 @@ final class Store: ObservableObject {
         }
     }
 
-    func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String, replyTo: Email?) async throws {
+    func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String,
+              replyTo: Email?, attachments: [Outgoing] = []) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         try await s.client.send(from: identity, to: to, cc: cc, subject: subject, text: text,
                                 inReplyTo: replyTo?.messageId?.first, references: replyTo?.references ?? [],
-                                drafts: drafts.id, sent: sent.id)
+                                attachments: attachments, drafts: drafts.id, sent: sent.id)
         await load(s)
+    }
+
+    /// Puts a file on the account's server, ready to attach. Big files are turned away before they're sent.
+    func attach(_ data: Data, name: String, type: String, account: Account) async throws -> Outgoing {
+        guard let s = state(for: account) else { throw JMAPError.missing("an account") }
+        guard data.count <= 25_000_000 else { throw AttachError.tooBig(name) }
+        let blobId = try await s.client.upload(data, type: type)
+        return Outgoing(blobId: blobId, name: name, type: type, size: data.count)
+    }
+
+    // MARK: Signatures
+
+    func signature(for identity: Identity) -> String {
+        (identity.textSignature ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func saveSignature(_ text: String, identity: Identity, account: Account) async {
+        guard let s = state(for: account) else { return }
+        do {
+            try await s.client.setSignature(identityId: identity.id, text: text)
+            s.identities = (try? await s.client.identities()) ?? s.identities
+            objectWillChange.send()
+        } catch {
+            problem = "Couldn't save the signature: \(error.localizedDescription)"
+        }
     }
 
     /// Takes an item off the list and moves the selection to the next one down, the way a mail app should.
@@ -384,6 +417,13 @@ final class Store: ObservableObject {
         // Unread counts and folders come back from the server; the list itself was already changed on screen.
         if let boxes = try? await s.client.mailboxes() { s.mailboxes = boxes; objectWillChange.send() }
         if again { await reloadList(quietly: true) }
+    }
+}
+
+enum AttachError: LocalizedError {
+    case tooBig(String)
+    var errorDescription: String? {
+        switch self { case .tooBig(let name): return "\(name) is over 25 MB, too big to email." }
     }
 }
 

@@ -1,10 +1,20 @@
 // Lantern: a clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app for Mac, iPhone and iPad.
 
 import SwiftUI
+import UserNotifications
+#if os(iOS)
+import BackgroundTasks
+#endif
 
 @main
 struct LanternApp: App {
     @StateObject private var store = Store()
+    @Environment(\.scenePhase) private var phase
+    static let refreshTask = "dev.paulobrien.lantern.refresh"
+
+    init() {
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+    }
 
     var body: some Scene {
         #if os(macOS)
@@ -29,13 +39,30 @@ struct LanternApp: App {
         WindowGroup {
             window
         }
+        .onChange(of: phase) { _, now in
+            if now == .background { Self.scheduleRefresh() }
+        }
+        .backgroundTask(.appRefresh(Self.refreshTask)) {
+            Self.scheduleRefresh()
+            await store.backgroundCheck()
+        }
         #endif
     }
+
+    #if os(iOS)
+    /// Asks iOS to wake Lantern to check for mail in about 15 minutes. iOS decides the real time.
+    static func scheduleRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: refreshTask)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+    #endif
 
     private var window: some View {
         RootView()
             .environmentObject(store)
             .tint(Look.accent)
+            .task { await Notifier.ask() }
     }
 }
 

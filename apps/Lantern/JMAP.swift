@@ -234,6 +234,33 @@ final class JMAPClient: @unchecked Sendable {
         return data
     }
 
+    /// Sends a file to the server and returns its blob id, for attaching to an email.
+    func upload(_ data: Data, type: String) async throws -> String {
+        if session == nil { try await connect() }
+        guard let s = session, let acc = accountId else { throw JMAPError.missing("an account") }
+        let enc = acc.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? acc
+        guard let url = URL(string: s.uploadUrl.replacingOccurrences(of: "{accountId}", with: enc)) else { throw JMAPError.badServer }
+        var r = request(url, method: "POST", body: data, contentType: type)
+        r.timeoutInterval = 300
+        let (out, response) = try await http.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 || code == 201 else { throw JMAPError.http(code) }
+        guard let root = try JSONSerialization.jsonObject(with: out) as? [String: Any], let blobId = root["blobId"] as? String else {
+            throw JMAPError.missing("the uploaded file")
+        }
+        return blobId
+    }
+
+    /// Saves the plain text signature for one of your addresses on the server, so every app shows the same one.
+    func setSignature(identityId: String, text: String) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Identity/set", ["accountId": acc, "update": [identityId: ["textSignature": text]]], "s"]],
+                               using: [Self.core, Self.mail, Self.submission])
+        if let failed = r["s"]?["notUpdated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notUpdated", first["description"] as? String)
+        }
+    }
+
     static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
@@ -249,7 +276,8 @@ final class JMAPClient: @unchecked Sendable {
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent.
     func send(from identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String,
-              inReplyTo: String?, references: [String] = [], drafts: String, sent: String) async throws {
+              inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
+              drafts: String, sent: String) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var draft: [String: Any] = [
             "mailboxIds": [drafts: true],
@@ -260,6 +288,9 @@ final class JMAPClient: @unchecked Sendable {
             "bodyValues": ["body": ["value": text]],
             "textBody": [["partId": "body", "type": "text/plain"]]
         ]
+        if !attachments.isEmpty {
+            draft["attachments"] = attachments.map { ["blobId": $0.blobId, "type": $0.type, "name": $0.name, "disposition": "attachment"] }
+        }
         if !cc.isEmpty { draft["cc"] = cc.map { ["name": $0.name ?? "", "email": $0.email] } }
         if let inReplyTo { draft["inReplyTo"] = [inReplyTo]; draft["references"] = references + [inReplyTo] }
         let r = try await call([

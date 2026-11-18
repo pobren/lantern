@@ -9,7 +9,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "0.2"
+    MARKETING_VERSION: "0.3"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
@@ -20,6 +20,11 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Lantern
+    info:
+      path: Lantern/Info.plist
+      properties:
+        BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
+        UIBackgroundModes: [fetch]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern

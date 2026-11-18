@@ -110,9 +110,30 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var adding: ServerKind?
     @AppStorage("remoteImages") private var remoteImages = true
+    @AppStorage(Notifier.enabledKey) private var notify = true
+    @AppStorage(Notifier.badgeKey) private var badge = true
 
     var body: some View {
         Form {
+            Section("Notifications") {
+                Toggle("Tell me about new mail", isOn: $notify)
+                    .onChange(of: notify) { _, on in if on { Task { await Notifier.ask() } } }
+                Toggle("Show the unread count on the app icon", isOn: $badge)
+                    .onChange(of: badge) { _, _ in Notifier.badge(store.unreadInboxes) }
+                #if os(iOS)
+                Text("iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
+                    .font(.caption).foregroundStyle(.secondary)
+                #endif
+            }
+            Section("Signatures") {
+                ForEach(store.accounts) { s in
+                    ForEach(s.identities) { identity in
+                        SignatureRow(identity: identity, account: s.account)
+                    }
+                }
+                Text("Signatures are saved to your account, so they match on the web and in other apps.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Reading") {
                 Toggle("Load pictures from the web in emails", isOn: $remoteImages)
                 Text("Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.")
@@ -139,7 +160,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         #if os(macOS)
-        .frame(width: 460, height: 420)
+        .frame(width: 500, height: 620)
         #else
         .safeAreaInset(edge: .top) {
             HStack {
@@ -151,5 +172,40 @@ struct SettingsView: View {
         }
         #endif
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
+    }
+}
+
+/// One address's signature, edited in place and saved to the account when you press Save.
+struct SignatureRow: View {
+    @EnvironmentObject var store: Store
+    let identity: Identity
+    let account: Account
+    @State private var text = ""
+    @State private var saving = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(identity.label).font(.callout)
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .frame(minHeight: 70)
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
+            HStack {
+                Spacer()
+                Button {
+                    Task {
+                        saving = true
+                        await store.saveSignature(text, identity: identity, account: account)
+                        saving = false
+                    }
+                } label: {
+                    if saving { ProgressView().controlSize(.small) } else { Label("Save", systemImage: "checkmark") }
+                }
+                .disabled(saving || text == (identity.textSignature ?? ""))
+            }
+        }
+        .onAppear { text = identity.textSignature ?? "" }
     }
 }
