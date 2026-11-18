@@ -1,0 +1,25 @@
+# Sends the App Store listing (text, screenshots, categories, price, review notes) to App Store Connect
+# and attaches a build to the iPhone and iPad version and the Mac version. It never submits for review.
+# Run it by hand from the Actions tab, giving the build number (for example 135).
+name: App Store listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Build number to attach (leave empty to only update the listing)"
+        required: false
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet pyjwt cryptography requests
+      - name: Fill in the listing
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          BUILD: ${{ inputs.build }}
+        run: python3 apps/store/asc_listing.py
