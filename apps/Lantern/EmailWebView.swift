@@ -82,7 +82,7 @@ struct EmailWebView: PlatformViewRepresentable {
                     #if os(macOS)
                     NSWorkspace.shared.open(url)
                     #else
-                    UIApplication.shared.open(url)
+                    await UIApplication.shared.open(url)
                     #endif
                 }
                 return .cancel
