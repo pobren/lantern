@@ -16,7 +16,7 @@ struct WelcomeView: View {
                 .background(RoundedRectangle(cornerRadius: 22).fill(Look.accent))
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
-                Text("Welcome to Lantern").font(.system(size: 28, weight: .semibold))
+                Text("Welcome to JMAP Connect").font(.system(size: 28, weight: .semibold))
                 Text("Your Mail App and Fastmail email in one fast, native app.")
                     .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 480)
             }

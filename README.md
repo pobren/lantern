@@ -1,4 +1,6 @@
-# Lantern
+# JMAP Connect
+
+(Formerly Lantern; the code and repository keep that name.)
 
 A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app for Mac, iPhone and iPad, and it works with any other JMAP server too.
 
@@ -12,10 +14,10 @@ A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app
 - Search, pull to refresh, and more mail as you scroll.
 - Attachments open in Quick Look. Attach files (and photos on iPhone) when you write, or drag them in on Mac.
 - Signatures per address, saved to your account so they match everywhere.
-- New mail notifications and an unread badge. Instant on Mac while Lantern is open; on iPhone and iPad, background checks when iOS allows.
+- New mail notifications and an unread badge. Instant on Mac while JMAP Connect is open; on iPhone and iPad, background checks when iOS allows.
 - Emails show as their senders designed them, with scripts blocked and pictures from the web optional.
 - New mail arrives instantly over JMAP push.
-- Tokens are kept in the keychain. Mail goes straight from your device to your provider; there is no Lantern server.
+- Tokens are kept in the keychain. Mail goes straight from your device to your provider; there is no JMAP Connect server.
 
 ## How it's built
 
@@ -26,8 +28,8 @@ A clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app
 
 ## Signing in
 
-Lantern signs in with an API token. In Fastmail, go to Settings, then Privacy and security, then Manage API tokens, and make a new token with access to Email and Email submission.
+JMAP Connect signs in with an API token. In Fastmail, go to Settings, then Privacy and security, then Manage API tokens, and make a new token with access to Email and Email submission.
 
 ## Licence
 
-Business Source License 1.1. See [LICENSE](LICENSE). Lantern is not affiliated with Fastmail.
+Business Source License 1.1. See [LICENSE](LICENSE). JMAP Connect is not affiliated with Fastmail.

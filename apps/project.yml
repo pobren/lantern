@@ -25,6 +25,7 @@ targets:
       properties:
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
+        CFBundleName: JMAP Connect    # the name in the Mac menu bar and Finder
         # Emails still link pictures over plain http; let the email viewer (only) load them like any mail app.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
@@ -36,7 +37,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Lantern
+        INFOPLIST_KEY_CFBundleDisplayName: JMAP Connect
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
