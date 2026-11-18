@@ -69,6 +69,7 @@ struct Sidebar: View {
     let settings: () -> Void
 
     @State private var naming: Naming?
+    @State private var inboxTargeted = false
     @State private var folderName = ""
 
     private var picked: Binding<Folder?> {
@@ -80,6 +81,13 @@ struct Sidebar: View {
             Section {
                 Label(store.accounts.count > 1 ? "All inboxes" : "Inbox", systemImage: "tray.2")
                     .badge(store.unreadInboxes)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(inboxTargeted ? Look.accent.opacity(0.22) : .clear).padding(-4))
+                    // Dropped here, a conversation goes back to its own account's inbox.
+                    .dropDestination(for: String.self) { ids, _ in
+                        let result = ids
+                        Task { await store.dropOnInboxes(result) }
+                        return true
+                    } isTargeted: { inboxTargeted = $0 }
                     .tag(Folder.allInboxes)
             }
             ForEach(store.accounts) { s in

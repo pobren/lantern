@@ -432,6 +432,14 @@ final class Store: ObservableObject {
         return !items.isEmpty
     }
 
+    /// Conversations dropped on Inbox (or All inboxes): each goes to its own account's inbox.
+    func dropOnInboxes(_ ids: [String]) async {
+        for id in ids {
+            guard let item = list.first(where: { $0.id == id }), let s = state(for: item.account), let inbox = s.box("inbox") else { continue }
+            await move(item, to: inbox)
+        }
+    }
+
     // MARK: Opening and saving one email
 
     /// An email for its own window: from the list if it's there, otherwise fetched.
