@@ -162,8 +162,30 @@ struct MessageList: View {
         .listStyle(.plain)
         .overlay { if store.listLoading && store.list.isEmpty { ProgressView() } }
         .navigationTitle(store.folderTitle)
+        #if os(macOS)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Search", text: $store.search)
+                        .textFieldStyle(.plain)
+                        .onSubmit { Task { await store.reloadList() } }
+                    if !store.search.isEmpty {
+                        Button { store.search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
+                    }
+                }
+                .padding(.horizontal, 9).frame(height: 30)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                Divider()
+            }
+            .background(.bar)
+        }
+        #else
         .searchable(text: $store.search, prompt: "Search")
         .onSubmit(of: .search) { Task { await store.reloadList() } }
+        #endif
         .onChange(of: store.search) { _, words in
             if words.isEmpty { Task { await store.reloadList() } }
         }
