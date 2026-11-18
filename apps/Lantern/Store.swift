@@ -356,7 +356,7 @@ final class Store: ObservableObject {
     func archive(_ item: Item) async {
         guard let s = state(for: item.account) else { return }
         guard let archive = s.box("archive") else { problem = "\(item.account.label) has no Archive folder."; return }
-        await move(item, to: archive)
+        await move(item, to: archive, keepLabels: true)
     }
 
     func delete(_ item: Item) async {
@@ -384,15 +384,34 @@ final class Store: ObservableObject {
     }
 
     /// Moves the whole conversation out of the folder you're looking at and into another one.
-    func move(_ item: Item, to target: Mailbox, also extra: [String: Any] = [:]) async {
+    /// Works the same whether someone uses Fastmail with folders or with labels, where one email can sit in
+    /// several mailboxes at once:
+    /// - Bin and Spam take every label off, so a binned email doesn't linger under its other labels.
+    /// - Archive (keepLabels) only takes the Inbox label off, and files it in Archive when nothing else is left.
+    /// - Any other move swaps the label you're looking at for the new one and keeps the rest.
+    /// With folders an email is only ever in one mailbox, so all three come out the same as a plain move.
+    func move(_ item: Item, to target: Mailbox, also extra: [String: Any] = [:], keepLabels: Bool = false) async {
         guard let s = state(for: item.account), let from = source(for: item, in: s), from.id != target.id else { return }
         let thread = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
-        let ids = thread.filter { $0.mailboxIds[from.id] == true }.map(\.id)
-        let patch: [String: Any] = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true].merging(extra) { a, _ in a }
+        var emails = thread.filter { $0.mailboxIds[from.id] == true }
+        if emails.isEmpty { emails = [item.email] }
+        let exclusive = target.role == "trash" || target.role == "junk"
+        var patches: [String: [String: Any]] = [:]
+        for e in emails {
+            var patch: [String: Any]
+            if exclusive {
+                patch = ["mailboxIds": [target.id: true]]
+            } else if keepLabels && e.mailboxIds.keys.contains(where: { $0 != from.id && $0 != target.id }) {
+                patch = ["mailboxIds/\(from.id)": NSNull()]
+            } else {
+                patch = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true]
+            }
+            patches[e.id] = patch.merging(extra) { a, _ in a }
+        }
         takeOut(item)
-        if from.role == "inbox" { s.inbox.removeAll { $0.threadId == item.email.threadId } }
+        if from.role == "inbox" || exclusive { s.inbox.removeAll { $0.threadId == item.email.threadId } }
         await act(s, reloadList: false) {
-            try await s.client.update(Dictionary(uniqueKeysWithValues: (ids.isEmpty ? [item.email.id] : ids).map { ($0, patch) }))
+            try await s.client.update(patches)
         }
     }
 
