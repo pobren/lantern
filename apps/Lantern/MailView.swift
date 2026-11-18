@@ -40,6 +40,8 @@ struct RootView: View {
         let screen = Demo.screen ?? "email"
         #if os(macOS)
         let openEmail = true
+        if ProcessInfo.processInfo.arguments.contains("-JCDark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
+        print("JCDEBUG showing \(screen), \(store.list.count) emails"); fflush(stdout)
         // A tidy, consistent window size for the Mac shots (1440 by 900 with a caption above).
         if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
             w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)
@@ -63,12 +65,9 @@ struct RootView: View {
             break
         }
         #if os(macOS)
-        // The screenshot workflow reads this to capture just the window.
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
-        if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
-            print("JCWINDOW \(w.windowNumber)")
-            fflush(stdout)
-        }
+        // The screenshot workflow picks up the picture the app draws of its own window.
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        await Snapshot.save(screen)
         #endif
     }
 
