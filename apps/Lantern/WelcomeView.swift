@@ -10,13 +10,13 @@ struct WelcomeView: View {
         VStack(spacing: 26) {
             Spacer()
             Image(systemName: "envelope.fill")
-                .font(.system(size: 40, weight: .regular))
+                .font(Look.size(40, weight: .regular))
                 .foregroundStyle(.white)
                 .frame(width: 88, height: 88)
                 .background(RoundedRectangle(cornerRadius: 22).fill(Look.accent))
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
-                Text("Welcome to JMAP Connect").font(.system(size: 28, weight: .semibold))
+                Text("Welcome to JMAP Connect").font(Look.size(28, weight: .semibold))
                 Text("Your Mail App and Fastmail email in one fast, native app.")
                     .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 480)
             }
@@ -64,7 +64,7 @@ struct AddAccountView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Add \(kind.name)").font(.system(size: 20, weight: .semibold))
+            Text("Add \(kind.name)").font(Look.size(20, weight: .semibold))
             Text(kind.tokenHelp).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if kind.sessionURL.isEmpty {
                 TextField(kind.id == "mailapp" ? "Mail App address, such as mail.yourdomain.com" : "JMAP session address", text: $address)
@@ -189,7 +189,7 @@ struct SignatureRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(identity.label).font(.callout)
             TextEditor(text: $text)
-                .font(.system(size: 13))
+                .font(Look.size(13))
                 .frame(minHeight: 70)
                 .scrollContentBackground(.hidden)
                 .padding(6)

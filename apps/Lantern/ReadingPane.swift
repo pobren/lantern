@@ -18,6 +18,7 @@ struct ReadingPane: View {
     @State private var showImagesOnce = false
     @State private var preview: URL?
     @State private var saving: EmailFile?
+    @State private var failed = false
 
     private var shown: Email { thread.first { $0.id == open } ?? thread.last ?? item.email }
     private var earlier: [Email] { thread.filter { $0.id != shown.id } }
@@ -26,13 +27,13 @@ struct ReadingPane: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(item.email.title)
-                    .font(.system(size: 21, weight: .semibold))
+                    .font(Look.size(21, weight: .semibold))
                     .textSelection(.enabled)
                     .lineLimit(3)
                 Spacer(minLength: 8)
                 Button { Task { await store.flag(item) } } label: {
                     Image(systemName: item.email.isFlagged ? "star.fill" : "star")
-                        .font(.system(size: 17))
+                        .font(Look.size(17))
                         .foregroundStyle(item.email.isFlagged ? Look.star : .secondary)
                 }
                 .buttonStyle(.borderless)
@@ -65,7 +66,7 @@ struct ReadingPane: View {
                             Button { Task { preview = await store.file(a, account: item.account) } } label: {
                                 Label { (Text("\(a.name)  ") + Text(a.sizeText).foregroundColor(.secondary)).lineLimit(1) }
                                     icon: { Image(systemName: a.icon) }
-                                    .font(.system(size: 12.5))
+                                    .font(Look.size(12.5))
                                     .padding(.horizontal, 10).frame(height: 30)
                                     .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
                             }
@@ -98,8 +99,14 @@ struct ReadingPane: View {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        Text(shown.preview ?? "").font(.system(size: 15)).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(20)
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(shown.preview ?? "").font(Look.size(15)).textSelection(.enabled)
+                            if failed {
+                                Text("Couldn't load the whole email.").font(Look.size(13)).foregroundStyle(.secondary)
+                                Button { Task { await load() } } label: { Label("Try again", systemImage: "arrow.clockwise") }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(20)
                     }
                 }
             }
@@ -130,8 +137,23 @@ struct ReadingPane: View {
     private func load() async {
         loading = true
         page = nil
+        failed = false
         showImagesOnce = false
-        page = await store.page(shown, account: item.account)
+        let e = shown, account = item.account
+        // Fetched outside this view's task, so a list refresh that redraws the view can't cancel it halfway
+        // and leave only the preview line showing. Tried twice before giving up.
+        page = await Task { @MainActor () -> (html: String, attachments: [Attachment])? in
+            for attempt in 0..<2 {
+                if let p = await store.page(e, account: account) { return p }
+                if attempt == 0 { try? await Task.sleep(nanoseconds: 600_000_000) }
+            }
+            return nil
+        }.value
+        if page == nil, open == e.id {
+            // Still nothing: show the whole plain text rather than just the preview line.
+            let text = await store.text(e, account: account)
+            if !text.isEmpty, text != e.preview { page = (EmailWebView.plain(text), []) } else { failed = true }
+        }
         loading = false
     }
 
@@ -213,8 +235,8 @@ private struct Folded: View {
     var body: some View {
         HStack(spacing: 10) {
             Avatar(address: email.sender, size: 26)
-            Text(email.sender.display).font(.system(size: 13, weight: .medium)).lineLimit(1)
-            Text(email.preview ?? "").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+            Text(email.sender.display).font(Look.size(13, weight: .medium)).lineLimit(1)
+            Text(email.preview ?? "").font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Text(When.short(email.date)).font(.caption).foregroundStyle(.secondary)
         }
@@ -229,26 +251,28 @@ private struct Header: View {
     let account: Account
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Avatar(address: email.sender, size: 38)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(email.sender.display).font(.system(size: 14, weight: .semibold))
-                    Text(email.sender.email).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+            Avatar(address: email.sender, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                // Name and date share the top line; the address sits underneath, so a long name never
+                // gets squeezed into a narrow column on iPhone.
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(email.sender.display).font(Look.size(14, weight: .semibold)).lineLimit(2)
+                    Spacer(minLength: 6)
+                    Text(When.long(email.date)).font(Look.size(12)).foregroundStyle(.secondary).lineLimit(1)
+                        .layoutPriority(1)
                 }
-                .textSelection(.enabled)
+                Text(email.sender.email).font(Look.size(12.5)).foregroundStyle(.secondary).lineLimit(1)
+                    .truncationMode(.middle)
                 if let to = email.to, !to.isEmpty {
-                    Text("To " + to.map(\.display).joined(separator: ", ")).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+                    Text("To " + to.map(\.display).joined(separator: ", ")).font(Look.size(12.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if let cc = email.cc, !cc.isEmpty {
-                    Text("Cc " + cc.map(\.display).joined(separator: ", ")).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+                    Text("Cc " + cc.map(\.display).joined(separator: ", ")).font(Look.size(12.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(When.long(email.date)).font(.system(size: 12)).foregroundStyle(.secondary)
                 HStack(spacing: 5) { AccountDot(account: account, size: 6); Text(account.label) }
-                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    .font(Look.size(11.5)).foregroundStyle(.secondary)
             }
+            .textSelection(.enabled)
         }
     }
 }

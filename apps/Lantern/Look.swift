@@ -11,6 +11,18 @@ enum Look {
     static let other = Color(red: 0x2E / 255, green: 0x9E / 255, blue: 0x5B / 255)
     static let star = Color(red: 0xE8 / 255, green: 0xA3 / 255, blue: 0x17 / 255)
 
+    /// Text a little larger than the bare point sizes, more so on iPhone and iPad where it's read at arm's length.
+    #if os(macOS)
+    static let scale: CGFloat = 1.08
+    static let bodyPoints = 15
+    #else
+    static let scale: CGFloat = 1.15
+    static let bodyPoints = 17
+    #endif
+    static func size(_ points: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: (points * scale).rounded(), weight: weight)
+    }
+
     #if os(macOS)
     static let paper = Color(nsColor: .textBackgroundColor)
     static let ground = Color(nsColor: .windowBackgroundColor)

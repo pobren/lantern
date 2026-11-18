@@ -50,6 +50,12 @@ struct EmailWebView: PlatformViewRepresentable {
     /// Wraps the email in a page with a strict content policy: inline styles and data: pictures always,
     /// web pictures, styles and fonts only when allowed, and never scripts, frames, forms or plugins.
     /// Emails are drawn on white, as their senders designed them, even in dark mode.
+    /// Plain text as email HTML, for when only the text could be fetched.
+    static func plain(_ text: String) -> String {
+        let safe = text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+        return "<div class=\"lantern-text\">" + safe + "</div>"
+    }
+
     static func wrap(_ html: String, remoteImages: Bool) -> String {
         let web = remoteImages ? " https: http:" : ""
         let policy = "default-src 'none'; img-src data:\(web); style-src 'unsafe-inline'\(web); font-src data:\(web); media-src data:\(web); form-action 'none'; frame-src 'none'; script-src 'none'"
@@ -60,7 +66,7 @@ struct EmailWebView: PlatformViewRepresentable {
         <meta name="color-scheme" content="light only">
         <style>
           html { -webkit-text-size-adjust: 100%; background: #fff; }
-          body { margin: 0; padding: 18px 20px 48px; background: #fff; font: 15px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; color: #16191D; word-wrap: break-word; overflow-wrap: anywhere; }
+          body { margin: 0; padding: 18px 20px 48px; background: #fff; font: \(Look.bodyPoints)px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; color: #16191D; word-wrap: break-word; overflow-wrap: anywhere; }
           img { max-width: 100%; height: auto; }
           table { max-width: 100% !important; }
           .lantern-text { white-space: pre-wrap; }

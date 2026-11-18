@@ -53,7 +53,7 @@ struct RootView: View {
 private struct Empty: View {
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "envelope.open").font(.system(size: 34, weight: .light)).foregroundStyle(.tertiary)
+            Image(systemName: "envelope.open").font(Look.size(34, weight: .light)).foregroundStyle(.tertiary)
             Text("No conversation selected").foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,7 +177,7 @@ struct FolderRow: View {
             if entry.hasChildren {
                 Button { withAnimation(.snappy) { store.toggleCollapsed(box, in: state) } } label: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Look.size(10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : 90))
                         .frame(width: 14, height: 14)
@@ -343,25 +343,25 @@ struct Row: View {
     var body: some View {
         let e = item.email
         HStack(alignment: .top, spacing: 11) {
-            Avatar(address: e.sender, size: 36)
+            Avatar(address: e.sender, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     if e.isUnread { Circle().fill(Look.accent).frame(width: 7, height: 7).accessibilityLabel("Unread") }
                     Text(e.sender.display)
-                        .font(.system(size: 14, weight: e.isUnread ? .semibold : .regular))
+                        .font(Look.size(15, weight: e.isUnread ? .bold : .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     if e.isFlagged { Image(systemName: "star.fill").font(.caption2).foregroundStyle(Look.star).accessibilityLabel("Starred") }
                     if e.hasAttachment == true { Image(systemName: "paperclip").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Attachment") }
                     Text(When.short(e.date))
-                        .font(.system(size: 12, weight: e.isUnread ? .semibold : .regular))
+                        .font(Look.size(13, weight: e.isUnread ? .semibold : .regular))
                         .foregroundStyle(e.isUnread ? Look.accent : .secondary)
                 }
                 Text(e.title)
-                    .font(.system(size: 13.5, weight: e.isUnread ? .medium : .regular))
+                    .font(Look.size(14, weight: e.isUnread ? .medium : .regular))
                     .lineLimit(1)
                 Text(e.preview ?? "")
-                    .font(.system(size: 13))
+                    .font(Look.size(13.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                 if showAccount {

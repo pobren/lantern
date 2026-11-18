@@ -144,7 +144,7 @@ struct ComposeView: View {
         #if os(macOS)
         VStack(spacing: 0) {
             HStack {
-                Text(title).font(.system(size: 15, weight: .semibold))
+                Text(title).font(Look.size(15, weight: .semibold))
                 Spacer()
                 Button { dismiss() } label: { Image(systemName: "xmark") }
                     .buttonStyle(.borderless).keyboardShortcut(.cancelAction).accessibilityLabel("Close")
@@ -265,7 +265,7 @@ struct ComposeView: View {
             row("Subject") { TextField("", text: $draft.subject).textFieldStyle(.plain) }
             if !files.isEmpty || uploading > 0 { attachments }
             TextEditor(text: $draft.text)
-                .font(.system(size: 15)).lineSpacing(3)
+                .font(Look.size(15)).lineSpacing(3)
                 .scrollContentBackground(.hidden)
                 .focused($focus, equals: .body)
                 .padding(.horizontal, 16).padding(.vertical, 10)
@@ -292,13 +292,13 @@ struct ComposeView: View {
                         Button { files.removeAll { $0.id == f.id } } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Remove \(f.name)")
                     }
-                    .font(.system(size: 12.5))
+                    .font(Look.size(12.5))
                     .padding(.horizontal, 10).frame(height: 30)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
                 }
                 if uploading > 0 {
                     HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Adding…") }
-                        .font(.system(size: 12.5)).foregroundStyle(.secondary)
+                        .font(Look.size(12.5)).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 20).padding(.vertical, 8)
@@ -333,7 +333,7 @@ struct ComposeView: View {
     private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Text(label).font(.system(size: 14)).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
+                Text(label).font(Look.size(14)).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
                 content()
             }
             .padding(.horizontal, 20).frame(minHeight: 42)
