@@ -326,6 +326,11 @@ struct MessageList: View {
         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
         MoveMenu(item: item)
         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+        if store.inSpam(item) {
+            Button { Task { await store.markSpam(item, false) } } label: { Label("Not spam", systemImage: "tray.and.arrow.up") }
+        } else {
+            Button { Task { await store.markSpam(item, true) } } label: { Label("Mark as spam", systemImage: "xmark.bin") }
+        }
         #if os(macOS)
         Divider()
         Button { openWindow(value: MessageRef(account: item.account.id, email: item.email.id)) } label: {
