@@ -101,13 +101,17 @@ struct Sidebar: View {
         .navigationTitle("Mail")
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
-                    .buttonStyle(.borderless)
-                Spacer()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                HStack {
+                    Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
+                        .buttonStyle(.borderless)
+                    Spacer()
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
             }
-            .padding(12)
+            .background(.bar)
         }
         #else
         .toolbar {
