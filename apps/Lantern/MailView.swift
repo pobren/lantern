@@ -3,29 +3,82 @@
 // three screens you move through.
 
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct RootView: View {
     @EnvironmentObject var store: Store
     @State private var composing: ComposeDraft?
     @State private var settings = false
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var compact: NavigationSplitViewColumn = {
+        switch Demo.screen {
+        case "folders": return .sidebar
+        case "email", "compose": return .detail
+        default: return .content
+        }
+    }()
+
+    private var sidebar: some View {
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true })
+    }
+    private var middle: some View {
+        MessageList(compose: { composing = ComposeDraft.new(store: store) })
+    }
+    @ViewBuilder private var detail: some View {
+        if let item = store.selectedItem {
+            ReadingPane(item: item, compose: { composing = $0 })
+                .id(item.id)
+        } else {
+            Empty()
+        }
+    }
+
+    /// For the App Store screenshots (launched with -JCDemo -JCScreen name): open the screen each shot shows.
+    private func showScreen() async {
+        let screen = Demo.screen ?? "email"
+        #if os(macOS)
+        let openEmail = true
+        // A tidy, consistent window size for the Mac shots (1440 by 900 with a caption above).
+        if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+            w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)
+            w.makeKeyAndOrderFront(nil)
+        }
+        #else
+        let openEmail = screen == "email" || UIDevice.current.userInterfaceIdiom == .pad
+        #endif
+        if openEmail { store.selection = store.list.first?.id }
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        switch screen {
+        case "compose":
+            var d = ComposeDraft.new(store: store)
+            d.to = "Maya Chen <maya@studio-north.example>"
+            d.subject = "Re: Sketches for the spring launch"
+            d.text = "Hi Maya,\n\nThe second direction is lovely. Let's go with that one, and I'll send the final copy on Thursday.\n\nThanks,\nSam" + d.text
+            composing = d
+        case "settings":
+            settings = true
+        default:
+            break
+        }
+    }
 
     var body: some View {
         Group {
             if store.hasAccounts {
-                NavigationSplitView(columnVisibility: $columns) {
-                    Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true })
-                } content: {
-                    MessageList(compose: { composing = ComposeDraft.new(store: store) })
-                } detail: {
-                    if let item = store.selectedItem {
-                        ReadingPane(item: item, compose: { composing = $0 })
-                            .id(item.id)
+                Group {
+                    if Demo.screen != nil {
+                        // Screenshots: start on the column the shot needs, on iPhone too.
+                        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
                     } else {
-                        Empty()
+                        NavigationSplitView(columnVisibility: $columns) { sidebar } content: { middle } detail: { detail }
                     }
                 }
-                .task { await store.start() }
+                .task {
+                    await store.start()
+                    if Demo.launchedForScreens { await showScreen() }
+                }
             } else {
                 WelcomeView()
             }

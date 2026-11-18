@@ -20,7 +20,7 @@ enum Notifier {
     private static var showBadge: Bool { UserDefaults.standard.object(forKey: badgeKey) as? Bool ?? true }
 
     static func ask() async {
-        guard enabled else { return }
+        guard enabled, !Demo.launchedForScreens else { return }
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
     }
 

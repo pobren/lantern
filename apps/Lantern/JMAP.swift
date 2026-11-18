@@ -71,6 +71,8 @@ final class JMAPClient: @unchecked Sendable {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.httpAdditionalHeaders = ["Accept": "application/json"]
+        // Sample mail is answered inside the app and never goes near the network.
+        if sessionURL.host == Demo.host { config.protocolClasses = [DemoProtocol.self] }
         http = URLSession(configuration: config)
     }
 

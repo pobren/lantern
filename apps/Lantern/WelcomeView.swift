@@ -26,6 +26,10 @@ struct WelcomeView: View {
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 .frame(maxWidth: 400)
+                Button { Task { await store.addDemo() } } label: {
+                    Label("Try it with sample mail", systemImage: "tray.full")
+                }
+                .buttonStyle(.borderless)
             } else {
             VStack(spacing: 10) {
                 Button { kind = .mailApp } label: {

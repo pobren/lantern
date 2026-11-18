@@ -7,13 +7,16 @@ import SwiftUI
 /// An account the person added. Saved in settings; its token is in the Keychain.
 struct Account: Codable, Identifiable, Hashable {
     let id: String
-    let kind: String          // "fastmail", "mailapp" or "other"
+    let kind: String          // "fastmail", "mailapp", "other" or "demo" (sample mail)
     let sessionURL: String
     var username: String
 
-    var colour: Color { kind == "fastmail" ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
-    var kindName: String { kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
-    var label: String { username.isEmpty ? (kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "Mail") : username }
+    var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
+    var kindName: String { kind == Demo.kind ? "Sample mail" : kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
+    var label: String {
+        if kind == Demo.kind { return "Sample mail" }
+        return username.isEmpty ? (kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "Mail") : username
+    }
 }
 
 /// One email (in a list, the newest of its conversation), with the account it came from.
@@ -106,15 +109,23 @@ final class Store: ObservableObject {
     private let savedKey = "accounts"
 
     init() {
-        guard let data = UserDefaults.standard.data(forKey: savedKey),
-              let saved = try? JSONDecoder().decode([Account].self, from: data) else { return }
+        let data = UserDefaults.standard.data(forKey: savedKey)
+        let saved = data.flatMap { try? JSONDecoder().decode([Account].self, from: $0) } ?? []
         for account in saved {
-            guard let token = Keychain.read(account.id), let url = URL(string: account.sessionURL) else { continue }
+            guard let token = account.kind == Demo.kind ? "demo" : Keychain.read(account.id),
+                  let url = URL(string: account.sessionURL) else { continue }
             accounts.append(AccountState(account: account, client: JMAPClient(sessionURL: url, token: token)))
         }
+        if Demo.launchedForScreens && !hasDemo { accounts.append(Self.demoState()) }
+    }
+
+    private static func demoState() -> AccountState {
+        AccountState(account: Account(id: "sample-mail", kind: Demo.kind, sessionURL: Demo.sessionURL, username: Demo.me.email),
+                     client: JMAPClient(sessionURL: URL(string: Demo.sessionURL)!, token: "demo"))
     }
 
     var hasAccounts: Bool { !accounts.isEmpty }
+    var hasDemo: Bool { accounts.contains { $0.account.kind == Demo.kind } }
     func state(for account: Account) -> AccountState? { accounts.first { $0.id == account.id } }
     func state(id: String) -> AccountState? { accounts.first { $0.id == id } }
     var selectedItem: Item? { list.first { $0.id == selection } }
@@ -139,6 +150,16 @@ final class Store: ObservableObject {
         save()
         await load(state)
         listen(state)
+        await reloadList()
+    }
+
+    /// Adds the sample mail account: made up emails answered inside the app, for trying it without an account.
+    func addDemo() async {
+        guard !hasDemo else { return }
+        let state = Self.demoState()
+        accounts.append(state)
+        save()
+        await load(state)
         await reloadList()
     }
 
