@@ -111,7 +111,9 @@ jobs:
             if [ "$screen" = dark ]; then arg=email; extra=(-JCDark); fi
             pkill -x "JMAP Connect" 2>/dev/null || true
             sleep 1
-            "$APP/Contents/MacOS/JMAP Connect" -JCDemo -JCScreen "$arg" "${extra[@]}" -NSQuitAlwaysKeepsWindows NO > /tmp/app.log 2>&1 &
+            : > /tmp/app.log
+            # Through Launch Services, like a double click, so the app becomes active and opens its window.
+            open -n --stdout /tmp/app.log --stderr /tmp/app.log -a "$PWD/$APP" --args -JCDemo -JCScreen "$arg" "${extra[@]}" -NSQuitAlwaysKeepsWindows NO
             # The app draws its own window to a file and prints where (no Screen Recording permission needed).
             shot=""
             for i in $(seq 1 40); do
@@ -119,13 +121,15 @@ jobs:
               [ -n "$shot" ] && break
               sleep 1
             done
-            grep JCDEBUG /tmp/app.log || true
+            grep -E "JCDEBUG|JCSHOT" /tmp/app.log || true
             if [ -n "$shot" ] && [ -f "$shot" ]; then
               cp "$shot" "screenshots/raw/mac/$n-$screen.png"
               echo "$screen: saved"
             else
               echo "::warning::The app didn't save a picture for $screen"
               tail -n 30 /tmp/app.log
+              ps -axo pid,comm | grep -i "jmap" || true
+              /usr/bin/log show --last 2m --predicate 'process == "JMAP Connect"' --style compact 2>/dev/null | tail -n 25 || true
             fi
           done
           pkill -x "JMAP Connect" 2>/dev/null || true

@@ -41,7 +41,7 @@ struct RootView: View {
         #if os(macOS)
         let openEmail = true
         if ProcessInfo.processInfo.arguments.contains("-JCDark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
-        print("JCDEBUG showing \(screen), \(store.list.count) emails"); fflush(stdout)
+        NSLog("JCDEBUG showing \(screen), \(store.list.count) emails"); fflush(stdout)
         // A tidy, consistent window size for the Mac shots (1440 by 900 with a caption above).
         if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
             w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)

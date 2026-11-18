@@ -9,12 +9,12 @@ import WebKit
 enum Snapshot {
     @MainActor static func save(_ name: String) async {
         let windows = NSApp.windows
-        print("JCDEBUG windows: " + windows.map { "\(type(of: $0)) visible=\($0.isVisible) main=\($0.canBecomeMain) \($0.frame)" }.joined(separator: " | "))
+        NSLog("JCDEBUG windows: " + windows.map { "\(type(of: $0)) visible=\($0.isVisible) main=\($0.canBecomeMain) \($0.frame)" }.joined(separator: " | "))
         guard let w = windows.first(where: { $0.canBecomeMain && $0.contentView != nil && $0.attachedSheet != nil })
                 ?? windows.first(where: { $0.canBecomeMain && $0.contentView != nil }) else {
-            print("JCDEBUG no window to snapshot"); fflush(stdout); return
+            NSLog("JCDEBUG no window to snapshot"); fflush(stdout); return
         }
-        guard let base = await picture(of: w) else { print("JCDEBUG snapshot failed"); fflush(stdout); return }
+        guard let base = await picture(of: w) else { NSLog("JCDEBUG snapshot failed"); fflush(stdout); return }
         let image = NSImage(size: w.frame.size)
         image.lockFocus()
         base.draw(in: NSRect(origin: .zero, size: w.frame.size))
@@ -28,8 +28,8 @@ enum Snapshot {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("jc-\(name).png")
         do {
             try png.write(to: url)
-            print("JCSHOT \(url.path)")
-        } catch { print("JCDEBUG write failed \(error)") }
+            NSLog("JCSHOT \(url.path)")
+        } catch { NSLog("JCDEBUG write failed \(error)") }
         fflush(stdout)
     }
 
