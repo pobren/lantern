@@ -10,6 +10,10 @@ struct ComposeDraft: Identifiable {
     let id = UUID()
     var account: Account?
     var identityId: String?
+    /// The exact address to send as, when the identity covers a whole domain (*@example.com).
+    var fromEmail = ""
+    /// The address the email being answered was sent to, when none of your sending addresses covers it yet.
+    var unmatched: String?
     var to = ""
     var cc = ""
     var bcc = ""
@@ -25,7 +29,7 @@ struct ComposeDraft: Identifiable {
     @MainActor static func new(store: Store) -> ComposeDraft {
         var s = store.accounts.first
         if case .mailbox(let a, _) = store.folder { s = store.state(id: a) ?? s }
-        let identity = s?.identities.first
+        let identity = s.flatMap { store.defaultIdentity($0) }
         let sig = identity.map { signed(store.signature(for: $0)) } ?? ""
         return ComposeDraft(account: s?.account, identityId: identity?.id, text: sig.isEmpty ? "" : "\n\n" + sig)
     }
@@ -34,7 +38,24 @@ struct ComposeDraft: Identifiable {
         let s = store.state(for: account)
         let mine = Set(((s?.identities ?? []).map(\.email) + [account.username]).map { $0.lowercased() })
         let wroteTo = (e.to ?? []) + (e.cc ?? [])
-        let identity = s?.identities.first { id in wroteTo.contains { $0.email.lowercased() == id.email.lowercased() } } ?? s?.identities.first
+        let ids = s?.identities ?? []
+        // Answer from the address it was sent to: an exact match first, then a whole-domain identity.
+        var fromEmail = ""
+        var identity = ids.first { id in !id.isWildcard && wroteTo.contains { id.covers($0.email) } }
+        if identity == nil {
+            for a in wroteTo {
+                if let w = ids.first(where: { $0.isWildcard && $0.covers(a.email) }) { identity = w; fromEmail = a.email; break }
+            }
+        }
+        // Sent to an address of yours (an alias, say) that isn't set up for sending yet: offer to add it.
+        // Only your own domains count: shared ones like fastmail.com belong to everyone.
+        let ownDomains = Set(ids.map(\.domain).filter { d in
+            !(d.hasPrefix("fastmail.") || d.hasPrefix("messagingengine.") || ["sent.com", "gmail.com", "icloud.com", "outlook.com"].contains(d))
+        })
+        let unmatched = identity == nil
+            ? wroteTo.first { a in ownDomains.contains(a.email.split(separator: "@").last.map { String($0).lowercased() } ?? "") }?.email
+            : nil
+        if identity == nil { identity = s.flatMap { store.defaultIdentity($0) } }
         let fromMe = mine.contains(e.sender.email.lowercased())
         let answer = fromMe ? (e.to ?? []) : (e.replyTo?.isEmpty == false ? e.replyTo! : [e.sender])
         var cc: [EmailAddress] = []
@@ -47,7 +68,7 @@ struct ComposeDraft: Identifiable {
             }
         }
         let title = e.title
-        return ComposeDraft(account: account, identityId: identity?.id,
+        return ComposeDraft(account: account, identityId: identity?.id, fromEmail: fromEmail, unmatched: unmatched,
                             to: answer.map(\.full).joined(separator: ", "),
                             cc: cc.map(\.full).joined(separator: ", "),
                             subject: title.lowercased().hasPrefix("re:") ? title : "Re: \(title)",
@@ -65,7 +86,7 @@ struct ComposeDraft: Identifiable {
             "Subject: \(title)",
             "To: \((e.to ?? []).map(\.full).joined(separator: ", "))"
         ].joined(separator: "\n")
-        let identity = s?.identities.first
+        let identity = s.flatMap { store.defaultIdentity($0) }
         return ComposeDraft(account: account, identityId: identity?.id,
                             subject: title.lowercased().hasPrefix("fwd:") ? title : "Fwd: \(title)",
                             text: "\n\n" + block(identity, store) + header + "\n\n" + text)
@@ -136,8 +157,17 @@ struct ComposeView: View {
         return s.identities.first { $0.id == id }
     }
 
+    private var chosen: Identity? { identity(draft.account, draft.identityId) }
+
+    /// A whole-domain identity needs the exact address typed in, at that domain.
+    private var fromOK: Bool {
+        guard let id = chosen, id.isWildcard else { return true }
+        let a = draft.fromEmail.trimmingCharacters(in: .whitespaces)
+        return a.contains("@") && id.covers(a) && !a.contains(" ")
+    }
+
     private var canSend: Bool {
-        !(EmailAddress.parse(draft.to) + EmailAddress.parse(draft.bcc)).isEmpty && draft.account != nil && draft.identityId != nil && !sending && uploading == 0
+        !(EmailAddress.parse(draft.to) + EmailAddress.parse(draft.bcc)).isEmpty && draft.account != nil && draft.identityId != nil && fromOK && !sending && uploading == 0
     }
 
     var body: some View {
@@ -215,7 +245,29 @@ struct ComposeView: View {
 
     private var form: some View {
         VStack(spacing: 0) {
-            if choices.count > 1 {
+            if let address = draft.unmatched, let account = draft.account {
+                HStack(spacing: 10) {
+                    Image(systemName: "at").foregroundStyle(.secondary)
+                    Text("Sent to \(address), which isn't set up for sending.").font(Look.size(12.5)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task {
+                            do {
+                                if let made = try await store.addIdentity(address, account: account) {
+                                    chosenKey.wrappedValue = "\(account.id)|\(made.id)"
+                                }
+                                draft.unmatched = nil
+                            } catch {
+                                problem = "Couldn't add \(address): \(error.localizedDescription)"
+                            }
+                        }
+                    } label: { Label("Reply from it", systemImage: "plus.circle") }
+                    .buttonStyle(.borderless)
+                }
+                .padding(.horizontal, 20).frame(minHeight: 38)
+                Divider().padding(.leading, 20)
+            }
+            if choices.count > 1 || chosen?.isWildcard == true {
                 row("From") {
                     Picker("From", selection: chosenKey) {
                         ForEach(choices.indices, id: \.self) { i in
@@ -226,6 +278,20 @@ struct ComposeView: View {
                     }
                     .labelsHidden()
                     Spacer()
+                }
+            }
+            if let id = chosen, id.isWildcard {
+                row("As") {
+                    TextField("you@\(id.domain)", text: $draft.fromEmail)
+                        .textFieldStyle(.plain)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                    if !draft.fromEmail.isEmpty && !fromOK {
+                        Text("Must end @\(id.domain)").font(Look.size(12)).foregroundStyle(.red)
+                    }
                 }
             }
             row("To") {
@@ -346,7 +412,8 @@ struct ComposeView: View {
               let identity = s.identities.first(where: { $0.id == draft.identityId }) else { return }
         sending = true; problem = nil
         do {
-            try await store.send(account: account, identity: identity, to: EmailAddress.parse(draft.to),
+            let address = identity.isWildcard ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
+            try await store.send(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
                                  cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text, replyTo: draft.replyTo,
                                  attachments: files)
             dismiss()

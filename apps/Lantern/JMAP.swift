@@ -28,6 +28,9 @@ struct ServerKind: Identifiable, Hashable {
     let sessionURL: String
     let tokenHelp: String
 
+    /// Fastmail only for the first release; Mail App and other JMAP servers come back once they're tested.
+    static let fastmailOnly = true
+
     static let fastmail = ServerKind(
         id: "fastmail", name: "Fastmail",
         sessionURL: "https://api.fastmail.com/jmap/session",
@@ -290,6 +293,27 @@ final class JMAPClient: @unchecked Sendable {
         }
     }
 
+    /// Saves where replies to one of your addresses should go (empty for the address itself).
+    func setReplyTo(identityId: String, to addresses: [EmailAddress]) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let value: Any = addresses.isEmpty ? NSNull() : addresses.map { ["name": $0.name.map { $0 as Any } ?? NSNull(), "email": $0.email] as [String: Any] }
+        let r = try await call([["Identity/set", ["accountId": acc, "update": [identityId: ["replyTo": value]]], "s"]],
+                               using: [Self.core, Self.mail, Self.submission])
+        if let failed = r["s"]?["notUpdated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notUpdated", first["description"] as? String)
+        }
+    }
+
+    /// Adds an address you can send from. The server only allows addresses that belong to the account.
+    func createIdentity(name: String, email: String) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Identity/set", ["accountId": acc, "create": ["new": ["name": name, "email": email]]], "s"]],
+                               using: [Self.core, Self.mail, Self.submission])
+        if let failed = r["s"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notCreated", first["description"] as? String)
+        }
+    }
+
     static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
@@ -304,7 +328,7 @@ final class JMAPClient: @unchecked Sendable {
     }
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent.
-    func send(from identity: Identity, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
+    func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
               drafts: String, sent: String) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
@@ -318,7 +342,7 @@ final class JMAPClient: @unchecked Sendable {
         var draft: [String: Any] = [
             "mailboxIds": [drafts: true],
             "keywords": ["$draft": true, "$seen": true],
-            "from": [["name": identity.name, "email": identity.email]],
+            "from": [["name": identity.name, "email": address ?? identity.email]],
             "to": to.map { ["name": $0.name ?? "", "email": $0.email] },
             "subject": subject,
             "bodyValues": ["body": ["value": body]],
@@ -326,6 +350,9 @@ final class JMAPClient: @unchecked Sendable {
         ]
         if !attachments.isEmpty {
             draft["attachments"] = attachments.map { ["blobId": $0.blobId, "type": $0.type, "name": $0.name, "disposition": "attachment"] }
+        }
+        if let replyTo = identity.replyTo, !replyTo.isEmpty {
+            draft["replyTo"] = replyTo.map { ["name": $0.name ?? "", "email": $0.email] }
         }
         if !cc.isEmpty { draft["cc"] = cc.map { ["name": $0.name ?? "", "email": $0.email] } }
         // Bcc stays on your copy in Sent; the server sends to those addresses but leaves the header out of what others get.

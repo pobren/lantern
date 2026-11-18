@@ -17,9 +17,16 @@ struct WelcomeView: View {
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
                 Text("Welcome to JMAP Connect").font(Look.size(28, weight: .semibold))
-                Text("Your Mail App and Fastmail email in one fast, native app.")
+                Text(ServerKind.fastmailOnly ? "The native mail app for Fastmail. Fast, simple and private." : "Your Mail App and Fastmail email in one fast, native app.")
                     .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 480)
             }
+            if ServerKind.fastmailOnly {
+                Button { kind = .fastmail } label: {
+                    Label("Add your Fastmail account", systemImage: "plus.circle").frame(maxWidth: .infinity).frame(height: 40)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .frame(maxWidth: 400)
+            } else {
             VStack(spacing: 10) {
                 Button { kind = .mailApp } label: {
                     Label("Add a Mail App account", systemImage: "plus.circle").frame(maxWidth: .infinity).frame(height: 40)
@@ -33,6 +40,7 @@ struct WelcomeView: View {
                     .buttonStyle(.borderless)
             }
             .frame(maxWidth: 400)
+            }
             ViewThatFits {
                 HStack(spacing: 26) { promises }
                 VStack(spacing: 8) { promises }
@@ -126,13 +134,26 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 #endif
             }
-            Section("Signatures") {
+            Section("Sending") {
+                ForEach(store.accounts) { s in
+                    if s.identities.count > 1 {
+                        Picker(store.accounts.count > 1 ? "Send new emails from (\(s.account.label))" : "Send new emails from",
+                               selection: Binding(get: { store.defaultIdentity(s)?.id ?? "" },
+                                                  set: { store.setDefaultIdentity($0, account: s.account) })) {
+                            ForEach(s.identities) { Text($0.label).tag($0.id) }
+                        }
+                    }
+                }
+                Text("Replies go out from the address the email was sent to, when you can send from it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Your addresses") {
                 ForEach(store.accounts) { s in
                     ForEach(s.identities) { identity in
                         SignatureRow(identity: identity, account: s.account)
                     }
                 }
-                Text("Signatures are saved to your account, so they match on the web and in other apps.")
+                Text("Reply to addresses and signatures are saved to your account, so they match on the web and in other apps.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Reading") {
@@ -153,11 +174,15 @@ struct SettingsView: View {
                         Button("Remove", role: .destructive) { store.remove(s) }
                     }
                 }
-                Menu {
-                    Button("Mail App") { adding = .mailApp }
-                    Button("Fastmail") { adding = .fastmail }
-                    Button("Another JMAP server") { adding = .other }
-                } label: { Label("Add account", systemImage: "plus") }
+                if ServerKind.fastmailOnly {
+                    Button { adding = .fastmail } label: { Label("Add another Fastmail account", systemImage: "plus") }
+                } else {
+                    Menu {
+                        Button("Mail App") { adding = .mailApp }
+                        Button("Fastmail") { adding = .fastmail }
+                        Button("Another JMAP server") { adding = .other }
+                    } label: { Label("Add account", systemImage: "plus") }
+                }
             }
         }
         .formStyle(.grouped)
@@ -183,11 +208,22 @@ struct SignatureRow: View {
     let identity: Identity
     let account: Account
     @State private var text = ""
+    @State private var replyTo = ""
     @State private var saving = false
+
+    private var changed: Bool { text != (identity.textSignature ?? "") || replyTo != identity.replyToText }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(identity.label).font(.callout)
+            TextField("Replies go to (leave empty for this address)", text: $replyTo)
+                .textFieldStyle(.roundedBorder)
+                #if os(iOS)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
+            Text("Signature").font(.caption).foregroundStyle(.secondary)
             TextEditor(text: $text)
                 .font(Look.size(13))
                 .frame(minHeight: 70)
@@ -199,15 +235,16 @@ struct SignatureRow: View {
                 Button {
                     Task {
                         saving = true
-                        await store.saveSignature(text, identity: identity, account: account)
+                        if replyTo != identity.replyToText { _ = await store.saveReplyTo(replyTo, identity: identity, account: account) }
+                        if text != (identity.textSignature ?? "") { await store.saveSignature(text, identity: identity, account: account) }
                         saving = false
                     }
                 } label: {
                     if saving { ProgressView().controlSize(.small) } else { Label("Save", systemImage: "checkmark") }
                 }
-                .disabled(saving || text == (identity.textSignature ?? ""))
+                .disabled(saving || !changed)
             }
         }
-        .onAppear { text = identity.textSignature ?? "" }
+        .onAppear { text = identity.textSignature ?? ""; replyTo = identity.replyToText }
     }
 }

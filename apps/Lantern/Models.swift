@@ -77,7 +77,21 @@ struct Identity: Codable, Identifiable, Hashable {
     let name: String
     let email: String
     var textSignature: String?
-    var label: String { name.isEmpty ? email : "\(name) <\(email)>" }
+    var replyTo: [EmailAddress]?
+
+    /// Fastmail lets you send from every address at a domain with one identity, written *@example.com.
+    var isWildcard: Bool { email.hasPrefix("*@") }
+    var domain: String { email.split(separator: "@").last.map { String($0).lowercased() } ?? "" }
+    /// Whether this identity may send as the address.
+    func covers(_ address: String) -> Bool {
+        let a = address.lowercased()
+        return isWildcard ? a.hasSuffix("@" + domain) && a.count > domain.count + 1 : a == email.lowercased()
+    }
+    var label: String {
+        let shown = isWildcard ? "any address @\(domain)" : email
+        return name.isEmpty ? shown : "\(name) <\(shown)>"
+    }
+    var replyToText: String { (replyTo ?? []).map(\.full).joined(separator: ", ") }
 }
 
 /// A file you've added to an email you're writing, once it's on the server.

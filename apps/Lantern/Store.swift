@@ -381,10 +381,10 @@ final class Store: ObservableObject {
         }
     }
 
-    func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
+    func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               replyTo: Email?, attachments: [Outgoing] = []) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
-        try await s.client.send(from: identity, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+        try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                 inReplyTo: replyTo?.messageId?.first, references: replyTo?.references ?? [],
                                 attachments: attachments, drafts: drafts.id, sent: sent.id)
         await load(s)
@@ -461,6 +461,42 @@ final class Store: ObservableObject {
             problem = "Couldn't save the email: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    // MARK: Sending addresses
+
+    /// The address new emails and forwards start from: the one chosen in Settings, else the account's first.
+    func defaultIdentity(_ s: AccountState) -> Identity? {
+        let chosen = UserDefaults.standard.string(forKey: "defaultFrom." + s.account.id)
+        return s.identities.first { $0.id == chosen } ?? s.identities.first { !$0.isWildcard } ?? s.identities.first
+    }
+
+    func setDefaultIdentity(_ id: String, account: Account) {
+        UserDefaults.standard.set(id, forKey: "defaultFrom." + account.id)
+        objectWillChange.send()
+    }
+
+    func saveReplyTo(_ text: String, identity: Identity, account: Account) async -> Bool {
+        guard let s = state(for: account) else { return false }
+        do {
+            try await s.client.setReplyTo(identityId: identity.id, to: EmailAddress.parse(text))
+            s.identities = (try? await s.client.identities()) ?? s.identities
+            objectWillChange.send()
+            return true
+        } catch {
+            problem = "Couldn't save the reply to address: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Adds an address to send from and returns it, or throws the server's reason for saying no.
+    func addIdentity(_ email: String, account: Account) async throws -> Identity? {
+        guard let s = state(for: account) else { return nil }
+        let name = defaultIdentity(s)?.name ?? ""
+        try await s.client.createIdentity(name: name, email: email)
+        s.identities = (try? await s.client.identities()) ?? s.identities
+        objectWillChange.send()
+        return s.identities.first { $0.email.lowercased() == email.lowercased() }
     }
 
     // MARK: Signatures
