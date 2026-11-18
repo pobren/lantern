@@ -1,4 +1,4 @@
-// Lantern: a clean, fast, native mail app for Mail App and Fastmail, built on JMAP. One app for Mac, iPhone and iPad.
+// JMAP Connect: a clean, fast, native mail app for Fastmail, built on JMAP. One app for Mac, iPhone and iPad.
 
 import SwiftUI
 import UserNotifications

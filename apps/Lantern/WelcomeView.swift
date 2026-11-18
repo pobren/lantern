@@ -1,4 +1,4 @@
-// First run: add a Mail App, Fastmail or other JMAP account with an API token. Also Settings, on every device.
+// First run: add a Fastmail account (Mail App and other JMAP servers later) with an API token. Also Settings, on every device.
 
 import SwiftUI
 
@@ -9,11 +9,11 @@ struct WelcomeView: View {
     var body: some View {
         VStack(spacing: 26) {
             Spacer()
-            Image(systemName: "envelope.fill")
-                .font(Look.size(40, weight: .regular))
-                .foregroundStyle(.white)
-                .frame(width: 88, height: 88)
-                .background(RoundedRectangle(cornerRadius: 22).fill(Look.accent))
+            Image("Logo")
+                .resizable()
+                .frame(width: 96, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
                 Text("Welcome to JMAP Connect").font(Look.size(28, weight: .semibold))
