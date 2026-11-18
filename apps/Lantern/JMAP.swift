@@ -279,13 +279,20 @@ final class JMAPClient: @unchecked Sendable {
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
               drafts: String, sent: String) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
+        // Apple Mail shows attachments straight after the last line of text, so end on a blank line
+        // to give them a line of their own.
+        var body = text
+        if !attachments.isEmpty {
+            while body.hasSuffix(" ") { body.removeLast() }
+            if !body.hasSuffix("\n\n") { body += body.hasSuffix("\n") ? "\n" : "\n\n" }
+        }
         var draft: [String: Any] = [
             "mailboxIds": [drafts: true],
             "keywords": ["$draft": true, "$seen": true],
             "from": [["name": identity.name, "email": identity.email]],
             "to": to.map { ["name": $0.name ?? "", "email": $0.email] },
             "subject": subject,
-            "bodyValues": ["body": ["value": text]],
+            "bodyValues": ["body": ["value": body]],
             "textBody": [["partId": "body", "type": "text/plain"]]
         ]
         if !attachments.isEmpty {
