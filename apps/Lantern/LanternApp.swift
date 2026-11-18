@@ -29,7 +29,7 @@ struct LanternApp: App {
             CommandMenu("Mailbox") {
                 Button("Check for new mail") { Task { await store.refresh() } }
                     .keyboardShortcut("r", modifiers: [.command, .shift, .option])
-            }            }
+            }
             MessageCommands()
             HelpCommands()
         }
