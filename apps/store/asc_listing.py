@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SHOTS = os.path.join(HERE, "..", "screenshots", "store")
 L = json.load(open(os.path.join(HERE, "listing.json")))
 BUNDLE = "dev.paulobrien.lantern"
-BUILD = os.environ.get("BUILD", "").strip()
+BUILD = os.environ.get("BUILD", "").strip() or str(L.get("build", "")).strip()
 problems = []
 
 

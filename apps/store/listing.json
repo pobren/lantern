@@ -19,7 +19,13 @@
     "notes": "JMAP Connect is an email app for Fastmail accounts. To try every feature without an account, choose Try it with sample mail on the welcome screen. This loads made up emails that live only inside the app, so nothing is sent anywhere. Real accounts sign in with a Fastmail API token rather than a password, under Add your Fastmail account.\n\nJMAP Connect is an independent app. It connects only to Fastmail's own servers and has no server of its own."
   },
   "screenshots": {
-    "IOS": {"APP_IPHONE_67": "iphone-", "APP_IPAD_PRO_3GEN_129": "ipad-"},
-    "MAC_OS": {"APP_DESKTOP": "mac-"}
-  }
+    "IOS": {
+      "APP_IPHONE_67": "iphone-",
+      "APP_IPAD_PRO_3GEN_129": "ipad-"
+    },
+    "MAC_OS": {
+      "APP_DESKTOP": "mac-"
+    }
+  },
+  "build": "136"
 }
