@@ -109,17 +109,37 @@ def price():
 step("Price: free", price)
 
 
+def content_rights():
+    call("PATCH", f"/v1/apps/{APP}", {"data": {"type": "apps", "id": APP, "attributes": {
+        "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}})
+
+
+step("Content rights: no third party content", content_rights)
+
+
 def availability():
+    # China mainland needs a security assessment and an AI content filing, so it's left out.
     try:
-        call("GET", f"/v1/apps/{APP}/appAvailabilityV2", quiet=True)
-        return  # already set
+        avail = call("GET", f"/v1/apps/{APP}/appAvailabilityV2", quiet=True)["data"]
     except Exception:
-        pass
+        avail = None
+    if avail:
+        url = f"/v2/appAvailabilities/{avail['id']}/territoryAvailabilities?include=territory&limit=200"
+        while url:
+            page = call("GET", url)
+            for ta in page["data"]:
+                tid = ta.get("relationships", {}).get("territory", {}).get("data", {}).get("id")
+                if tid == "CHN" and ta["attributes"].get("available"):
+                    call("PATCH", f"/v1/territoryAvailabilities/{ta['id']}", {"data": {"type": "territoryAvailabilities", "id": ta["id"], "attributes": {"available": False}}})
+                    print("   China mainland removed")
+            nxt = page.get("links", {}).get("next")
+            url = nxt.replace(API, "") if nxt else None
+        return
     territories = []
     url = "/v1/territories?limit=200"
     while url:
         page = call("GET", url)
-        territories += [t["id"] for t in page["data"]]
+        territories += [t["id"] for t in page["data"] if t["id"] != "CHN"]
         nxt = page.get("links", {}).get("next")
         url = nxt.replace(API, "") if nxt else None
     included = [{"type": "territoryAvailabilities", "id": f"${{t{i}}}", "attributes": {"available": True},
