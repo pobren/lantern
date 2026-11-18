@@ -94,7 +94,14 @@ struct ReadingPane: View {
             Divider()
             Group {
                 if let page {
+                    // A white margin around every email, like Apple Mail, even when the email's own styles
+                    // take its edges away.
                     EmailWebView(html: page.html, remoteImages: remoteImages || showImagesOnce)
+                        #if os(macOS)
+                        .padding(.horizontal, 24).padding(.top, 10)
+                        #else
+                        .padding(.horizontal, 10).padding(.top, 4)
+                        #endif
                 } else if loading {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {

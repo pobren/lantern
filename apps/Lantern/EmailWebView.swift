@@ -66,7 +66,7 @@ struct EmailWebView: PlatformViewRepresentable {
         <meta name="color-scheme" content="light only">
         <style>
           html { -webkit-text-size-adjust: 100%; background: #fff; }
-          body { margin: 0; padding: 18px 20px 48px; background: #fff; font: \(Look.bodyPoints)px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; color: #16191D; word-wrap: break-word; overflow-wrap: anywhere; }
+          body { margin: 0 !important; padding: 18px 12px 48px !important; background: #fff; font: \(Look.bodyPoints)px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; color: #16191D; word-wrap: break-word; overflow-wrap: anywhere; }
           img { max-width: 100%; height: auto; }
           table { max-width: 100% !important; }
           .lantern-text { white-space: pre-wrap; }
