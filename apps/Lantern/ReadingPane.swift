@@ -125,6 +125,7 @@ struct ReadingPane: View {
         .fileExporter(isPresented: Binding(get: { saving != nil }, set: { if !$0 { saving = nil } }),
                       document: saving, contentType: .emailMessage, defaultFilename: EmailFile.name(for: shown)) { _ in saving = nil }
         .toolbar { tools }
+        .focusedSceneValue(\.messageActions, actions)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -172,9 +173,9 @@ struct ReadingPane: View {
             replyButtons
             Divider()
             Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
-                .help("Archive (⌃⌘A)").keyboardShortcut("a", modifiers: [.command, .control])
+                .help("Archive (⌃⌘A)")
             Button { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
-                .help("Delete (⌘⌫)").keyboardShortcut(.delete, modifiers: .command)
+                .help("Delete (⌘⌫)")
             MoveMenu(item: item).help("Move to a folder")
             spamButton
             more
@@ -199,16 +200,43 @@ struct ReadingPane: View {
             Label(spam ? "Not spam" : "Mark as spam", systemImage: spam ? "tray.and.arrow.up" : "xmark.bin")
         }
         .help(spam ? "Not spam: move back to the Inbox (⇧⌘J)" : "Mark as spam (⇧⌘J)")
+        #if os(iOS)
         .keyboardShortcut("j", modifiers: [.command, .shift])
+        #endif
     }
 
     @ViewBuilder private var replyButtons: some View {
+        if store.isEditableDraft(item, shown) {
+            Button { editDraft() } label: { Label("Edit draft", systemImage: "pencil") }
+                .help("Carry on writing this draft (⌘E)")
+        }
         Button { reply(all: false) } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
-            .help("Reply (⌘R)").keyboardShortcut("r", modifiers: .command)
+            .help("Reply (⌘R)")
         Button { reply(all: true) } label: { Label("Reply all", systemImage: "arrowshape.turn.up.left.2") }
-            .help("Reply all (⇧⌘R)").keyboardShortcut("r", modifiers: [.command, .shift])
+            .help("Reply all (⇧⌘R)")
         Button { forward() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
-            .help("Forward (⇧⌘F)").keyboardShortcut("f", modifiers: [.command, .shift])
+            .help("Forward (⇧⌘F)")
+    }
+
+    /// Everything the Mac's Message menu can do to this email.
+    private var actions: MessageActions {
+        MessageActions(reply: { reply(all: false) }, replyAll: { reply(all: true) }, forward: { forward() },
+                       archive: { Task { await store.archive(item) } }, delete: { Task { await store.delete(item) } },
+                       spam: { Task { await store.markSpam(item, !store.inSpam(item)) } },
+                       toggleUnread: { Task { await store.setUnread(item, !item.email.isUnread) } },
+                       toggleStar: { Task { await store.flag(item) } },
+                       editDraft: store.isEditableDraft(item, shown) ? { editDraft() } : nil,
+                       inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged)
+    }
+
+    /// Opens a saved draft for writing again; saving or sending it replaces the old copy.
+    private func editDraft() {
+        let e = shown
+        Task {
+            let text = await store.text(e, account: item.account)
+            let files = page?.attachments ?? []
+            compose(ComposeDraft.editing(e, account: item.account, text: text, attachments: files, store: store))
+        }
     }
 
     private var more: some View {

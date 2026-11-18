@@ -138,9 +138,11 @@ struct Email: Codable, Identifiable, Hashable {
     let messageId: [String]?
     let references: [String]?
     let blobId: String?
+    var bcc: [EmailAddress]? = nil
+    var inReplyTo: [String]? = nil
 
     static let listProperties = ["id", "threadId", "mailboxIds", "keywords", "from", "to", "cc", "replyTo", "subject",
-                                 "preview", "receivedAt", "hasAttachment", "messageId", "references", "blobId"]
+                                 "preview", "receivedAt", "hasAttachment", "messageId", "references", "blobId", "bcc", "inReplyTo"]
 
     var sender: EmailAddress { from?.first ?? EmailAddress(name: "Unknown sender", email: "") }
     var isUnread: Bool { keywords?["$seen"] != true }

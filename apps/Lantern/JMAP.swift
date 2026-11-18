@@ -327,11 +327,9 @@ final class JMAPClient: @unchecked Sendable {
         }
     }
 
-    /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent.
-    func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
-              inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String) async throws {
-        guard let acc = accountId else { throw JMAPError.missing("an account") }
+    /// The email as JMAP wants it, ready to save in Drafts (and, when sending, to submit).
+    private func message(from identity: Identity, as address: String?, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress], subject: String, text: String,
+                         inReplyTo: String?, references: [String], attachments: [Outgoing], drafts: String) -> [String: Any] {
         // Apple Mail shows attachments straight after the last line of text, so end on a blank line
         // to give them a line of their own.
         var body = text
@@ -358,8 +356,39 @@ final class JMAPClient: @unchecked Sendable {
         // Bcc stays on your copy in Sent; the server sends to those addresses but leaves the header out of what others get.
         if !bcc.isEmpty { draft["bcc"] = bcc.map { ["name": $0.name ?? "", "email": $0.email] } }
         if let inReplyTo { draft["inReplyTo"] = [inReplyTo]; draft["references"] = references + [inReplyTo] }
+        return draft
+    }
+
+    /// Saves an unfinished email in Drafts, replacing the earlier copy when it's a draft being picked up again.
+    /// Returns the new draft's id.
+    @discardableResult
+    func saveDraft(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress], subject: String, text: String,
+                   inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [], drafts: String, replacing: String? = nil) async throws -> String {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var args: [String: Any] = ["accountId": acc,
+                                   "create": ["draft": message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+                                                               inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)]]
+        if let replacing { args["destroy"] = [replacing] }
+        let r = try await call([["Email/set", args, "c"]])
+        if let failed = r["c"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notCreated", first["description"] as? String)
+        }
+        let created = r["c"]?["created"] as? [String: Any]
+        return ((created?["draft"] as? [String: Any])?["id"] as? String) ?? ""
+    }
+
+    /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent. When the email started
+    /// life as a saved draft, that copy is removed.
+    func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
+              inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
+              drafts: String, sent: String, replacing: String? = nil) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+                            inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
+        var create: [String: Any] = ["accountId": acc, "create": ["draft": draft]]
+        if let replacing { create["destroy"] = [replacing] }
         let r = try await call([
-            ["Email/set", ["accountId": acc, "create": ["draft": draft]], "c"],
+            ["Email/set", create, "c"],
             ["EmailSubmission/set", ["accountId": acc,
                                       "create": ["send": ["identityId": identity.id, "emailId": "#draft"]],
                                       "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(sent)": true,

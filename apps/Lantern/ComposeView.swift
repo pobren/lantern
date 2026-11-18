@@ -20,6 +20,14 @@ struct ComposeDraft: Identifiable {
     var subject = ""
     var text = ""
     var replyTo: Email?
+    /// The saved draft this was opened from, so saving again or sending replaces it rather than leaving a copy.
+    var draftId: String?
+    /// Threading headers carried over from a saved draft that was a reply.
+    var savedThreading: (inReplyTo: String?, references: [String])?
+    /// Files already on a saved draft.
+    var attachments: [Outgoing] = []
+
+    var threading: (inReplyTo: String?, references: [String]) { savedThreading ?? Store.threading(replyTo) }
 
     /// "-- " and the signature, the standard way, so other mail apps know where it starts.
     static func signed(_ signature: String) -> String {
@@ -92,6 +100,23 @@ struct ComposeDraft: Identifiable {
                             text: "\n\n" + block(identity, store) + header + "\n\n" + text)
     }
 
+    /// Picks a saved draft up again, with its addresses, words and files.
+    @MainActor static func editing(_ e: Email, account: Account, text: String, attachments: [Attachment], store: Store) -> ComposeDraft {
+        let ids = store.state(for: account)?.identities ?? []
+        let from = e.from?.first?.email ?? ""
+        var fromEmail = ""
+        var identity = ids.first { !$0.isWildcard && $0.email.lowercased() == from.lowercased() }
+        if identity == nil, let w = ids.first(where: { $0.isWildcard && $0.covers(from) }) { identity = w; fromEmail = from }
+        if identity == nil { identity = store.state(for: account).flatMap { store.defaultIdentity($0) } }
+        return ComposeDraft(account: account, identityId: identity?.id, fromEmail: fromEmail,
+                            to: (e.to ?? []).map(\.full).joined(separator: ", "),
+                            cc: (e.cc ?? []).map(\.full).joined(separator: ", "),
+                            bcc: (e.bcc ?? []).map(\.full).joined(separator: ", "),
+                            subject: e.subject ?? "", text: text, draftId: e.id,
+                            savedThreading: (e.inReplyTo?.first, e.references ?? []),
+                            attachments: attachments.map { Outgoing(blobId: $0.blobId, name: $0.name, type: $0.type, size: $0.size) })
+    }
+
     /// The signature followed by a blank line, or nothing if there isn't one.
     @MainActor private static func block(_ identity: Identity?, _ store: Store) -> String {
         guard let identity else { return "" }
@@ -118,6 +143,10 @@ struct ComposeView: View {
     @State private var files: [Outgoing] = []
     @State private var uploading = 0
     @State private var picking = false
+    /// What the email looked like when it opened, to tell whether closing it would lose anything.
+    @State private var start = ""
+    @State private var askingToClose = false
+    @State private var savingDraft = false
     #if os(iOS)
     @State private var photos: [PhotosPickerItem] = []
     #endif
@@ -127,6 +156,43 @@ struct ComposeView: View {
     init(draft: ComposeDraft) {
         _draft = State(initialValue: draft)
         _showCc = State(initialValue: !draft.cc.isEmpty)
+        _showBcc = State(initialValue: !draft.bcc.isEmpty)
+        _files = State(initialValue: draft.attachments)
+        _start = State(initialValue: Self.snapshot(draft, draft.attachments))
+    }
+
+    private static func snapshot(_ d: ComposeDraft, _ files: [Outgoing]) -> String {
+        [d.to, d.cc, d.bcc, d.subject, d.text, files.map(\.blobId).joined(separator: ",")].joined(separator: "\u{1}")
+    }
+
+    /// Something has been written or changed since the email opened.
+    private var changed: Bool { Self.snapshot(draft, files) != start }
+
+    /// Closing asks first when there's something to lose: keep it in Drafts, throw it away, or carry on writing.
+    private func close() {
+        if changed { askingToClose = true } else { dismiss() }
+    }
+
+    private func saveAndClose() async {
+        guard let account = draft.account, let s = store.state(for: account),
+              let identity = s.identities.first(where: { $0.id == draft.identityId }) else { problem = "Choose who it's from first."; return }
+        savingDraft = true; problem = nil
+        do {
+            let address = identity.isWildcard && !draft.fromEmail.isEmpty ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
+            try await store.saveDraft(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
+                                      cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text,
+                                      threading: draft.threading, attachments: files, replacing: draft.draftId)
+            dismiss()
+        } catch {
+            problem = "Couldn't save the draft: \(error.localizedDescription)"
+        }
+        savingDraft = false
+    }
+
+    @ViewBuilder private var closeChoices: some View {
+        Button("Save to Drafts") { Task { await saveAndClose() } }
+        Button(draft.draftId == nil ? "Delete" : "Discard changes", role: .destructive) { dismiss() }
+        Button("Keep writing", role: .cancel) {}
     }
 
     /// Every address you can send from, across every account.
@@ -176,7 +242,7 @@ struct ComposeView: View {
             HStack {
                 Text(title).font(Look.size(15, weight: .semibold))
                 Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark") }
+                Button { close() } label: { Image(systemName: "xmark") }
                     .buttonStyle(.borderless).keyboardShortcut(.cancelAction).accessibilityLabel("Close")
             }
             .padding(.horizontal, 20).frame(height: 48)
@@ -198,6 +264,11 @@ struct ComposeView: View {
         .frame(width: 680, height: 580)
         .background(Look.paper)
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
+        .confirmationDialog("Save this email to Drafts?", isPresented: $askingToClose, titleVisibility: .visible) { closeChoices }
+            message: { Text("You can pick it up again from your Drafts folder.") }
+        .interactiveDismissDisabled(changed)
+        .disabled(savingDraft)
+        .focusedSceneValue(\.composing, true)
         #else
         NavigationStack {
             VStack(spacing: 0) {
@@ -209,7 +280,7 @@ struct ComposeView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { close() } }
                 ToolbarItem(placement: .confirmationAction) { sendButton }
                 ToolbarItemGroup(placement: .bottomBar) {
                     PhotosPicker(selection: $photos, matching: .any(of: [.images, .videos])) {
@@ -226,6 +297,11 @@ struct ComposeView: View {
             }
         }
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
+        .confirmationDialog("Save this email to Drafts?", isPresented: $askingToClose, titleVisibility: .visible) { closeChoices }
+            message: { Text("You can pick it up again from your Drafts folder.") }
+        .interactiveDismissDisabled(changed)
+        .disabled(savingDraft)
+        .focusedSceneValue(\.composing, true)
         #endif
     }
 
@@ -414,8 +490,8 @@ struct ComposeView: View {
         do {
             let address = identity.isWildcard ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
             try await store.send(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
-                                 cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text, replyTo: draft.replyTo,
-                                 attachments: files)
+                                 cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text,
+                                 threading: draft.threading, attachments: files, replacing: draft.draftId)
             dismiss()
         } catch {
             problem = error.localizedDescription

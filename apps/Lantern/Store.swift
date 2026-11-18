@@ -415,13 +415,36 @@ final class Store: ObservableObject {
         }
     }
 
+    /// The In-Reply-To and References headers for an answer to this email.
+    nonisolated static func threading(_ replyTo: Email?) -> (inReplyTo: String?, references: [String]) {
+        (replyTo?.messageId?.first, replyTo?.references ?? [])
+    }
+
     func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
-              replyTo: Email?, attachments: [Outgoing] = []) async throws {
+              threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
-                                inReplyTo: replyTo?.messageId?.first, references: replyTo?.references ?? [],
-                                attachments: attachments, drafts: drafts.id, sent: sent.id)
+                                inReplyTo: threading.inReplyTo, references: threading.references,
+                                attachments: attachments, drafts: drafts.id, sent: sent.id, replacing: replacing)
         await load(s)
+    }
+
+    /// Keeps an unfinished email in the account's Drafts folder. Returns the saved draft's id.
+    @discardableResult
+    func saveDraft(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress], subject: String, text: String,
+                   threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing], replacing: String?) async throws -> String {
+        guard let s = state(for: account), let drafts = s.box("drafts") else { throw JMAPError.missing("a Drafts folder") }
+        let id = try await s.client.saveDraft(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+                                              inReplyTo: threading.inReplyTo, references: threading.references,
+                                              attachments: attachments, drafts: drafts.id, replacing: replacing)
+        await load(s)
+        return id
+    }
+
+    /// Whether this email is a saved draft you can pick up and carry on writing.
+    func isEditableDraft(_ item: Item, _ e: Email) -> Bool {
+        guard e.isDraft, let s = state(for: item.account), let drafts = s.box("drafts") else { return false }
+        return e.mailboxIds[drafts.id] == true
     }
 
     /// Puts a file on the account's server, ready to attach. Big files are turned away before they're sent.
@@ -586,6 +609,7 @@ extension Email {
         if on { k[keyword] = true } else { k.removeValue(forKey: keyword) }
         return Email(id: id, threadId: threadId, mailboxIds: mailboxIds, keywords: k, from: from, to: to, cc: cc,
                      replyTo: replyTo, subject: subject, preview: preview, receivedAt: receivedAt,
-                     hasAttachment: hasAttachment, messageId: messageId, references: references, blobId: blobId)
+                     hasAttachment: hasAttachment, messageId: messageId, references: references, blobId: blobId,
+                     bcc: bcc, inReplyTo: inReplyTo)
     }
 }
