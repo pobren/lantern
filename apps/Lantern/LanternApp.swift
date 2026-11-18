@@ -7,15 +7,10 @@ struct LanternApp: App {
     @StateObject private var store = Store()
 
     var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environmentObject(store)
-                #if os(macOS)
-                .frame(minWidth: 900, minHeight: 580)
-                #endif
-                .tint(Look.accent)
-        }
         #if os(macOS)
+        WindowGroup {
+            window.frame(minWidth: 900, minHeight: 580)
+        }
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New message") { NotificationCenter.default.post(name: .lanternCompose, object: nil) }
@@ -30,7 +25,17 @@ struct LanternApp: App {
         Settings {
             SettingsView().environmentObject(store)
         }
+        #else
+        WindowGroup {
+            window
+        }
         #endif
+    }
+
+    private var window: some View {
+        RootView()
+            .environmentObject(store)
+            .tint(Look.accent)
     }
 }
 
