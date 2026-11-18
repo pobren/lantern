@@ -32,6 +32,16 @@ struct LanternApp: App {
             }
         }
 
+        WindowGroup("Email", for: MessageRef.self) { $ref in
+            if let ref {
+                MessageWindow(ref: ref)
+                    .environmentObject(store)
+                    .tint(Look.accent)
+                    .frame(minWidth: 520, minHeight: 420)
+            }
+        }
+        .defaultSize(width: 760, height: 820)
+
         Settings {
             SettingsView().environmentObject(store)
         }

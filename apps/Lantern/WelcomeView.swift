@@ -110,6 +110,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var adding: ServerKind?
     @AppStorage("remoteImages") private var remoteImages = true
+    @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Notifier.enabledKey) private var notify = true
     @AppStorage(Notifier.badgeKey) private var badge = true
 
@@ -138,6 +139,7 @@ struct SettingsView: View {
                 Toggle("Load pictures from the web in emails", isOn: $remoteImages)
                 Text("Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
             }
             Section("Accounts") {
                 ForEach(store.accounts) { s in

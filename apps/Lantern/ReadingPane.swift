@@ -3,6 +3,7 @@
 
 import SwiftUI
 import QuickLook
+import UniformTypeIdentifiers
 
 struct ReadingPane: View {
     @EnvironmentObject var store: Store
@@ -16,17 +17,29 @@ struct ReadingPane: View {
     @State private var loading = true
     @State private var showImagesOnce = false
     @State private var preview: URL?
+    @State private var saving: EmailFile?
 
     private var shown: Email { thread.first { $0.id == open } ?? thread.last ?? item.email }
     private var earlier: [Email] { thread.filter { $0.id != shown.id } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(item.email.title)
-                .font(.system(size: 21, weight: .semibold))
-                .textSelection(.enabled)
-                .lineLimit(3)
-                .padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 10)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(item.email.title)
+                    .font(.system(size: 21, weight: .semibold))
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+                Spacer(minLength: 8)
+                Button { Task { await store.flag(item) } } label: {
+                    Image(systemName: item.email.isFlagged ? "star.fill" : "star")
+                        .font(.system(size: 17))
+                        .foregroundStyle(item.email.isFlagged ? Look.star : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(item.email.isFlagged ? "Remove star" : "Star")
+                .accessibilityLabel(item.email.isFlagged ? "Remove star" : "Star")
+            }
+            .padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 10)
 
             if !earlier.isEmpty {
                 ScrollView {
@@ -95,6 +108,8 @@ struct ReadingPane: View {
         }
         .background(Look.paper)
         .quickLookPreview($preview)
+        .fileExporter(isPresented: Binding(get: { saving != nil }, set: { if !$0 { saving = nil } }),
+                      document: saving, contentType: .emailMessage, defaultFilename: EmailFile.name(for: shown)) { _ in saving = nil }
         .toolbar { tools }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -163,7 +178,16 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            Divider()
+            Button { save() } label: { Label("Save as…", systemImage: "square.and.arrow.down") }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
         } label: { Label("More", systemImage: "ellipsis.circle") }
+    }
+
+    /// Saves the email exactly as it arrived, as an .eml file any mail app can open.
+    private func save() {
+        let e = shown
+        Task { if let data = await store.original(e, account: item.account) { saving = EmailFile(data: data) } }
     }
 
     private func reply(all: Bool) {
@@ -224,6 +248,58 @@ private struct Header: View {
                 Text(When.long(email.date)).font(.system(size: 12)).foregroundStyle(.secondary)
                 HStack(spacing: 5) { AccountDot(account: account, size: 6); Text(account.label) }
                     .font(.system(size: 11.5)).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// An email as a file (.eml), for Save as.
+struct EmailFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.emailMessage] }
+    var data: Data
+
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+
+    /// The subject, made safe for a file name.
+    static func name(for e: Email) -> String {
+        let bad = CharacterSet(charactersIn: "/\\:?%*|\"<>")
+        let clean = e.title.components(separatedBy: bad).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        return String((clean.isEmpty ? "Email" : clean).prefix(80))
+    }
+}
+
+/// An email in a window of its own (double click it in the list on Mac).
+struct MessageWindow: View {
+    @EnvironmentObject var store: Store
+    let ref: MessageRef
+    @State private var fetched: Item?
+    @State private var composing: ComposeDraft?
+    @State private var missing = false
+
+    /// The live copy from the list when there is one, so stars and read marks stay in step with the main window.
+    private var item: Item? {
+        store.list.first { $0.account.id == ref.account && $0.email.id == ref.email } ?? fetched
+    }
+
+    var body: some View {
+        NavigationStack {
+            if let item {
+                ReadingPane(item: item, compose: { composing = $0 })
+            } else if missing {
+                Text("This email isn't there any more.").foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle(item?.email.title ?? "Email")
+        .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
+        .task {
+            if item == nil {
+                fetched = await store.item(ref)
+                missing = fetched == nil
             }
         }
     }

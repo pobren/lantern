@@ -12,6 +12,7 @@ struct ComposeDraft: Identifiable {
     var identityId: String?
     var to = ""
     var cc = ""
+    var bcc = ""
     var subject = ""
     var text = ""
     var replyTo: Email?
@@ -89,6 +90,7 @@ struct ComposeView: View {
     @Environment(\.dismiss) private var dismiss
     @State var draft: ComposeDraft
     @State private var showCc = false
+    @State private var showBcc = false
     @State private var sending = false
     @State private var problem: String?
     @FocusState private var focus: Field?
@@ -135,7 +137,7 @@ struct ComposeView: View {
     }
 
     private var canSend: Bool {
-        !EmailAddress.parse(draft.to).isEmpty && draft.account != nil && draft.identityId != nil && !sending && uploading == 0
+        !(EmailAddress.parse(draft.to) + EmailAddress.parse(draft.bcc)).isEmpty && draft.account != nil && draft.identityId != nil && !sending && uploading == 0
     }
 
     var body: some View {
@@ -236,10 +238,22 @@ struct ComposeView: View {
                     .autocorrectionDisabled()
                     #endif
                 if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
+                if !showBcc { Button("Bcc") { showBcc = true }.buttonStyle(.borderless) }
             }
             if showCc {
                 row("Cc") {
                     TextField("", text: $draft.cc)
+                        .textFieldStyle(.plain)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                }
+            }
+            if showBcc {
+                row("Bcc") {
+                    TextField("", text: $draft.bcc)
                         .textFieldStyle(.plain)
                         #if os(iOS)
                         .keyboardType(.emailAddress)
@@ -333,7 +347,7 @@ struct ComposeView: View {
         sending = true; problem = nil
         do {
             try await store.send(account: account, identity: identity, to: EmailAddress.parse(draft.to),
-                                 cc: EmailAddress.parse(draft.cc), subject: draft.subject, text: draft.text, replyTo: draft.replyTo,
+                                 cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text, replyTo: draft.replyTo,
                                  attachments: files)
             dismiss()
         } catch {

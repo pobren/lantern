@@ -25,6 +25,9 @@ targets:
       properties:
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
+        # Emails still link pictures over plain http; let the email viewer (only) load them like any mail app.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern

@@ -23,6 +23,12 @@ struct Item: Identifiable, Hashable {
     var id: String { account.id + "/" + email.id }
 }
 
+/// Points at one email, for opening it in a window of its own.
+struct MessageRef: Codable, Hashable {
+    let account: String
+    let email: String
+}
+
 /// What the middle column shows: every inbox together, or one folder of one account.
 enum Folder: Hashable {
     case allInboxes
@@ -49,12 +55,16 @@ final class AccountState: ObservableObject, Identifiable {
     /// Folders in sidebar order, each with how deep it sits under its parents.
     var tree: [FolderEntry] {
         var out: [FolderEntry] = []
+        var trail: [String] = []
         func add(_ parent: String?, _ depth: Int) {
             let children = mailboxes.filter { $0.parentId == parent }
                 .sorted { ($0.rank, $0.sortOrder ?? 0, $0.name.lowercased()) < ($1.rank, $1.sortOrder ?? 0, $1.name.lowercased()) }
             for c in children {
-                out.append(FolderEntry(box: c, depth: depth))
+                out.append(FolderEntry(box: c, depth: depth, ancestors: trail,
+                                       hasChildren: mailboxes.contains { $0.parentId == c.id }))
+                trail.append(c.id)
                 add(c.id, depth + 1)
+                trail.removeLast()
             }
         }
         add(nil, 0)
@@ -66,6 +76,8 @@ final class AccountState: ObservableObject, Identifiable {
 struct FolderEntry: Identifiable {
     let box: Mailbox
     let depth: Int
+    let ancestors: [String]   // the folders it sits inside, outermost first
+    let hasChildren: Bool
     var id: String { box.id }
 }
 
@@ -84,6 +96,11 @@ final class Store: ObservableObject {
 
     // The reading pane.
     @Published var selection: Item.ID?
+
+    // Folders whose subfolders are tucked away in the sidebar, as "account/folder".
+    @Published var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsed") ?? []) {
+        didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsed") }
+    }
 
     private var listeners: [String: Task<Void, Never>] = [:]
     private let savedKey = "accounts"
@@ -364,10 +381,10 @@ final class Store: ObservableObject {
         }
     }
 
-    func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String,
+    func send(account: Account, identity: Identity, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               replyTo: Email?, attachments: [Outgoing] = []) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
-        try await s.client.send(from: identity, to: to, cc: cc, subject: subject, text: text,
+        try await s.client.send(from: identity, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                 inReplyTo: replyTo?.messageId?.first, references: replyTo?.references ?? [],
                                 attachments: attachments, drafts: drafts.id, sent: sent.id)
         await load(s)
@@ -379,6 +396,63 @@ final class Store: ObservableObject {
         guard data.count <= 25_000_000 else { throw AttachError.tooBig(name) }
         let blobId = try await s.client.upload(data, type: type)
         return Outgoing(blobId: blobId, name: name, type: type, size: data.count)
+    }
+
+    // MARK: Folders
+
+    func isCollapsed(_ box: Mailbox, in s: AccountState) -> Bool { collapsed.contains(s.id + "/" + box.id) }
+
+    func toggleCollapsed(_ box: Mailbox, in s: AccountState) {
+        let key = s.id + "/" + box.id
+        if collapsed.contains(key) { collapsed.remove(key) } else { collapsed.insert(key) }
+    }
+
+    /// Hidden when any folder it sits inside is collapsed.
+    func isHidden(_ entry: FolderEntry, in s: AccountState) -> Bool {
+        entry.ancestors.contains { collapsed.contains(s.id + "/" + $0) }
+    }
+
+    func newFolder(_ name: String, in s: AccountState, inside parent: Mailbox?) async {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        if let parent { collapsed.remove(s.id + "/" + parent.id) }
+        await act(s, reloadList: false) { try await s.client.createMailbox(name: clean, parentId: parent?.id) }
+    }
+
+    func rename(_ box: Mailbox, to name: String, in s: AccountState) async {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, clean != box.name else { return }
+        await act(s, reloadList: false) { try await s.client.renameMailbox(id: box.id, name: clean) }
+    }
+
+    /// A conversation dropped on a folder in the sidebar. Only folders of the same account take it.
+    func drop(_ ids: [String], on box: Mailbox, in s: AccountState) async -> Bool {
+        let items = ids.compactMap { id in list.first { $0.id == id } }.filter { $0.account.id == s.id }
+        for item in items { await move(item, to: box) }
+        return !items.isEmpty
+    }
+
+    // MARK: Opening and saving one email
+
+    /// An email for its own window: from the list if it's there, otherwise fetched.
+    func item(_ ref: MessageRef) async -> Item? {
+        if let hit = list.first(where: { $0.account.id == ref.account && $0.email.id == ref.email }) { return hit }
+        guard let s = state(id: ref.account), let e = try? await s.client.email(ref.email) else { return nil }
+        return Item(account: s.account, email: e)
+    }
+
+    /// The email exactly as it arrived (an .eml file), to save or share.
+    func original(_ email: Email, account: Account) async -> Data? {
+        guard let s = state(for: account) else { return nil }
+        do {
+            var blob = email.blobId
+            if blob == nil { blob = try await s.client.email(email.id)?.blobId }
+            guard let blob else { throw JMAPError.missing("the original email") }
+            return try await s.client.download(blobId: blob, type: "message/rfc822")
+        } catch {
+            problem = "Couldn't save the email: \(error.localizedDescription)"
+            return nil
+        }
     }
 
     // MARK: Signatures
@@ -434,6 +508,6 @@ extension Email {
         if on { k[keyword] = true } else { k.removeValue(forKey: keyword) }
         return Email(id: id, threadId: threadId, mailboxIds: mailboxIds, keywords: k, from: from, to: to, cc: cc,
                      replyTo: replyTo, subject: subject, preview: preview, receivedAt: receivedAt,
-                     hasAttachment: hasAttachment, messageId: messageId, references: references)
+                     hasAttachment: hasAttachment, messageId: messageId, references: references, blobId: blobId)
     }
 }

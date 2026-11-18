@@ -135,6 +135,31 @@ final class JMAPClient: @unchecked Sendable {
         return try Self.decode([Mailbox].self, from: r["m"]?["list"])
     }
 
+    /// Makes a new folder, inside another one if `parentId` is set.
+    func createMailbox(name: String, parentId: String?) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let box: [String: Any] = ["name": name, "parentId": parentId.map { $0 as Any } ?? NSNull()]
+        let r = try await call([["Mailbox/set", ["accountId": acc, "create": ["new": box]], "m"]])
+        if let failed = r["m"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notCreated", first["description"] as? String)
+        }
+    }
+
+    func renameMailbox(id: String, name: String) async throws {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Mailbox/set", ["accountId": acc, "update": [id: ["name": name]]], "m"]])
+        if let failed = r["m"]?["notUpdated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notUpdated", first["description"] as? String)
+        }
+    }
+
+    /// One email by its id, with what the lists need.
+    func email(_ id: String) async throws -> Email? {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": [id], "properties": Email.listProperties], "g"]])
+        return try Self.decode([Email].self, from: r["g"]?["list"]).first
+    }
+
     func identities() async throws -> [Identity] {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         let r = try await call([["Identity/get", ["accountId": acc], "i"]], using: [Self.core, Self.mail, Self.submission])
@@ -205,9 +230,13 @@ final class JMAPClient: @unchecked Sendable {
             guard var cid = part["cid"] as? String, let blobId = part["blobId"] as? String,
                   let type = part["type"] as? String, type.lowercased().hasPrefix("image/"),
                   (part["size"] as? Int ?? 0) < 5_000_000 else { continue }
-            cid = cid.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
-            guard html.contains("cid:\(cid)"), let data = try? await download(blobId: blobId, type: type) else { continue }
-            html = html.replacingOccurrences(of: "cid:\(cid)", with: "data:\(type);base64,\(data.base64EncodedString())")
+            cid = cid.trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+            // Senders write cid: links in any case, and some percent-encode them.
+            let links = Set(["cid:\(cid)", "cid:" + (cid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? cid)])
+            guard links.contains(where: { html.range(of: $0, options: .caseInsensitive) != nil }),
+                  let data = try? await download(blobId: blobId, type: type) else { continue }
+            let inline = "data:\(type);base64,\(data.base64EncodedString())"
+            for link in links { html = html.replacingOccurrences(of: link, with: inline, options: .caseInsensitive) }
             used.insert(blobId)
         }
         // Files to open or save: everything attached, except pictures already shown inside the email.
@@ -275,7 +304,7 @@ final class JMAPClient: @unchecked Sendable {
     }
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent.
-    func send(from identity: Identity, to: [EmailAddress], cc: [EmailAddress], subject: String, text: String,
+    func send(from identity: Identity, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
               drafts: String, sent: String) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
@@ -299,6 +328,8 @@ final class JMAPClient: @unchecked Sendable {
             draft["attachments"] = attachments.map { ["blobId": $0.blobId, "type": $0.type, "name": $0.name, "disposition": "attachment"] }
         }
         if !cc.isEmpty { draft["cc"] = cc.map { ["name": $0.name ?? "", "email": $0.email] } }
+        // Bcc stays on your copy in Sent; the server sends to those addresses but leaves the header out of what others get.
+        if !bcc.isEmpty { draft["bcc"] = bcc.map { ["name": $0.name ?? "", "email": $0.email] } }
         if let inReplyTo { draft["inReplyTo"] = [inReplyTo]; draft["references"] = references + [inReplyTo] }
         let r = try await call([
             ["Email/set", ["accountId": acc, "create": ["draft": draft]], "c"],

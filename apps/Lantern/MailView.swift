@@ -68,6 +68,9 @@ struct Sidebar: View {
     let compose: () -> Void
     let settings: () -> Void
 
+    @State private var naming: Naming?
+    @State private var folderName = ""
+
     private var picked: Binding<Folder?> {
         Binding(get: { store.folder }, set: { f in if let f { Task { await store.open(f) } } })
     }
@@ -82,10 +85,8 @@ struct Sidebar: View {
             ForEach(store.accounts) { s in
                 Section {
                     ForEach(s.tree) { entry in
-                        if !(store.accounts.count == 1 && entry.box.role == "inbox") {
-                            Label(entry.box.name, systemImage: entry.box.icon)
-                                .padding(.leading, CGFloat(entry.depth) * 14)
-                                .badge(entry.box.showsUnread ? (entry.box.unreadEmails ?? 0) : 0)
+                        if !(store.accounts.count == 1 && entry.box.role == "inbox") && !store.isHidden(entry, in: s) {
+                            FolderRow(entry: entry, state: s, naming: $naming)
                                 .tag(Folder.mailbox(account: s.id, id: entry.box.id))
                         }
                     }
@@ -94,9 +95,27 @@ struct Sidebar: View {
                         AccountDot(account: s.account, size: 7)
                         Text(s.account.label).lineLimit(1)
                     }
+                    .contextMenu {
+                        Button { naming = Naming(state: s, box: nil, renaming: false) } label: { Label("New folder", systemImage: "folder.badge.plus") }
+                    }
                 }
             }
         }
+        .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: $folderName)
+            Button("Cancel", role: .cancel) { naming = nil }
+            Button(naming?.renaming == true ? "Rename" : "Create") {
+                if let n = naming {
+                    let name = folderName
+                    Task {
+                        if n.renaming, let box = n.box { await store.rename(box, to: name, in: n.state) }
+                        else { await store.newFolder(name, in: n.state, inside: n.box) }
+                    }
+                }
+                naming = nil
+            }
+        }
+        .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .navigationTitle("Mail")
         #if os(macOS)
@@ -126,10 +145,74 @@ struct Sidebar: View {
     }
 }
 
+/// A folder being named: a new one (inside `box`, if set) or `box` itself being renamed.
+struct Naming: Identifiable {
+    let id = UUID()
+    let state: AccountState
+    let box: Mailbox?
+    let renaming: Bool
+    var title: String { renaming ? "Rename folder" : box.map { "New folder in \($0.name)" } ?? "New folder" }
+}
+
+/// One folder in the sidebar: its unread count, an arrow to fold its subfolders away, a menu to add or rename
+/// folders, and a place to drop conversations.
+struct FolderRow: View {
+    @EnvironmentObject var store: Store
+    let entry: FolderEntry
+    let state: AccountState
+    @Binding var naming: Naming?
+    @State private var targeted = false
+
+    var body: some View {
+        let box = entry.box
+        HStack(spacing: 2) {
+            if entry.hasChildren {
+                Button { withAnimation(.snappy) { store.toggleCollapsed(box, in: state) } } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : 90))
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(store.isCollapsed(box, in: state) ? "Show folders inside \(box.name)" : "Hide folders inside \(box.name)")
+            } else {
+                Color.clear.frame(width: 14, height: 14)
+            }
+            Label(box.name, systemImage: box.icon)
+        }
+        .padding(.leading, CGFloat(entry.depth) * 14)
+        .badge(box.showsUnread ? (box.unreadEmails ?? 0) : 0)
+        .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Look.accent.opacity(0.22) : .clear).padding(-4))
+        .dropDestination(for: String.self) { ids, _ in
+            let result = ids
+            Task { _ = await store.drop(result, on: box, in: state) }
+            return true
+        } isTargeted: { targeted = $0 }
+        .contextMenu {
+            Button { naming = Naming(state: state, box: box, renaming: false) } label: { Label("New folder inside", systemImage: "folder.badge.plus") }
+            if box.role == nil {
+                Button { naming = Naming(state: state, box: box, renaming: true) } label: { Label("Rename", systemImage: "pencil") }
+            }
+            if entry.hasChildren {
+                Button { store.toggleCollapsed(box, in: state) } label: {
+                    store.isCollapsed(box, in: state)
+                        ? Label("Show folders inside", systemImage: "chevron.down")
+                        : Label("Hide folders inside", systemImage: "chevron.right")
+                }
+            }
+        }
+    }
+}
+
 // MARK: The list
 
 struct MessageList: View {
     @EnvironmentObject var store: Store
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     let compose: () -> Void
 
     var body: some View {
@@ -137,7 +220,10 @@ struct MessageList: View {
             ForEach(store.list) { item in
                 Row(item: item, showAccount: store.accounts.count > 1 && store.folder == .allInboxes)
                     .tag(item.id)
+                    .onDrag { NSItemProvider(object: item.id as NSString) }
+                    #if os(iOS)
                     .contextMenu { actions(item) }
+                    #endif
                     .swipeActions(edge: .leading) {
                         Button { Task { await store.setUnread(item, !item.email.isUnread) } } label: {
                             Label(item.email.isUnread ? "Read" : "Unread", systemImage: item.email.isUnread ? "envelope.open" : "envelope.badge")
@@ -160,6 +246,16 @@ struct MessageList: View {
             }
         }
         .listStyle(.plain)
+        #if os(macOS)
+        // Right click for actions; double click opens the email in a window of its own.
+        .contextMenu(forSelectionType: Item.ID.self) { ids in
+            if let item = ids.first.flatMap({ id in store.list.first { $0.id == id } }) { actions(item) }
+        } primaryAction: { ids in
+            if let item = ids.first.flatMap({ id in store.list.first { $0.id == id } }) {
+                openWindow(value: MessageRef(account: item.account.id, email: item.email.id))
+            }
+        }
+        #endif
         .overlay { if store.listLoading && store.list.isEmpty { ProgressView() } }
         .navigationTitle(store.folderTitle)
         #if os(macOS)
@@ -222,6 +318,12 @@ struct MessageList: View {
         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
         MoveMenu(item: item)
         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+        #if os(macOS)
+        Divider()
+        Button { openWindow(value: MessageRef(account: item.account.id, email: item.email.id)) } label: {
+            Label("Open in new window", systemImage: "macwindow")
+        }
+        #endif
     }
 }
 
