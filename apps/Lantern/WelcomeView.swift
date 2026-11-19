@@ -88,7 +88,7 @@ struct AddAccountView: View {
                         Task {
                             working = true; problem = nil
                             do { try await store.add(saved: k); dismiss() }
-                            catch { problem = error.localizedDescription }
+                            catch { problem = signInProblem(error) }
                             working = false
                         }
                     } label: {
@@ -111,7 +111,7 @@ struct AddAccountView: View {
                     #endif
             }
             SecureField("API token", text: $token).textFieldStyle(.roundedBorder)
-            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout) }
+            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -119,7 +119,7 @@ struct AddAccountView: View {
                     Task {
                         working = true; problem = nil
                         do { try await store.add(kind: kind, address: address, token: token); dismiss() }
-                        catch { problem = error.localizedDescription }
+                        catch { problem = signInProblem(error) }
                         working = false
                     }
                 } label: {
@@ -163,7 +163,7 @@ struct OtherAccountView: View {
                         Task {
                             working = true; problem = nil
                             do { try await store.add(saved: k); dismiss() }
-                            catch { problem = error.localizedDescription }
+                            catch { problem = signInProblem(error) }
                             working = false
                         }
                     } label: {
@@ -200,7 +200,7 @@ struct OtherAccountView: View {
                     .autocorrectionDisabled()
                     #endif
             }
-            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout) }
+            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true) }
             HStack {
                 Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
                     .keyboardShortcut(.cancelAction)
@@ -211,7 +211,7 @@ struct OtherAccountView: View {
                         do {
                             try await store.add(kind: provider, email: email, password: password, server: provider.asksServer ? server : "")
                             dismiss()
-                        } catch { problem = error.localizedDescription }
+                        } catch { problem = signInProblem(error) }
                         working = false
                     }
                 } label: {
@@ -223,6 +223,7 @@ struct OtherAccountView: View {
             }
             Text("Your mail goes straight between this device and your provider. Not affiliated with any provider.")
                 .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(24)
         #if os(macOS)
@@ -600,4 +601,24 @@ struct SignatureRow: View {
 private extension AccountState {
     var maskKey: String { "mask-" + id }
     var awayKey: String { "away-" + id }
+}
+
+
+/// Plain words for the sign-in errors people actually hit, so the sheet doesn't show the system's long TLS text.
+func signInProblem(_ error: Error) -> String {
+    if let u = error as? URLError {
+        switch u.code {
+        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected:
+            return "The server's security certificate isn't valid, so JMAP Connect won't connect. Check the server address, or ask whoever runs the server to fix its certificate."
+        case .cannotFindHost, .dnsLookupFailed:
+            return "Couldn't find that server. Check the address."
+        case .notConnectedToInternet, .networkConnectionLost:
+            return "You're offline. Check your connection and try again."
+        case .timedOut, .cannotConnectToHost:
+            return "The server didn't answer. Check the address, or try again in a moment."
+        default: break
+        }
+    }
+    return error.localizedDescription
 }
