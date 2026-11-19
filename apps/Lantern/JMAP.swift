@@ -9,14 +9,18 @@ enum JMAPError: LocalizedError {
     case http(Int)
     case method(String, String?)
     case missing(String)
+    case notFound
+    case needServer
 
     var errorDescription: String? {
         switch self {
         case .badServer: return "That doesn't look like a JMAP server address."
-        case .signIn: return "The server didn't accept that token. Check it and try again."
+        case .signIn: return "The server didn't accept that sign in. Check the token or app password and try again."
         case .http(let code): return "The server answered with an error (\(code)). Try again in a moment."
         case .method(let type, let detail): return "The server couldn't do that (\(type)\(detail.map { ": \($0)" } ?? ""))."
         case .missing(let what): return "The server left out \(what)."
+        case .notFound: return "Couldn't find a JMAP server for that email address. Enter the server's address instead."
+        case .needServer: return "Enter your email address or the server's address."
         }
     }
 }
@@ -27,9 +31,13 @@ struct ServerKind: Identifiable, Hashable {
     let name: String
     let sessionURL: String
     let tokenHelp: String
+    /// Signs in with an email address and app password rather than an API token.
+    var usesPassword = false
+    /// Self hosted, so the server's address is asked for (or found from the email address).
+    var asksServer = false
 
-    /// Fastmail only for the first release; Mail App and other JMAP servers come back once they're tested.
-    static let fastmailOnly = true
+    /// Fastmail stays the main choice; the other JMAP providers sit underneath it, smaller (Paul, 19 Nov).
+    static let otherProviders = true
 
     static let fastmail = ServerKind(
         id: "fastmail", name: "Fastmail",
@@ -39,17 +47,70 @@ struct ServerKind: Identifiable, Hashable {
         id: "mailapp", name: "Mail App",
         sessionURL: "",
         tokenHelp: "In Mail App, open Settings, then App passwords, and make one for this Mac. Use your Mail App address as the server.")
+    static let stalwart = ServerKind(
+        id: "stalwart", name: "Stalwart",
+        sessionURL: "",
+        tokenHelp: "In Stalwart's web interface, open your account's security settings and make an app password for JMAP Connect. The server is the address you open Stalwart's web interface on.",
+        usesPassword: true, asksServer: true)
+    static let thundermail = ServerKind(
+        id: "thundermail", name: "Thundermail",
+        sessionURL: "https://mail.thundermail.com/.well-known/jmap",
+        tokenHelp: "In your Thundermail dashboard, open Email Settings and press Create app password. Use your Thundermail address and that app password.",
+        usesPassword: true)
+    static let mailbux = ServerKind(
+        id: "mailbux", name: "Mailbux",
+        sessionURL: "https://my.mailbux.com/jmap/session",
+        tokenHelp: "Use your Mailbux email address and password, or an app password if you've made one.",
+        usesPassword: true)
+    static let cyrus = ServerKind(
+        id: "cyrus", name: "Cyrus",
+        sessionURL: "",
+        tokenHelp: "Use the email address and password (or app password) from whoever runs your Cyrus server, and its address.",
+        usesPassword: true, asksServer: true)
     static let other = ServerKind(
         id: "other", name: "Another JMAP server",
         sessionURL: "",
-        tokenHelp: "Use the server's JMAP session address (it often ends /.well-known/jmap) and an API token from your provider.")
+        tokenHelp: "Use your email address and an app password. Leave the server empty to find it from your email address, or enter the address your provider gives for JMAP. If your provider gives you an API token instead, leave the email address empty.",
+        usesPassword: true, asksServer: true)
+
+    /// The smaller choices under Fastmail, in the order the website lists them.
+    static let providers: [ServerKind] = [stalwart, thundermail, mailbux, cyrus, other]
+    static let all: [ServerKind] = [fastmail, mailApp] + providers
+    static func named(_ id: String) -> ServerKind? { all.first { $0.id == id } }
+}
+
+/// Follows a redirect from /.well-known/jmap with the sign in still attached, but only over https and only to the
+/// same server or another server under the same domain (mail.example.com to jmap.example.com), never elsewhere.
+final class KeepSignIn: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let base: String
+    private let header: String
+
+    init(from url: URL, header: String) {
+        let labels = (url.host ?? "").lowercased().split(separator: ".")
+        // Two labels (example.com), or three for country domains such as example.co.uk.
+        let short = labels.count >= 3 && labels.last?.count == 2 && (labels.dropLast().last?.count ?? 0) <= 3
+        base = labels.suffix(short ? 3 : 2).joined(separator: ".")
+        self.header = header
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        var next = request
+        let host = (request.url?.host ?? "").lowercased()
+        if request.url?.scheme == "https", !base.isEmpty, host == base || host.hasSuffix("." + base) {
+            next.setValue(header, forHTTPHeaderField: "Authorization")
+        } else {
+            next.setValue(nil, forHTTPHeaderField: "Authorization")
+        }
+        completionHandler(next)
+    }
 }
 
 struct JMAPSession: Decodable {
-    let apiUrl: String
-    let downloadUrl: String
-    let uploadUrl: String
-    let eventSourceUrl: String?
+    var apiUrl: String
+    var downloadUrl: String
+    var uploadUrl: String
+    var eventSourceUrl: String?
     let username: String
     let primaryAccounts: [String: String]
     let state: String
@@ -63,6 +124,8 @@ final class JMAPClient: @unchecked Sendable {
     let sessionURL: URL
     private let token: String
     private(set) var session: JMAPSession?
+    /// Where the session really lives once any /.well-known/jmap redirect is followed; saved so later starts skip it.
+    private(set) var finalSessionURL: URL?
     /// What the server says it can do (the session's capabilities), and what the mail account can do.
     private(set) var capabilities: [String: Any] = [:]
     private(set) var accountCapabilities: [String: Any] = [:]
@@ -84,7 +147,7 @@ final class JMAPClient: @unchecked Sendable {
     private func request(_ url: URL, method: String = "GET", body: Data? = nil, contentType: String = "application/json") -> URLRequest {
         var r = URLRequest(url: url)
         r.httpMethod = method
-        r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        r.setValue(JMAPAuth.header(token), forHTTPHeaderField: "Authorization")
         if let body {
             r.httpBody = body
             r.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -94,11 +157,19 @@ final class JMAPClient: @unchecked Sendable {
 
     @discardableResult
     func connect() async throws -> JMAPSession {
-        let (data, response) = try await http.data(for: request(sessionURL))
+        // /.well-known/jmap usually redirects to the real session address; keep signing in across that hop.
+        let (data, response) = try await http.data(for: request(sessionURL), delegate: KeepSignIn(from: sessionURL, header: JMAPAuth.header(token)))
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
-        guard let s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
+        guard var s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
+        // Stalwart gives addresses relative to the session (apiUrl "/jmap/"); Fastmail gives full ones.
+        let base = response.url ?? sessionURL
+        finalSessionURL = base
+        s.apiUrl = JMAPAuth.resolve(s.apiUrl, against: base)
+        s.downloadUrl = JMAPAuth.resolve(s.downloadUrl, against: base)
+        s.uploadUrl = JMAPAuth.resolve(s.uploadUrl, against: base)
+        s.eventSourceUrl = s.eventSourceUrl.map { JMAPAuth.resolve($0, against: base) }
         guard let mailAccount = s.primaryAccounts[Self.mail] else { throw JMAPError.missing("a mail account") }
         if let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             capabilities = raw["capabilities"] as? [String: Any] ?? [:]
@@ -175,7 +246,13 @@ final class JMAPClient: @unchecked Sendable {
     func identities() async throws -> [Identity] {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         let r = try await call([["Identity/get", ["accountId": acc], "i"]], using: [Self.core, Self.mail, Self.submission])
-        return try Self.decode([Identity].self, from: r["i"]?["list"])
+        let list = try Self.decode([Identity].self, from: r["i"]?["list"])
+        // Some servers (Cyrus, as some hosts set it up) leave the address empty; the sign in name is the address then.
+        guard let me = session?.username, me.contains("@") else { return list }
+        return list.map { i in
+            guard i.email.isEmpty else { return i }
+            return Identity(id: i.id, name: i.name, email: me, textSignature: i.textSignature, replyTo: i.replyTo)
+        }
     }
 
     /// The newest emails matching a filter, with what the lists need (no bodies). `position` pages further down.

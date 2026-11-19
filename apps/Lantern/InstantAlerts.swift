@@ -29,8 +29,8 @@ final class InstantAlerts: ObservableObject {
             case .relay(let code): "The alerts relay didn't answer (\(code)). Try again later."
             case .paused: "Instant alerts are paused for now. New mail is still checked in the background."
             case .noAppleAddress: "Apple didn't give this device a push address. Check notifications are on for JMAP Connect in the Settings app."
-            case .refused(let why): "Fastmail turned down the request: \(why)"
-            case .noCode: "Fastmail didn't confirm in time. Try turning instant alerts off and on again."
+            case .refused(let why): "Your mail server turned down the request: \(why)"
+            case .noCode: "Your mail server didn't confirm in time. Try turning instant alerts off and on again."
             }
         }
     }
@@ -93,7 +93,10 @@ final class InstantAlerts: ObservableObject {
         }
         var problems: [String] = []
         for s in accounts {
-            do { try await keep(s, device: device) } catch {
+            do { try await keep(s, device: device) } catch JMAPError.method("unknownMethod", _) {
+                // Cyrus and some other servers don't offer push yet: that account is checked in the background instead.
+                problems.append("\(s.account.label): this server doesn't offer instant alerts, so new mail is checked in the background.")
+            } catch {
                 problems.append(accounts.count > 1 ? "\(s.account.label): \(error.localizedDescription)" : error.localizedDescription)
             }
         }
@@ -187,7 +190,7 @@ final class InstantAlerts: ObservableObject {
         if let url = URL(string: r.apiURL) {
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
-            req.setValue("Bearer \(r.token)", forHTTPHeaderField: "Authorization")
+            req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject: [
                 "using": [JMAPClient.core], "methodCalls": [["PushSubscription/set", ["destroy": [r.subscriptionId]], "d"]],
@@ -277,7 +280,7 @@ enum AlertActions {
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.timeoutInterval = 20
-            req.setValue("Bearer \(r.token)", forHTTPHeaderField: "Authorization")
+            req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject: [
                 "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"], "methodCalls": calls,

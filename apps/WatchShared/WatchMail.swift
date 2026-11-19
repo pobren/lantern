@@ -109,8 +109,8 @@ enum WatchError: LocalizedError {
     case signIn, server(Int), failed(String)
     var errorDescription: String? {
         switch self {
-        case .signIn: return "Fastmail didn't accept the token. Open JMAP Connect on your iPhone."
-        case .server(let c): return "Fastmail answered with an error (\(c))."
+        case .signIn: return "Your mail server didn't accept the sign in. Open JMAP Connect on your iPhone."
+        case .server(let c): return "Your mail server answered with an error (\(c))."
         case .failed(let why): return why
         }
     }
@@ -137,7 +137,7 @@ final class WatchJMAP: @unchecked Sendable {
 
     private func request(_ url: URL, body: Data? = nil) -> URLRequest {
         var r = URLRequest(url: url)
-        r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        r.setValue(JMAPAuth.header(token), forHTTPHeaderField: "Authorization")
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body { r.httpMethod = "POST"; r.httpBody = body; r.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         return r
@@ -151,7 +151,7 @@ final class WatchJMAP: @unchecked Sendable {
         guard code == 200, let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let apiUrl = root["apiUrl"] as? String,
               let acc = (root["primaryAccounts"] as? [String: String])?["urn:ietf:params:jmap:mail"] else { throw WatchError.server(code) }
-        api = URL(string: apiUrl)
+        api = URL(string: JMAPAuth.resolve(apiUrl, against: res.url ?? url))
         accountId = acc
         let r = try await call([["Mailbox/get", ["accountId": acc, "properties": ["id", "role", "unreadEmails"]], "m"]])
         for m in (r["m"]?["list"] as? [[String: Any]]) ?? [] {

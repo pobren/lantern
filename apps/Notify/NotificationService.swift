@@ -71,7 +71,7 @@ enum NewMail {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 20
-        req.setValue("Bearer \(r.token)", forHTTPHeaderField: "Authorization")
+        req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let acct = r.mailAccountId
         req.httpBody = try JSONSerialization.data(withJSONObject: [

@@ -1,0 +1,25 @@
+# Checks JMAP Connect's sign in and mail calls against real Stalwart and Cyrus servers (in Docker, on Linux, so
+# it's cheap), and that the hosted providers' session addresses answer and ask for a password.
+name: JMAP servers
+
+on:
+  push:
+    branches: ["claude/project-thread-z1fj2h"]
+    paths: ["apps/Lantern/JMAP.swift", "apps/Shared/**", "tests/jmap-servers/**", ".github/workflows/jmap-servers.yml"]
+  workflow_dispatch:
+
+jobs:
+  servers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stalwart and Cyrus
+        run: bash tests/jmap-servers/run.sh
+      - name: Hosted providers answer at the addresses the app uses
+        run: |
+          for u in https://my.mailbux.com/jmap/session https://mail.thundermail.com/.well-known/jmap; do
+            echo "== $u"
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" -m 20 "$u" || true
+            curl -s -I -m 20 "$u" | grep -i -E "^(www-authenticate|location|server):" || true
+          done
