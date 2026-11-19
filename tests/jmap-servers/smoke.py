@@ -63,7 +63,14 @@ def step(name, core=True):
 
 
 S = {}
-res = http(SESSION)
+try:
+    res = http(SESSION)
+except urllib.error.HTTPError as e:
+    # Say why without showing the secret: what the server asked for and what it said.
+    print(f"FAIL  sign in: HTTP {e.code}; server asks for {e.headers.get('WWW-Authenticate')!r}; "
+          f"user looks like an email address: {'@' in USER}; password length {len(PASSWORD)}")
+    print("      server said:", e.read(300).decode("utf-8", "replace").replace(USER, "<user>"))
+    sys.exit(1)
 session = json.load(res)
 final = res.geturl()
 ORIGIN = os.environ.get("JMAP_ORIGIN")  # a test server in Docker names itself mail.example.org; reach it here instead
