@@ -152,7 +152,7 @@ final class Store: ObservableObject {
                   let url = URL(string: account.sessionURL) else { continue }
             accounts.append(AccountState(account: account, client: JMAPClient(sessionURL: url, token: token)))
         }
-        if Demo.launchedForScreens && !hasDemo { accounts.append(Self.demoState()) }
+        if Demo.launchedForScreens && !hasDemo && !Demo.welcomeShot { accounts.append(Self.demoState()) }
         if Demo.launchedForScreens { NSLog("JCDEBUG store ready, %d accounts", accounts.count) }
     }
 

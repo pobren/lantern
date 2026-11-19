@@ -1,0 +1,62 @@
+# Grabs of the sign in screens (welcome, and the "another JMAP provider" form) on an iPhone simulator, for Paul to
+# look over. Runs when a commit message contains [grabs]; commits the pictures to apps/screenshots/login/.
+name: Login grabs
+
+on:
+  push:
+    paths: ["apps/**", ".github/workflows/login-grabs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  grabs:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[grabs]')
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+      - name: Make the Xcode project
+        run: |
+          curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip && unzip -q /tmp/xcodegen.zip -d /tmp/xg
+          /tmp/xg/xcodegen/bin/xcodegen generate
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= > /tmp/ios.log 2>&1 || { grep -E "error:" /tmp/ios.log | sort -u | head -40; exit 1; }
+      - name: Shoot
+        run: |
+          APP=$(find build/ios -name "JMAP Connect.app" -path "*iphonesimulator*" | head -1)
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')
+          TYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys,re; t=[x for x in json.load(sys.stdin)['devicetypes'] if re.search('iPhone 1[6-9] Pro\$', x['name'])]; print(t[-1]['identifier'])")
+          udid=$(xcrun simctl create "Grabs" "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$udid"; xcrun simctl bootstatus "$udid" -b
+          xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$udid" "$APP"
+          xcrun simctl launch "$udid" dev.paulobrien.lantern -JCDemo -JCScreen welcome; sleep 15
+          mkdir -p screenshots/login
+          for mode in light dark; do
+            xcrun simctl ui "$udid" appearance "$mode"
+            for screen in welcome other; do
+              xcrun simctl terminate "$udid" dev.paulobrien.lantern 2>/dev/null || true
+              xcrun simctl launch "$udid" dev.paulobrien.lantern -JCDemo -JCScreen "$screen"
+              sleep 8
+              xcrun simctl io "$udid" screenshot "screenshots/login/$screen-$mode.png"
+            done
+          done
+      - name: Commit the grabs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898729+github-actions[bot]@users.noreply.github.com"
+          git add screenshots/login
+          git commit -m "Login grabs [skip ci]" && git push || echo "Nothing new"

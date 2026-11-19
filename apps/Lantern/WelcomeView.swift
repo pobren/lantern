@@ -54,6 +54,12 @@ struct WelcomeView: View {
         .background(Look.paper)
         .sheet(item: $kind) { k in AddAccountView(kind: k).environmentObject(store) }
         .sheet(isPresented: $other) { OtherAccountView().environmentObject(store) }
+        .task {
+            if Demo.launchedForScreens && Demo.screen == "other" {
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                other = true
+            }
+        }
     }
 
     @ViewBuilder private var promises: some View {

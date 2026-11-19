@@ -13,6 +13,8 @@ enum Demo {
 
     /// Launch arguments used by the screenshot workflow: -JCDemo adds sample mail, -JCScreen picks the screen.
     static var launchedForScreens: Bool { ProcessInfo.processInfo.arguments.contains("-JCDemo") }
+    /// Grabs of the first run screens (welcome, and the other provider form) start with no accounts at all.
+    static var welcomeShot: Bool { ["welcome", "other"].contains(screen ?? "") }
     static var screen: String? {
         let a = ProcessInfo.processInfo.arguments
         guard let i = a.firstIndex(of: "-JCScreen"), i + 1 < a.count else { return nil }
