@@ -23,3 +23,18 @@ jobs:
             curl -s -o /dev/null -w "HTTP %{http_code}\n" -m 20 "$u" || true
             curl -s -I -m 20 "$u" | grep -i -E "^(www-authenticate|location|server):" || true
           done
+      - name: Mailbux and Thundermail with real accounts (once Paul adds their secrets)
+        env:
+          MAILBUX_USER: ${{ secrets.MAILBUX_USER }}
+          MAILBUX_PASSWORD: ${{ secrets.MAILBUX_PASSWORD }}
+          THUNDERMAIL_USER: ${{ secrets.THUNDERMAIL_USER }}
+          THUNDERMAIL_APP_PASSWORD: ${{ secrets.THUNDERMAIL_APP_PASSWORD }}
+        run: |
+          ok=0
+          if [ -n "$MAILBUX_USER" ]; then
+            echo "== Mailbux"; python3 -I tests/jmap-servers/smoke.py https://my.mailbux.com/jmap/session "$MAILBUX_USER" "$MAILBUX_PASSWORD" || ok=1
+          else echo "Mailbux secrets not added yet"; fi
+          if [ -n "$THUNDERMAIL_USER" ]; then
+            echo "== Thundermail"; python3 -I tests/jmap-servers/smoke.py https://mail.thundermail.com/.well-known/jmap "$THUNDERMAIL_USER" "$THUNDERMAIL_APP_PASSWORD" || ok=1
+          else echo "Thundermail secrets not added yet"; fi
+          exit $ok
