@@ -49,7 +49,7 @@ final class Tour: XCTestCase {
         list.swipeUp(velocity: 400); pause(1.2)
         list.swipeDown(velocity: 400); pause(1.2)
         // Swipe a newsletter away to the archive.
-        let row = text("Your loyalty card is full")
+        let row = text("Your order is on its way")
         if row.waitForExistence(timeout: 4) {
             row.swipeLeft(velocity: 600); pause(1.2)
             tap(button("Archive")); pause(1.5)
@@ -69,19 +69,20 @@ final class Tour: XCTestCase {
     }
 
     func test3Reply() {
-        launch("email")
-        if tap(button("Reply")) {
-            pause(0.8)
-            if !tap(app.buttons.matching(NSPredicate(format: "label == 'Reply'")).element(boundBy: 1), wait: 2) {
-                tap(app.buttons["Reply"].firstMatch, wait: 2)
+        launch("inbox")
+        if tap(button("New message")) {
+            pause(1.2)
+            let to = app.textFields.element(boundBy: 0)
+            if to.waitForExistence(timeout: 4) { to.tap(); type("maya@studio-north.example", into: to) }
+            pause(0.4)
+            let subject = app.textFields.element(boundBy: 1)
+            if subject.exists { subject.tap(); type("Lunch on Friday?", into: subject) }
+            pause(0.4)
+            let body = app.textViews.firstMatch
+            if body.exists {
+                body.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.02)).tap(); pause(0.4)
+                type("Hi Maya, are you free for lunch on Friday? My treat.", into: body)
             }
-        }
-        pause(1.5)
-        let body = app.textViews.firstMatch
-        if body.waitForExistence(timeout: 5) {
-            // Tap the very top of the email, above the signature and the quote.
-            body.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.0)).withOffset(CGVector(dx: 0, dy: 8)).tap(); pause(0.6)
-            type("Love the second direction, Maya. Let's go with it and I'll send the final copy on Thursday.", into: body)
         }
         pause(2.5)
     }
@@ -153,26 +154,24 @@ final class Tour: XCTestCase {
     func test1MacTour() {
         launch("email")
         pause(1)
-        // Down the list with the arrow keys, then back up to Maya's email.
-        tap(app.staticTexts["Maya Chen"].firstMatch); pause(0.5)
-        for key in [XCUIKeyboardKey.downArrow, .downArrow, .downArrow, .downArrow, .upArrow, .upArrow, .upArrow, .upArrow] {
-            app.typeKey(key, modifierFlags: []); pause(1.3)
+        for who in ["Tom Okafor", "Ana Rodrigues", "Leo Park", "Maya Chen"] {
+            let row = app.outlines.cells.containing(.staticText, identifier: who).firstMatch
+            let g = row.exists ? row : app.tables.cells.containing(.staticText, identifier: who).firstMatch
+            tap(g.exists ? g : app.staticTexts[who].firstMatch); pause(1.8)
         }
-        pause(1)
-        // Reply, typed at the top above the quote.
-        app.typeKey("r", modifierFlags: .command); pause(1.5)
+        // A new message, typed out.
+        app.typeKey("n", modifierFlags: .command); pause(1.5)
+        let to = app.textFields.element(boundBy: 0)
+        if to.waitForExistence(timeout: 4) { to.click(); type("maya@studio-north.example", into: to) }
+        let subject = app.textFields.element(boundBy: 1)
+        if subject.exists { subject.click(); type("Lunch on Friday?", into: subject) }
         let body = app.textViews.firstMatch
-        if body.waitForExistence(timeout: 5) {
-            body.click(); pause(0.3)
-            app.typeKey(.upArrow, modifierFlags: .command); pause(0.4)
-            type("Hi Maya, love the second direction. Let's go with it.", into: body)
-            app.typeKey(.return, modifierFlags: []); app.typeKey(.return, modifierFlags: [])
-            pause(2)
+        if body.exists {
+            body.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.02)).click(); pause(0.3)
+            type("Hi Maya, are you free for lunch on Friday? My treat.", into: body)
         }
+        pause(2.5)
         app.typeKey(.escape, modifierFlags: []); pause(1)
-        if button("Delete draft").exists { button("Delete draft").click() }
-        else if button("Don't save").exists { button("Don't save").click() }
-        pause(1)
     }
 
     func test2MacSearch() {

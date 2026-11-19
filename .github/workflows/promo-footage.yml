@@ -14,8 +14,8 @@ permissions:
 
 # Re-film only some scenes by listing them here (empty films them all).
 env:
-  IPHONE_SCENES: "test3Reply"
-  MAC_SCENES: "test1MacTour test3MacFolders test5MacDark"
+  IPHONE_SCENES: "test1Inbox test3Reply"
+  MAC_SCENES: "test1MacTour"
 
 jobs:
   film:
