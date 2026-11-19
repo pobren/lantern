@@ -46,6 +46,8 @@ struct OutOfOfficeView: View {
                 if let problem { Text(problem).foregroundStyle(.red).font(.callout) }
             }
             .formStyle(.grouped)
+            .sheetHeader("Out of office", icon: "airplane.departure", tint: .orange,
+                         blurb: "An automatic reply, saved in Fastmail, so it works with every device switched off.")
             .navigationTitle("Out of office")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

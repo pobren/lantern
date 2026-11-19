@@ -120,3 +120,43 @@ struct AccountDot: View {
         Circle().fill(account.colour).frame(width: size, height: size).accessibilityLabel(account.label)
     }
 }
+
+/// On the Mac, sheets have no title bar, so they looked bare. This gives each one the same header as the
+/// Settings pages: a large coloured icon, its name and a line on what it's for. On iPhone and iPad the
+/// navigation title already does this job, so nothing changes there.
+struct SheetHeader: ViewModifier {
+    let title: String
+    let icon: String
+    let tint: Color
+    let blurb: String
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint.gradient))
+                    .shadow(color: tint.opacity(0.3), radius: 6, y: 2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.title2.weight(.semibold))
+                    Text(blurb).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 2)
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+extension View {
+    func sheetHeader(_ title: String, icon: String, tint: Color, blurb: String) -> some View {
+        modifier(SheetHeader(title: title, icon: icon, tint: tint, blurb: blurb))
+    }
+}
