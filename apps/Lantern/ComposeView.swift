@@ -322,7 +322,8 @@ struct ComposeView: View {
             if canSendLater { laterMenu }
             Button { Task { await send() } } label: {
                 if sending { ProgressView().controlSize(.small) }
-                else if sendAt != nil { Label("Schedule", systemImage: "clock.badge.checkmark") }
+                // Spelt out, not just an icon: Paul picked "In an hour" and couldn't tell which clock sends it.
+                else if sendAt != nil { Label("Schedule", systemImage: "clock.badge.checkmark").labelStyle(.titleAndIcon).bold() }
                 else { Label("Send", systemImage: "paperplane") }
             }
             .keyboardShortcut(.return, modifiers: .command)
