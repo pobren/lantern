@@ -47,7 +47,13 @@ jobs:
               except urllib.error.HTTPError:
                   return False
           admin = f"paul@{host}"
-          if works(admin, pw):
+          def mailbox_works():
+              try:
+                  urllib.request.urlopen(urllib.request.Request(f"http://{host}:8080/jmap/session",
+                      headers={"Authorization": "Basic " + base64.b64encode(f"{admin}:{pw}".encode()).decode()}), timeout=20); return True
+              except urllib.error.HTTPError:
+                  return False
+          if mailbox_works():
               print("Already set up; Paul's mailbox signs in."); raise SystemExit
           r = call("admin", pw, [["x:Bootstrap/set", {"update": {"singleton": {"defaultHostname": host, "defaultDomain": host,
                                   "requestTlsCertificate": True, "generateDkimKeys": False}}}, "a"]])
