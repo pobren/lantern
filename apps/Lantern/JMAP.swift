@@ -34,7 +34,7 @@ struct ServerKind: Identifiable, Hashable {
     static let fastmail = ServerKind(
         id: "fastmail", name: "Fastmail",
         sessionURL: "https://api.fastmail.com/jmap/session",
-        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, Email submission so you can send, and Masked Email if you use it.")
+        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, Email submission so you can send, and Masked Email and Contacts if you use them.")
     static let mailApp = ServerKind(
         id: "mailapp", name: "Mail App",
         sessionURL: "",
@@ -63,6 +63,9 @@ final class JMAPClient: @unchecked Sendable {
     let sessionURL: URL
     private let token: String
     private(set) var session: JMAPSession?
+    /// What the server says it can do (the session's capabilities), and what the mail account can do.
+    private(set) var capabilities: [String: Any] = [:]
+    private(set) var accountCapabilities: [String: Any] = [:]
     private let http: URLSession
 
     init(sessionURL: URL, token: String) {
@@ -96,7 +99,11 @@ final class JMAPClient: @unchecked Sendable {
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard let s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
-        guard s.primaryAccounts[Self.mail] != nil else { throw JMAPError.missing("a mail account") }
+        guard let mailAccount = s.primaryAccounts[Self.mail] else { throw JMAPError.missing("a mail account") }
+        if let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            capabilities = raw["capabilities"] as? [String: Any] ?? [:]
+            accountCapabilities = ((raw["accounts"] as? [String: Any])?[mailAccount] as? [String: Any])?["accountCapabilities"] as? [String: Any] ?? [:]
+        }
         session = s
         return s
     }
@@ -472,8 +479,15 @@ final class JMAPClient: @unchecked Sendable {
     /// life as a saved draft, that copy is removed.
     func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String, replacing: String? = nil) async throws {
+              drafts: String, sent: String, replacing: String? = nil, sendAt: Date? = nil) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var submission: [String: Any] = ["identityId": identity.id, "emailId": "#draft"]
+        if let sendAt, sendAt > Date().addingTimeInterval(30) {
+            // Send later (RFC 4865 FUTURERELEASE through JMAP): the server holds the email until then.
+            let from = address ?? identity.email
+            let all = (to + cc + bcc).map { ["email": $0.email] }
+            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(sendAt)]], "rcptTo": all]
+        }
         let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                             inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
         var create: [String: Any] = ["accountId": acc, "create": ["draft": draft]]
@@ -481,7 +495,7 @@ final class JMAPClient: @unchecked Sendable {
         let r = try await call([
             ["Email/set", create, "c"],
             ["EmailSubmission/set", ["accountId": acc,
-                                      "create": ["send": ["identityId": identity.id, "emailId": "#draft"]],
+                                      "create": ["send": submission],
                                       "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(sent)": true,
                                                                          "keywords/$draft": NSNull()]]], "s"]
         ], using: [Self.core, Self.mail, Self.submission])

@@ -122,6 +122,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var adding: ServerKind?
     @State private var masking: AccountState?
+    @State private var away: AccountState?
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Notifier.enabledKey) private var notify = true
@@ -165,6 +166,18 @@ struct SettingsView: View {
                 }
                 Text("Replies go out from the address the email was sent to, when you can send from it.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            let canAway = store.accounts.filter { $0.client.canVacation }
+            if !canAway.isEmpty {
+                Section("Out of office") {
+                    ForEach(canAway) { s in
+                        Button { away = s } label: {
+                            Label(store.accounts.count > 1 ? "Out of office reply for \(s.account.label)" : "Out of office reply", systemImage: "airplane.departure")
+                        }
+                    }
+                    Text("An automatic reply while you're away. It's saved in Fastmail, so it works with every device switched off.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("Your addresses") {
                 ForEach(store.accounts) { s in
@@ -220,6 +233,7 @@ struct SettingsView: View {
             }
         }
         .sheet(item: $masking) { s in MaskedEmailView(state: s) }
+        .sheet(item: $away) { s in OutOfOfficeView(state: s) }
         .formStyle(.grouped)
         #if os(macOS)
         .frame(width: 500, height: 620)

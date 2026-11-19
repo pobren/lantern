@@ -19,6 +19,10 @@ struct ReadingPane: View {
     @State private var preview: URL?
     @State private var saving: EmailFile?
     @State private var failed = false
+    @State private var unsub: Unsubscribe?
+    @State private var askingUnsub = false
+    @State private var unsubDone: String?
+    @Environment(\.openURL) private var openURL
 
     private var shown: Email { thread.first { $0.id == open } ?? thread.last ?? item.email }
     private var earlier: [Email] { thread.filter { $0.id != shown.id } }
@@ -77,6 +81,30 @@ struct ReadingPane: View {
                     .padding(.horizontal, 22)
                 }
                 .padding(.bottom, 10)
+            }
+
+            if let unsubDone {
+                Label(unsubDone, systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            } else if let unsub {
+                HStack(spacing: 10) {
+                    Image(systemName: "envelope.badge")
+                    Text("From a mailing list.").font(.callout)
+                    Spacer()
+                    Button { askingUnsub = true } label: { Label("Unsubscribe", systemImage: "hand.raised") }
+                        .buttonStyle(.borderless)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 22).padding(.bottom, 8)
+                .confirmationDialog("Unsubscribe from \(shown.sender.display)?", isPresented: $askingUnsub, titleVisibility: .visible) {
+                    Button { Task { await leave(unsub) } } label: { Label("Unsubscribe", systemImage: "hand.raised") }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(unsub.oneClick != nil ? "We'll tell the sender to stop, straight away."
+                         : unsub.web != nil ? "The sender's unsubscribe page opens in your browser."
+                         : "An email asking to unsubscribe opens, ready to send.")
+                }
             }
 
             if !remoteImages && !showImagesOnce && (page?.html.contains("http") ?? false) {
@@ -142,12 +170,40 @@ struct ReadingPane: View {
         Task { await load() }
     }
 
+    private func leave(_ u: Unsubscribe) async {
+        if let url = u.oneClick {
+            do {
+                try await JMAPClient.oneClickUnsubscribe(url)
+                unsubDone = "Unsubscribed. It can take the sender a few days to stop."
+                return
+            } catch {
+                // The one click address didn't answer: fall back to the page or an email.
+            }
+        }
+        if let url = u.web {
+            openURL(url)
+            unsubDone = "The unsubscribe page opened in your browser."
+        } else if let address = u.mail {
+            var d = ComposeDraft.new(store: store)
+            d.to = address
+            d.subject = "Unsubscribe"
+            d.text = "Unsubscribe" + d.text
+            compose(d)
+        }
+    }
+
     private func load() async {
         loading = true
         page = nil
         failed = false
         showImagesOnce = false
+        unsub = nil
+        unsubDone = nil
         let e = shown, account = item.account
+        Task { @MainActor in
+            let u = await store.unsubscribe(e, account: account)
+            if open == e.id || (open == nil && e.id == shown.id) { unsub = u }
+        }
         // Fetched outside this view's task, so a list refresh that redraws the view can't cancel it halfway
         // and leave only the preview line showing. Tried twice before giving up.
         page = await Task { @MainActor () -> (html: String, attachments: [Attachment])? in

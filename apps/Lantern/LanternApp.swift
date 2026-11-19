@@ -61,7 +61,10 @@ struct LanternApp: App {
         }
         .onChange(of: phase) { _, now in
             if now == .background { Self.scheduleRefresh() }
-            if now == .active { Task { await InstantAlerts.shared.sync(store) } }
+            if now == .active {
+                Task { await InstantAlerts.shared.sync(store) }
+                WatchLink.shared.start(store)
+            }
         }
         .backgroundTask(.appRefresh(Self.refreshTask)) {
             Self.scheduleRefresh()

@@ -45,7 +45,21 @@ final class AccountState: ObservableObject, Identifiable {
     @Published var mailboxes: [Mailbox] = []
     @Published var identities: [Identity] = []
     @Published var inbox: [Email] = []
+    /// The address book (Fastmail contacts) plus people in the inbox, for filling in To, Cc and Bcc.
+    @Published var contacts: [Contact] = []
+    var contactsLoaded = false
     var id: String { account.id }
+
+    func loadContacts() async {
+        guard !contactsLoaded else { return }
+        contactsLoaded = true
+        var seen = Set<String>()
+        var all: [Contact] = []
+        let book = (try? await client.contactList()) ?? []
+        let people = inbox.flatMap { ($0.from ?? []) + ($0.to ?? []) + ($0.cc ?? []) }.map { Contact(name: $0.name ?? "", email: $0.email) }
+        for c in book + people where seen.insert(c.id).inserted { all.append(c) }
+        contacts = all
+    }
 
     init(account: Account, client: JMAPClient) {
         self.account = account
@@ -196,6 +210,9 @@ final class Store: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(accounts.map(\.account)) { UserDefaults.standard.set(data, forKey: savedKey) }
+        #if os(iOS)
+        WatchLink.shared.start(self)
+        #endif
     }
 
     // MARK: Loading
@@ -442,6 +459,13 @@ final class Store: ObservableObject {
     }
 
     /// The email laid out as its sender designed it, plus its attachments.
+    /// How to leave the mailing list an email came from, if it says. Nothing while offline or for sample mail.
+    func unsubscribe(_ email: Email, account: Account) async -> Unsubscribe? {
+        guard let s = state(for: account), !isSample(s), !offline else { return nil }
+        let u = try? await s.client.unsubscribe(for: email.id)
+        return u?.any == true ? u : nil
+    }
+
     func page(_ email: Email, account: Account) async -> (html: String, attachments: [Attachment])? {
         let key = account.id + "/" + email.id
         if let cached = pages[key] { return cached }
@@ -616,13 +640,14 @@ final class Store: ObservableObject {
     }
 
     func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
-              threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil) async throws {
+              threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil,
+              sendAt: Date? = nil) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         do {
             try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                     inReplyTo: threading.inReplyTo, references: threading.references,
-                                    attachments: attachments, drafts: drafts.id, sent: sent.id, replacing: replacing)
-        } catch let error where Self.isOffline(error) && !isSample(s) {
+                                    attachments: attachments, drafts: drafts.id, sent: sent.id, replacing: replacing, sendAt: sendAt)
+        } catch let error where Self.isOffline(error) && !isSample(s) && sendAt == nil {
             // No connection: it waits in the Outbox and sends itself when the connection is back.
             goOffline()
             let mail = OutboxEmail(identityId: identity.id, address: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
