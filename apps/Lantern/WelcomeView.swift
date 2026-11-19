@@ -180,11 +180,7 @@ struct SettingsView: View {
                 }
             }
             Section("Your addresses") {
-                ForEach(store.accounts) { s in
-                    ForEach(s.identities) { identity in
-                        SignatureRow(identity: identity, account: s.account)
-                    }
-                }
+                AddressSettings()
                 Text("Reply to addresses and signatures are saved to your account, so they match on the web and in other apps.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -288,6 +284,33 @@ struct OfflineSection: View {
 }
 
 /// One address's signature, edited in place and saved to the account when you press Save.
+/// One dropdown of every sending address, then the chosen one's Reply to address and signature.
+struct AddressSettings: View {
+    @EnvironmentObject var store: Store
+    @State private var chosen = ""
+
+    private var all: [(key: String, account: Account, identity: Identity)] {
+        store.accounts.flatMap { s in s.identities.map { ("\(s.account.id)|\($0.id)", s.account, $0) } }
+    }
+
+    var body: some View {
+        let list = all
+        if list.isEmpty {
+            Text("Your sending addresses show here once your account has loaded.").font(.caption).foregroundStyle(.secondary)
+        } else {
+            let key = list.contains { $0.key == chosen } ? chosen : list[0].key
+            Picker("Address", selection: Binding(get: { key }, set: { chosen = $0 })) {
+                ForEach(list, id: \.key) { item in
+                    Text(store.accounts.count > 1 ? "\(item.identity.label), \(item.account.label)" : item.identity.label).tag(item.key)
+                }
+            }
+            if let item = list.first(where: { $0.key == key }) {
+                SignatureRow(identity: item.identity, account: item.account).id(key)
+            }
+        }
+    }
+}
+
 struct SignatureRow: View {
     @EnvironmentObject var store: Store
     let identity: Identity
@@ -300,7 +323,6 @@ struct SignatureRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(identity.label).font(.callout)
             TextField("Replies go to (leave empty for this address)", text: $replyTo)
                 .textFieldStyle(.roundedBorder)
                 #if os(iOS)
