@@ -76,9 +76,9 @@ extension JMAPClient {
         guard let acc = session?.primaryAccounts[Self.vacation] else { throw JMAPError.missing("out of office") }
         let patch: [String: Any] = [
             "isEnabled": v.on,
-            "fromDate": v.from.map { Self.utc($0) } ?? NSNull(),
-            "toDate": v.to.map { Self.utc($0) } ?? NSNull(),
-            "subject": v.subject.isEmpty ? NSNull() : v.subject,
+            "fromDate": v.from.map { Self.utc($0) as Any } ?? NSNull(),
+            "toDate": v.to.map { Self.utc($0) as Any } ?? NSNull(),
+            "subject": v.subject.isEmpty ? (NSNull() as Any) : (v.subject as Any),
             "textBody": v.text,
             "htmlBody": NSNull(),
         ]

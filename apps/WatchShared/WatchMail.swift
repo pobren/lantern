@@ -251,7 +251,7 @@ final class WatchJMAP: @unchecked Sendable {
 
     func set(_ id: String, keyword: String, _ on: Bool) async throws {
         let acc = try await ready()
-        _ = try await call([["Email/set", ["accountId": acc, "update": [id: ["keywords/\(keyword)": on ? true : NSNull()]]], "s"]])
+        _ = try await call([["Email/set", ["accountId": acc, "update": [id: ["keywords/\(keyword)": on ? (true as Any) : (NSNull() as Any)]]], "s"]])
     }
 
     /// Archive takes the email out of the Inbox and files it in Archive (so labels elsewhere stay).
