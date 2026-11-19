@@ -21,7 +21,7 @@ struct RootView: View {
     }()
 
     private var sidebar: some View {
-        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true })
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, column: $compact)
     }
     private var middle: some View {
         MessageList(compose: { composing = ComposeDraft.new(store: store) })
@@ -77,12 +77,9 @@ struct RootView: View {
         Group {
             if store.hasAccounts {
                 Group {
-                    if Demo.screen != nil {
-                        // Screenshots: start on the column the shot needs, on iPhone too.
-                        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
-                    } else {
-                        NavigationSplitView(columnVisibility: $columns) { sidebar } content: { middle } detail: { detail }
-                    }
+                    // Screenshots start on the column the shot needs. In normal use the iPhone opens on the inbox,
+                    // and tapping a folder always moves on to its conversations.
+                    NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
                 }
                 .task {
                     await store.start()
@@ -95,6 +92,11 @@ struct RootView: View {
         .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
         .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
+        .onReceive(AlertRouter.shared.$pending) { ref in
+            guard let ref else { return }
+            AlertRouter.shared.pending = nil
+            Task { await store.show(ref) }
+        }
         .overlay(alignment: .bottom) {
             if let problem = store.problem {
                 Label(problem, systemImage: "exclamationmark.triangle")
@@ -129,13 +131,28 @@ struct Sidebar: View {
     @EnvironmentObject var store: Store
     let compose: () -> Void
     let settings: () -> Void
+    /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
+    /// tapping a folder sets it to .content, even when that folder was already open.
+    var column: Binding<NavigationSplitViewColumn>? = nil
 
     @State private var naming: Naming?
     @State private var inboxTargeted = false
     @State private var folderName = ""
 
+    /// The highlighted folder. It's kept here rather than read straight from the store so the list can clear
+    /// it: on iPhone, going back to the folders clears the highlight, and only then does tapping the same folder
+    /// (Inbox, say, after closing Settings) open it again. Before, the list still thought Inbox was chosen and
+    /// the tap did nothing.
+    @State private var chosen: Folder? = .allInboxes
+
     private var picked: Binding<Folder?> {
-        Binding(get: { store.folder }, set: { f in if let f { Task { await store.open(f) } } })
+        Binding(get: { chosen }, set: { f in
+            chosen = f
+            if let f {
+                column?.wrappedValue = .content
+                Task { await store.open(f) }
+            }
+        })
     }
 
     var body: some View {
@@ -185,6 +202,9 @@ struct Sidebar: View {
                 naming = nil
             }
         }
+        .onChange(of: store.folder) { _, f in if chosen != f && column?.wrappedValue != .sidebar { chosen = f } }
+        // Back on the folders (iPhone): clear the highlight so tapping the same folder opens it again.
+        .onChange(of: column?.wrappedValue) { _, c in if c == .sidebar { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())
@@ -370,7 +390,11 @@ struct MessageList: View {
             if !store.search.trimmingCharacters(in: .whitespaces).isEmpty { Task { await store.reloadList() } }
         }
         .onChange(of: store.search) { _, words in
-            if words.isEmpty { Task { await store.reloadList() } }
+            // Saved mail answers as you type; pressing Return asks the server too.
+            Task { if words.isEmpty { await store.reloadList() } else { await store.searchSaved() } }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if store.offline || store.outbox > 0 { OfflineBar() }
         }
         .refreshable { await store.refresh() }
         #if os(macOS)
@@ -420,6 +444,27 @@ struct MessageList: View {
 }
 
 /// One conversation in the list: who, when, what about, and the first words.
+/// Says when the app is working from saved mail, and how many emails are waiting to send.
+private struct OfflineBar: View {
+    @EnvironmentObject var store: Store
+
+    var body: some View {
+        let waiting = store.outbox == 1 ? "1 email waiting to send" : "\(store.outbox) emails waiting to send"
+        HStack(spacing: 7) {
+            Image(systemName: store.offline ? "wifi.slash" : "paperplane")
+            Text(store.offline ? (store.outbox > 0 ? "Offline. \(waiting)" : "Offline. Showing mail saved on this device")
+                               : "Sending \(waiting.replacingOccurrences(of: " waiting to send", with: ""))")
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(.bar)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct Row: View {
     let item: Item
     let showAccount: Bool

@@ -34,7 +34,7 @@ struct ServerKind: Identifiable, Hashable {
     static let fastmail = ServerKind(
         id: "fastmail", name: "Fastmail",
         sessionURL: "https://api.fastmail.com/jmap/session",
-        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, and Email submission so you can send.")
+        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, Email submission so you can send, and Masked Email and Contacts if you use them.")
     static let mailApp = ServerKind(
         id: "mailapp", name: "Mail App",
         sessionURL: "",
@@ -63,6 +63,9 @@ final class JMAPClient: @unchecked Sendable {
     let sessionURL: URL
     private let token: String
     private(set) var session: JMAPSession?
+    /// What the server says it can do (the session's capabilities), and what the mail account can do.
+    private(set) var capabilities: [String: Any] = [:]
+    private(set) var accountCapabilities: [String: Any] = [:]
     private let http: URLSession
 
     init(sessionURL: URL, token: String) {
@@ -96,7 +99,11 @@ final class JMAPClient: @unchecked Sendable {
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard let s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
-        guard s.primaryAccounts[Self.mail] != nil else { throw JMAPError.missing("a mail account") }
+        guard let mailAccount = s.primaryAccounts[Self.mail] else { throw JMAPError.missing("a mail account") }
+        if let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            capabilities = raw["capabilities"] as? [String: Any] ?? [:]
+            accountCapabilities = ((raw["accounts"] as? [String: Any])?[mailAccount] as? [String: Any])?["accountCapabilities"] as? [String: Any] ?? [:]
+        }
         session = s
         return s
     }
@@ -184,6 +191,95 @@ final class JMAPClient: @unchecked Sendable {
                            "properties": Email.listProperties], "g"]
         ])
         return try Self.decode([Email].self, from: r["g"]?["list"])
+    }
+
+    // MARK: Keeping a copy on the device
+
+    /// The server's current state string for emails, to ask later what changed since.
+    func emailState() async throws -> String {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": [String](), "properties": ["id"]], "g"]])
+        guard let state = r["g"]?["state"] as? String else { throw JMAPError.missing("a state") }
+        return state
+    }
+
+    /// One page of every email in the account, newest first, after the email `anchor` (the last of the page before).
+    func allEmails(after anchor: String?, limit: Int) async throws -> [Email] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var query: [String: Any] = ["accountId": acc, "sort": [["property": "receivedAt", "isAscending": false]],
+                                    "limit": limit, "collapseThreads": false]
+        if let anchor { query["anchor"] = anchor; query["anchorOffset"] = 1 } else { query["position"] = 0 }
+        let r = try await call([
+            ["Email/query", query, "q"],
+            ["Email/get", ["accountId": acc, "#ids": ["resultOf": "q", "name": "Email/query", "path": "/ids"],
+                           "properties": Email.listProperties], "g"]
+        ])
+        return try Self.decode([Email].self, from: r["g"]?["list"])
+    }
+
+    /// What changed since a state: emails added or changed, and ids removed. Throws `JMAPError.method` with
+    /// "cannotCalculateChanges" when the server has forgotten that state and everything must be fetched again.
+    func emailChanges(since state: String) async throws -> (changed: [String], removed: [String], state: String, more: Bool) {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/changes", ["accountId": acc, "sinceState": state, "maxChanges": 500], "c"]])
+        guard let c = r["c"], let newState = c["newState"] as? String else { throw JMAPError.missing("changes") }
+        let changed = ((c["created"] as? [String]) ?? []) + ((c["updated"] as? [String]) ?? [])
+        return (changed, (c["destroyed"] as? [String]) ?? [], newState, (c["hasMoreChanges"] as? Bool) ?? false)
+    }
+
+    /// Emails by id, with what the lists need. Ids the server no longer has are left out.
+    func emails(ids: [String]) async throws -> [Email] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        guard !ids.isEmpty else { return [] }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": ids, "properties": Email.listProperties], "g"]])
+        return try Self.decode([Email].self, from: r["g"]?["list"])
+    }
+
+    /// The readable text of several emails at once, for reading and searching offline. Pictures sent inside an
+    /// email aren't fetched here; opening the email fills them in.
+    func contents(of ids: [String]) async throws -> [String: SavedPage] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        guard !ids.isEmpty else { return [:] }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": ids,
+                                               "properties": ["id", "htmlBody", "textBody", "bodyValues", "attachments"],
+                                               "bodyProperties": ["partId", "blobId", "type", "cid", "name", "size"],
+                                               "fetchHTMLBodyValues": true, "fetchTextBodyValues": true,
+                                               "maxBodyValueBytes": 1_000_000], "p"]])
+        var out: [String: SavedPage] = [:]
+        for item in (r["p"]?["list"] as? [[String: Any]]) ?? [] {
+            guard let id = item["id"] as? String else { continue }
+            let values = (item["bodyValues"] as? [String: [String: Any]]) ?? [:]
+            let htmlParts = (item["htmlBody"] as? [[String: Any]]) ?? []
+            let textParts = (item["textBody"] as? [[String: Any]]) ?? []
+            var html = ""
+            for part in htmlParts.isEmpty ? textParts : htmlParts {
+                guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
+                if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
+                else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+            }
+            let text = textParts.compactMap { $0["partId"] as? String }.compactMap { values[$0]?["value"] as? String }
+                .joined(separator: "\n\n").replacingOccurrences(of: "\r\n", with: "\n")
+            let files: [Attachment] = ((item["attachments"] as? [[String: Any]]) ?? []).compactMap { f in
+                guard let blobId = f["blobId"] as? String else { return nil }
+                // Pictures shown inside the email aren't listed as files to open.
+                if f["cid"] is String, let t = f["type"] as? String, t.lowercased().hasPrefix("image/"),
+                   html.range(of: "cid:", options: .caseInsensitive) != nil { return nil }
+                return Attachment(blobId: blobId, name: (f["name"] as? String) ?? "Attachment",
+                                  type: (f["type"] as? String) ?? "application/octet-stream", size: (f["size"] as? Int) ?? 0)
+            }
+            out[id] = SavedPage(html: html, text: text.isEmpty ? Self.plain(html) : text, attachments: files, complete: false)
+        }
+        return out
+    }
+
+    /// Rough plain text from HTML, for the search index when an email has no plain text part.
+    static func plain(_ html: String) -> String {
+        var s = html.replacingOccurrences(of: "<(style|script)[^>]*>[\\s\\S]*?</\\1>", with: " ", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        for (a, b) in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'")] {
+            s = s.replacingOccurrences(of: a, with: b)
+        }
+        return s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     }
 
     /// Every email in a conversation, oldest first.
@@ -383,8 +479,19 @@ final class JMAPClient: @unchecked Sendable {
     /// life as a saved draft, that copy is removed.
     func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String, replacing: String? = nil) async throws {
+              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var submission: [String: Any] = ["identityId": identity.id, "emailId": "#draft"]
+        // Sent mail is filed in Sent. Mail held to send later waits in Scheduled (when the account has one, as
+        // Fastmail does), and moves on to Sent once it has gone (releaseScheduled).
+        var filed = sent
+        if let sendAt, sendAt > Date().addingTimeInterval(30) {
+            if let scheduled { filed = scheduled }
+            // Send later (RFC 4865 FUTURERELEASE through JMAP): the server holds the email until then.
+            let from = address ?? identity.email
+            let all = (to + cc + bcc).map { ["email": $0.email] }
+            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(sendAt)]], "rcptTo": all]
+        }
         let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                             inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
         var create: [String: Any] = ["accountId": acc, "create": ["draft": draft]]
@@ -392,8 +499,8 @@ final class JMAPClient: @unchecked Sendable {
         let r = try await call([
             ["Email/set", create, "c"],
             ["EmailSubmission/set", ["accountId": acc,
-                                      "create": ["send": ["identityId": identity.id, "emailId": "#draft"]],
-                                      "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(sent)": true,
+                                      "create": ["send": submission],
+                                      "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(filed)": true,
                                                                          "keywords/$draft": NSNull()]]], "s"]
         ], using: [Self.core, Self.mail, Self.submission])
         if let failed = r["c"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {

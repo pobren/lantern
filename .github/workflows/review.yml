@@ -1,0 +1,36 @@
+# App Review notes and attachments for JMAP Connect 1.0 (apps/store/asc_review.py). Never submits.
+# Commit message [review notes] updates the notes, [review attach path/to/file] attaches a file, [review status] reports.
+name: App Review
+
+on:
+  push:
+    paths: ["apps/store/review-notes.txt", "apps/store/asc_review.py", "apps/store/review/**", ".github/workflows/review.yml"]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "notes, attach or status"
+        default: status
+
+jobs:
+  review:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[review')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet pyjwt cryptography requests
+      - name: Send to App Store Connect
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          INPUT: ${{ inputs.mode }}
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          MODE="$INPUT"
+          case "$MSG" in
+            *"[review notes]"*) MODE=notes ;;
+            *"[review attach "*) MODE=attach; ATTACH=$(printf '%s' "$MSG" | grep -o '\[review attach [^]]*\]' | sed 's/^\[review attach //; s/\]$//') ;;
+            *"[review status]"*) MODE=status ;;
+          esac
+          echo "Mode: ${MODE:-status} ${ATTACH:-}"
+          MODE="${MODE:-status}" ATTACH="$ATTACH" python3 apps/store/asc_review.py

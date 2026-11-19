@@ -72,6 +72,10 @@ struct HelpCommands: Commands {
                 .keyboardShortcut("?", modifiers: .command)
             Button("Setting up with Fastmail") { openURL(URL(string: "https://jmapconnect.app/setup/")!) }
             Divider()
+            Button("Report a problem") { openURL(Community.new(.bug)) }
+            Button("Suggest an idea") { openURL(Community.new(.idea)) }
+            Button("Ask the community") { openURL(Community.home) }
+            Divider()
             Button("Contact") { openURL(URL(string: "https://paulobrien.dev/contact/")!) }
             Button("Privacy") { openURL(URL(string: "https://jmapconnect.app/privacy/")!) }
         }

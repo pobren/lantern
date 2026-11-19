@@ -6,10 +6,11 @@ options:
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.0"
+    MARKETING_VERSION: "1.2"   # send later, out of office, unsubscribe, contacts, Apple Watch (1.1 is build 149)
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
@@ -20,9 +21,21 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Lantern
+      - path: Shared
+    dependencies:
+      # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
+      - target: Notify
+        destinationFilters: [iOS]
+      # Apple Watch app (1.2), carried inside the iPhone app the way Xcode does it.
+      - target: Watch
+        destinationFilters: [iOS]
+        copy:
+          destination: productsDirectory
+          subpath: $(CONTENTS_FOLDER_PATH)/Watch
     info:
       path: Lantern/Info.plist
       properties:
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
         CFBundleName: JMAP Connect    # the name in the Mac menu bar and Finder
@@ -51,6 +64,76 @@ targets:
         "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
         ENABLE_APP_SANDBOX: YES
         SUPPORTS_MACCATALYST: NO
+  Notify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Notify
+      - path: Shared
+    info:
+      path: Notify/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        # Must match the app's own version and build number, or App Store Connect warns (ITMS-90473).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.notify
+        PRODUCT_NAME: Notify
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
+        SKIP_INSTALL: YES
+  Watch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Watch
+      - path: WatchShared
+    dependencies:
+      - target: WatchWidget
+    info:
+      path: Watch/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: dev.paulobrien.lantern
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.watch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.watchkitapp
+        PRODUCT_NAME: JMAPConnectWatch
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Watch/Watch.entitlements
+        SKIP_INSTALL: YES
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+  WatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: WatchWidget
+      - path: WatchShared
+    info:
+      path: WatchWidget/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.watch
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.watchkitapp.widget
+        PRODUCT_NAME: WatchWidget
+        CODE_SIGN_ENTITLEMENTS: WatchWidget/WatchWidget.entitlements
+        SKIP_INSTALL: YES
 schemes:
   Lantern:
     build:

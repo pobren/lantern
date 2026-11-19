@@ -1,0 +1,48 @@
+# Builds the app for the iPhone simulator and the Mac without signing or uploading, so a slip in a feature branch
+# shows up before any TestFlight build. Runs on pushes to the 1.1 branches (offline mail, then offline plus instant alerts).
+name: Build check
+
+on:
+  push:
+    branches: ["claude/project-thread-31gnao", "claude/project-thread-h9exug"]
+    paths: ["apps/**", ".github/workflows/build-check.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -n "$X" ] || { echo "No Xcode 26 or newer on this Mac"; exit 1; }
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+      - name: Make the Xcode project
+        run: |
+          if curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip && unzip -q /tmp/xcodegen.zip -d /tmp/xg; then
+            /tmp/xg/xcodegen/bin/xcodegen generate
+          else
+            brew install xcodegen && xcodegen generate
+          fi
+      - name: Build for the iPhone simulator and the Mac
+        run: |
+          set -o pipefail
+          ok=1
+          xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= > /tmp/ios.log 2>&1 || { echo "== iOS"; grep -E "error:" /tmp/ios.log | sort -u | head -60; ok=0; }
+          xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
+            -destination "generic/platform=macOS" -derivedDataPath build/mac \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO > /tmp/mac.log 2>&1 || { echo "== Mac"; grep -E "error:" /tmp/mac.log | sort -u | head -60; ok=0; }
+          grep -hE "warning:" /tmp/ios.log /tmp/mac.log | grep -E "Cache.swift|Offline.swift|Store.swift" | sort -u | head -30 || true
+          [ $ok = 1 ]
