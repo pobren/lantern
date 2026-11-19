@@ -3,6 +3,9 @@
 name: Stalwart test server
 
 on:
+  push:
+    branches: [claude/project-thread-z1fj2h]
+    paths: [tests/jmap-servers/stalwart-run.txt]
   workflow_dispatch:
     inputs:
       host:
@@ -17,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      HOST: ${{ inputs.host }}
+      HOST: ${{ inputs.host || 'stalwart.jmapconnect.app' }}
       PW: ${{ inputs.password || secrets.STALWART_ADMIN_PASSWORD }}
     steps:
       - name: Hide the password in logs
