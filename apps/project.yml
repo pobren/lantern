@@ -24,7 +24,7 @@ targets:
     dependencies:
       # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
       - target: Notify
-        platformFilters: [iOS]
+        destinationFilters: [iOS]
     info:
       path: Lantern/Info.plist
       properties:
