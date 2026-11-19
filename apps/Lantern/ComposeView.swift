@@ -599,7 +599,7 @@ struct ComposeView: View {
             }
             row("Subject") { TextField("", text: $draft.subject).textFieldStyle(.plain) }
             if !files.isEmpty || uploading > 0 { attachments }
-            TextEditor(text: $draft.text)
+            BodyEditor(text: $draft.text, focused: focus == .body)
                 .font(Look.size(15)).lineSpacing(3)
                 .scrollContentBackground(.hidden)
                 .focused($focus, equals: .body)
@@ -690,5 +690,40 @@ struct ComposeView: View {
             problem = error.localizedDescription
         }
         sending = false
+    }
+}
+
+/// The message body. When you first move into it (Tab from Subject, or a tap), the cursor goes to the top,
+/// on the blank line above the signature, rather than after "Paul" at the end. (Paul, 19 Nov.)
+struct BodyEditor: View {
+    @Binding var text: String
+    let focused: Bool
+
+    var body: some View {
+        if #available(iOS 18, macOS 15, *) {
+            TopCursorEditor(text: $text, focused: focused)
+        } else {
+            TextEditor(text: $text)
+        }
+    }
+}
+
+@available(iOS 18, macOS 15, *)
+private struct TopCursorEditor: View {
+    @Binding var text: String
+    let focused: Bool
+    @State private var selection: TextSelection?
+    @State private var placed = false
+
+    var body: some View {
+        TextEditor(text: $text, selection: $selection)
+            .onAppear { place(focused) }
+            .onChange(of: focused) { _, f in place(f) }
+    }
+
+    private func place(_ f: Bool) {
+        guard f, !placed else { return }
+        placed = true
+        selection = TextSelection(insertionPoint: text.startIndex)
     }
 }
