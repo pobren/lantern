@@ -105,12 +105,17 @@ jobs:
               acme_id = acme[0]["id"]
           if dom["certificateManagement"].get("@type") != "Automatic":
               print("Turn on automatic certificates:", q(["x:Domain/set", {"update": {dom["id"]: {"certificateManagement": {"@type": "Automatic", "acmeProviderId": acme_id}}}}, "d"])[0][1])
-          for i in range(36):
+          tasks = q(["x:Task/get", {}, "t"])[0][1]["list"]
+          for t in tasks: print("Task:", json.dumps(t))
+          if not any(t.get("@type") == "AcmeRenewal" for t in tasks):
+              print("Ask for the certificate now:", q(["x:Task/set", {"create": {"r": {"@type": "AcmeRenewal", "domainId": dom["id"]}}}, "t"])[0][1])
+          for i in range(30):
               time.sleep(10)
               if https_ok():
                   print("https works"); break
           else:
-              print("::warning::Still no https certificate after 6 minutes")
+              print("::warning::Still no https certificate after 5 minutes")
+              for t in q(["x:Task/get", {}, "t"])[0][1]["list"]: print("Task:", json.dumps(t))
           PY
       - name: App checks over https (falls back to port 8080 if the certificate isn't ready yet)
         run: |
