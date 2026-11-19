@@ -1,5 +1,5 @@
 # One-off setup of Paul's Stalwart test server (Hetzner, made from the cloud config in project files), then the
-# same app checks as the Docker ones. Run by hand from the Actions tab. Needs the STALWART_ADMIN_PASSWORD secret.
+# same app checks as the Docker ones. Run by hand from the Actions tab. Uses the STALWART_ADMIN_PASSWORD secret, or the password input for a throwaway box.
 name: Stalwart test server
 
 on:
@@ -8,6 +8,9 @@ on:
       host:
         description: Server name
         default: stalwart.jmapconnect.app
+      password:
+        description: Admin password (leave empty to use the secret)
+        required: false
 
 jobs:
   setup:
@@ -15,8 +18,10 @@ jobs:
     timeout-minutes: 25
     env:
       HOST: ${{ inputs.host }}
-      PW: ${{ secrets.STALWART_ADMIN_PASSWORD }}
+      PW: ${{ inputs.password || secrets.STALWART_ADMIN_PASSWORD }}
     steps:
+      - name: Hide the password in logs
+        run: echo "::add-mask::$PW"
       - uses: actions/checkout@v4
       - name: Wait for the server to start (first boot installs Docker, a few minutes)
         run: |
