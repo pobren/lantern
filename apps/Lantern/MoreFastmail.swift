@@ -188,7 +188,9 @@ extension JMAPClient {
         let subs = try await submissions(for: ids)
         let gone = ids.filter { id in
             guard let list = subs[id], !list.isEmpty else { return false }
-            return list.allSatisfy { $0.status == "final" }
+            // Gone only when every send is final AND its time has passed: some servers mark a held send final
+            // straight away, and moving it then would hide it from Scheduled before it goes.
+            return list.allSatisfy { $0.status == "final" && ($0.sendAt ?? .distantPast) <= Date() }
         }
         guard !gone.isEmpty else { return }
         var update: [String: Any] = [:]
