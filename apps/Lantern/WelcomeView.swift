@@ -132,104 +132,197 @@ struct SettingsView: View {
     #endif
 
     var body: some View {
-        Form {
-            Section("Notifications") {
-                Toggle("Tell me about new mail", isOn: $notify)
-                    .onChange(of: notify) { _, on in if on { Task { await Notifier.ask() } } }
-                Toggle("Show the unread count on the app icon", isOn: $badge)
-                    .onChange(of: badge) { _, _ in Notifier.badge(store.unreadInboxes) }
-                #if os(iOS)
-                Toggle("Instant alerts", isOn: $instant)
-                    .disabled(!notify)
-                    .onChange(of: instant) { _, _ in Task { await alerts.sync(store) } }
-                if instant {
-                    if alerts.working { ProgressView().controlSize(.small) }
-                    if !alerts.status.isEmpty { Text(alerts.status).font(.caption).foregroundStyle(.secondary) }
-                    Text("Fastmail tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: Fastmail encrypts the notice for this device, which then fetches the sender and subject from Fastmail itself.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("Without instant alerts, iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
-                        .font(.caption).foregroundStyle(.secondary)
+        #if os(iOS)
+        NavigationStack {
+            List {
+                Section {
+                    NavigationLink { page("Notifications") { notifications } } label: { Row(title: "Notifications", icon: "bell.badge.fill", tint: .red, detail: alertsDetail) }
+                    NavigationLink { page("Sending and signatures") { sending; addresses } } label: { Row(title: "Sending and signatures", icon: "paperplane.fill", tint: Look.accent) }
+                    NavigationLink { page("Reading") { reading } } label: { Row(title: "Reading", icon: "eye.fill", tint: .teal) }
+                    NavigationLink { page("Offline") { OfflineSection() } } label: { Row(title: "Offline", icon: "arrow.down.circle.fill", tint: .green) }
                 }
-                #endif
+                fastmailTools
+                Section("Accounts") { accounts }
+                Section { about }
             }
-            Section("Sending") {
-                ForEach(store.accounts) { s in
-                    if s.identities.count > 1 {
-                        Picker(store.accounts.count > 1 ? "Send new emails from (\(s.account.label))" : "Send new emails from",
-                               selection: Binding(get: { store.defaultIdentity(s)?.id ?? "" },
-                                                  set: { store.setDefaultIdentity($0, account: s.account) })) {
-                            ForEach(s.identities) { Text($0.label).tag($0.id) }
-                        }
-                    }
-                }
-                Text("Replies go out from the address the email was sent to, when you can send from it.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Your addresses") {
-                AddressSettings()
-                Text("Reply to addresses and signatures are saved to your account, so they match on the web and in other apps.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Reading") {
-                Toggle("Load pictures from the web in emails", isOn: $remoteImages)
-                Text("Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
-            }
-            OfflineSection()
-            Section("Masked Email") {
-                ForEach(store.accounts.filter { $0.account.kind == "fastmail" }) { s in
-                    Button { masking = s } label: {
-                        Label(store.accounts.count > 1 ? "Masked addresses for \(s.account.label)" : "Masked addresses", systemImage: "theatermasks")
-                    }
-                }
-                Text("Make a private address for each website, copy it in one tap, and turn it off if it starts getting spam.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Accounts") {
-                ForEach(store.accounts) { s in
-                    HStack {
-                        AccountDot(account: s.account, size: 9)
-                        VStack(alignment: .leading) {
-                            Text(s.account.kindName)
-                            Text(s.account.username).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Remove", role: .destructive) {
-                            store.remove(s)
-                            #if os(iOS)
-                            Task { await InstantAlerts.shared.sync(store) }
-                            #endif
-                        }
-                    }
-                }
-                if ServerKind.fastmailOnly {
-                    Button { adding = .fastmail } label: { Label("Add another Fastmail account", systemImage: "plus") }
-                } else {
-                    Menu {
-                        Button("Mail App") { adding = .mailApp }
-                        Button("Fastmail") { adding = .fastmail }
-                        Button("Another JMAP server") { adding = .other }
-                    } label: { Label("Add account", systemImage: "plus") }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { dismiss() } label: { Label("Done", systemImage: "checkmark") }
                 }
             }
         }
         .sheet(item: $masking) { s in MaskedEmailView(state: s) }
-        .formStyle(.grouped)
-        #if os(macOS)
-        .frame(width: 500, height: 620)
+        .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
         #else
-        .safeAreaInset(edge: .top) {
-            HStack {
-                Text("Settings").font(.headline)
+        TabView {
+            Form { notifications; reading }.formStyle(.grouped)
+                .tabItem { Label("General", systemImage: "gearshape") }
+            Form { sending; addresses }.formStyle(.grouped)
+                .tabItem { Label("Sending", systemImage: "paperplane") }
+            Form { OfflineSection() }.formStyle(.grouped)
+                .tabItem { Label("Offline", systemImage: "arrow.down.circle") }
+            Form { fastmailTools }.formStyle(.grouped)
+                .tabItem { Label("Fastmail", systemImage: "envelope.badge.shield.half.filled") }
+            Form { Section("Accounts") { accounts }; Section { about } }.formStyle(.grouped)
+                .tabItem { Label("Accounts", systemImage: "person.crop.circle") }
+        }
+        .frame(width: 560, height: 520)
+        .sheet(item: $masking) { s in MaskedEmailView(state: s) }
+        .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
+        #endif
+    }
+
+    // MARK: Pages
+
+    #if os(iOS)
+    private func page<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        Form { content() }
+            .formStyle(.grouped)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var alertsDetail: String {
+        if !notify { return "Off" }
+        return instant ? "Instant" : "On"
+    }
+    #endif
+
+    /// A settings row with a coloured icon, the way iOS Settings looks.
+    private struct Row: View {
+        let title: String
+        let icon: String
+        let tint: Color
+        var detail: String? = nil
+        var body: some View {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 29, height: 29)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(tint))
+                Text(title).foregroundStyle(.primary)
                 Spacer()
-                Button("Done") { dismiss() }
+                if let detail { Text(detail).foregroundStyle(.secondary) }
             }
-            .padding()
+        }
+    }
+
+    @ViewBuilder private var notifications: some View {
+        Section {
+            Toggle("Tell me about new mail", isOn: $notify)
+                .onChange(of: notify) { _, on in if on { Task { await Notifier.ask() } } }
+            Toggle("Unread count on the app icon", isOn: $badge)
+                .onChange(of: badge) { _, _ in Notifier.badge(store.unreadInboxes) }
+        } header: { Text("New mail") }
+        #if os(iOS)
+        Section {
+            Toggle("Instant alerts", isOn: $instant)
+                .disabled(!notify)
+                .onChange(of: instant) { _, _ in Task { await alerts.sync(store) } }
+            if instant {
+                if alerts.working { ProgressView().controlSize(.small) }
+                if !alerts.status.isEmpty { Text(alerts.status).font(.footnote).foregroundStyle(.secondary) }
+            }
+        } header: { Text("Instant alerts") } footer: {
+            Text(instant
+                 ? "Fastmail tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: Fastmail encrypts the notice for this device, which then fetches the sender and subject from Fastmail itself."
+                 : "Without instant alerts, iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
         }
         #endif
-        .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
+    }
+
+    @ViewBuilder private var sending: some View {
+        let several = store.accounts.filter { $0.identities.count > 1 }
+        if !several.isEmpty {
+            Section {
+                ForEach(several) { s in
+                    Picker(store.accounts.count > 1 ? "New emails from (\(s.account.label))" : "New emails from",
+                           selection: Binding(get: { store.defaultIdentity(s)?.id ?? "" },
+                                              set: { store.setDefaultIdentity($0, account: s.account) })) {
+                        ForEach(s.identities) { Text($0.label).tag($0.id) }
+                    }
+                }
+            } header: { Text("Sending") } footer: {
+                Text("Replies go out from the address the email was sent to, when you can send from it.")
+            }
+        }
+    }
+
+    @ViewBuilder private var addresses: some View {
+        Section {
+            AddressSettings()
+        } header: { Text("Signature and Reply to") } footer: {
+            Text("Saved to your Fastmail account, so they match on the web and in other apps.")
+        }
+    }
+
+    @ViewBuilder private var reading: some View {
+        Section {
+            Toggle("Load pictures from the web", isOn: $remoteImages)
+        } footer: {
+            Text("Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.")
+        }
+        Section {
+            Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
+        }
+    }
+
+    @ViewBuilder private var fastmailTools: some View {
+        let fastmail = store.accounts.filter { $0.account.kind == "fastmail" }
+        if !fastmail.isEmpty {
+            Section {
+                ForEach(fastmail) { s in
+                    Button { masking = s } label: {
+                        Row(title: store.accounts.count > 1 ? "Masked Email, \(s.account.label)" : "Masked Email", icon: "theatermasks.fill", tint: .indigo)
+                    }
+                }
+            } header: { Text("Fastmail") } footer: {
+                Text("Masked Email makes a private address for each website.")
+            }
+        }
+    }
+
+    @ViewBuilder private var accounts: some View {
+        ForEach(store.accounts) { s in
+            HStack(spacing: 12) {
+                AccountDot(account: s.account, size: 10)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.account.username.isEmpty ? s.account.kindName : s.account.username).lineLimit(1)
+                    Text(s.account.kindName).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(role: .destructive) {
+                    store.remove(s)
+                    #if os(iOS)
+                    Task { await InstantAlerts.shared.sync(store) }
+                    #endif
+                } label: { Label("Remove", systemImage: "minus.circle") }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.red)
+                .accessibilityLabel("Remove \(s.account.label)")
+            }
+        }
+        if ServerKind.fastmailOnly {
+            Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
+        } else {
+            Menu {
+                Button("Mail App") { adding = .mailApp }
+                Button("Fastmail") { adding = .fastmail }
+                Button("Another JMAP server") { adding = .other }
+            } label: { Label("Add account", systemImage: "plus.circle.fill") }
+        }
+    }
+
+    private var about: some View {
+        let info = Bundle.main.infoDictionary
+        let version = "\(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
+        return HStack {
+            Text("JMAP Connect")
+            Spacer()
+            Text("Version \(version)").foregroundStyle(.secondary)
+        }
     }
 }
 
