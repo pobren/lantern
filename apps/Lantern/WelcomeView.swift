@@ -180,6 +180,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
             }
+            OfflineSection()
             Section("Accounts") {
                 ForEach(store.accounts) { s in
                     HStack {
@@ -223,6 +224,42 @@ struct SettingsView: View {
         #endif
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
     }
+}
+
+/// How much mail is kept on the device for reading and searching offline, the space it takes, and clearing it.
+struct OfflineSection: View {
+    @EnvironmentObject var store: Store
+    @AppStorage(Store.offlineMonthsKey) private var months = Store.offlineMonths
+    @State private var size: Int64?
+    @State private var clearing = false
+
+    var body: some View {
+        Section("Offline") {
+            Picker("Keep full emails for", selection: $months) {
+                Text("1 month").tag(1)
+                Text("3 months").tag(3)
+                Text("12 months").tag(12)
+                Text("All mail").tag(0)
+            }
+            .onChange(of: months) { _, _ in store.offlineWindowChanged(); Task { await measure() } }
+            HStack {
+                Text("Space used on this device")
+                Spacer()
+                Text(size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Working it out")
+                    .foregroundStyle(.secondary)
+            }
+            Button(role: .destructive) {
+                clearing = true
+                Task { await store.clearSaved(); await measure(); clearing = false }
+            } label: { Label(clearing ? "Clearing" : "Clear saved mail", systemImage: "trash") }
+            .disabled(clearing)
+            Text("Every email's sender, subject and preview is kept so lists and search work offline, plus the full text of emails from the time above and any attachments you've opened. Full emails download on Wi-Fi only. Saved mail stays on this device, isn't backed up to iCloud, and downloads again after clearing.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task { await measure() }
+    }
+
+    private func measure() async { size = await store.savedSize() }
 }
 
 /// One address's signature, edited in place and saved to the account when you press Save.

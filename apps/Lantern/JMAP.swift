@@ -186,6 +186,95 @@ final class JMAPClient: @unchecked Sendable {
         return try Self.decode([Email].self, from: r["g"]?["list"])
     }
 
+    // MARK: Keeping a copy on the device
+
+    /// The server's current state string for emails, to ask later what changed since.
+    func emailState() async throws -> String {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": [String](), "properties": ["id"]], "g"]])
+        guard let state = r["g"]?["state"] as? String else { throw JMAPError.missing("a state") }
+        return state
+    }
+
+    /// One page of every email in the account, newest first, after the email `anchor` (the last of the page before).
+    func allEmails(after anchor: String?, limit: Int) async throws -> [Email] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        var query: [String: Any] = ["accountId": acc, "sort": [["property": "receivedAt", "isAscending": false]],
+                                    "limit": limit, "collapseThreads": false]
+        if let anchor { query["anchor"] = anchor; query["anchorOffset"] = 1 } else { query["position"] = 0 }
+        let r = try await call([
+            ["Email/query", query, "q"],
+            ["Email/get", ["accountId": acc, "#ids": ["resultOf": "q", "name": "Email/query", "path": "/ids"],
+                           "properties": Email.listProperties], "g"]
+        ])
+        return try Self.decode([Email].self, from: r["g"]?["list"])
+    }
+
+    /// What changed since a state: emails added or changed, and ids removed. Throws `JMAPError.method` with
+    /// "cannotCalculateChanges" when the server has forgotten that state and everything must be fetched again.
+    func emailChanges(since state: String) async throws -> (changed: [String], removed: [String], state: String, more: Bool) {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        let r = try await call([["Email/changes", ["accountId": acc, "sinceState": state, "maxChanges": 500], "c"]])
+        guard let c = r["c"], let newState = c["newState"] as? String else { throw JMAPError.missing("changes") }
+        let changed = ((c["created"] as? [String]) ?? []) + ((c["updated"] as? [String]) ?? [])
+        return (changed, (c["destroyed"] as? [String]) ?? [], newState, (c["hasMoreChanges"] as? Bool) ?? false)
+    }
+
+    /// Emails by id, with what the lists need. Ids the server no longer has are left out.
+    func emails(ids: [String]) async throws -> [Email] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        guard !ids.isEmpty else { return [] }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": ids, "properties": Email.listProperties], "g"]])
+        return try Self.decode([Email].self, from: r["g"]?["list"])
+    }
+
+    /// The readable text of several emails at once, for reading and searching offline. Pictures sent inside an
+    /// email aren't fetched here; opening the email fills them in.
+    func contents(of ids: [String]) async throws -> [String: SavedPage] {
+        guard let acc = accountId else { throw JMAPError.missing("an account") }
+        guard !ids.isEmpty else { return [:] }
+        let r = try await call([["Email/get", ["accountId": acc, "ids": ids,
+                                               "properties": ["id", "htmlBody", "textBody", "bodyValues", "attachments"],
+                                               "bodyProperties": ["partId", "blobId", "type", "cid", "name", "size"],
+                                               "fetchHTMLBodyValues": true, "fetchTextBodyValues": true,
+                                               "maxBodyValueBytes": 1_000_000], "p"]])
+        var out: [String: SavedPage] = [:]
+        for item in (r["p"]?["list"] as? [[String: Any]]) ?? [] {
+            guard let id = item["id"] as? String else { continue }
+            let values = (item["bodyValues"] as? [String: [String: Any]]) ?? [:]
+            let htmlParts = (item["htmlBody"] as? [[String: Any]]) ?? []
+            let textParts = (item["textBody"] as? [[String: Any]]) ?? []
+            var html = ""
+            for part in htmlParts.isEmpty ? textParts : htmlParts {
+                guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
+                if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
+                else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+            }
+            let text = textParts.compactMap { $0["partId"] as? String }.compactMap { values[$0]?["value"] as? String }
+                .joined(separator: "\n\n").replacingOccurrences(of: "\r\n", with: "\n")
+            let files: [Attachment] = ((item["attachments"] as? [[String: Any]]) ?? []).compactMap { f in
+                guard let blobId = f["blobId"] as? String else { return nil }
+                // Pictures shown inside the email aren't listed as files to open.
+                if f["cid"] is String, let t = f["type"] as? String, t.lowercased().hasPrefix("image/"),
+                   html.range(of: "cid:", options: .caseInsensitive) != nil { return nil }
+                return Attachment(blobId: blobId, name: (f["name"] as? String) ?? "Attachment",
+                                  type: (f["type"] as? String) ?? "application/octet-stream", size: (f["size"] as? Int) ?? 0)
+            }
+            out[id] = SavedPage(html: html, text: text.isEmpty ? Self.plain(html) : text, attachments: files, complete: false)
+        }
+        return out
+    }
+
+    /// Rough plain text from HTML, for the search index when an email has no plain text part.
+    static func plain(_ html: String) -> String {
+        var s = html.replacingOccurrences(of: "<(style|script)[^>]*>[\\s\\S]*?</\\1>", with: " ", options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        for (a, b) in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'")] {
+            s = s.replacingOccurrences(of: a, with: b)
+        }
+        return s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
     /// Every email in a conversation, oldest first.
     func thread(_ threadId: String) async throws -> [Email] {
         guard let acc = accountId else { throw JMAPError.missing("an account") }

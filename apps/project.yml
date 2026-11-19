@@ -9,7 +9,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.2"   # instant alerts test builds (1.0 is with Apple, 1.1 is offline mail)
+    MARKETING_VERSION: "1.1"   # offline mail and search, instant alerts (1.0 is with Apple)
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}

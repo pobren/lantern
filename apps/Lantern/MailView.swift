@@ -370,7 +370,11 @@ struct MessageList: View {
             if !store.search.trimmingCharacters(in: .whitespaces).isEmpty { Task { await store.reloadList() } }
         }
         .onChange(of: store.search) { _, words in
-            if words.isEmpty { Task { await store.reloadList() } }
+            // Saved mail answers as you type; pressing Return asks the server too.
+            Task { if words.isEmpty { await store.reloadList() } else { await store.searchSaved() } }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if store.offline || store.outbox > 0 { OfflineBar() }
         }
         .refreshable { await store.refresh() }
         #if os(macOS)
@@ -420,6 +424,27 @@ struct MessageList: View {
 }
 
 /// One conversation in the list: who, when, what about, and the first words.
+/// Says when the app is working from saved mail, and how many emails are waiting to send.
+private struct OfflineBar: View {
+    @EnvironmentObject var store: Store
+
+    var body: some View {
+        let waiting = store.outbox == 1 ? "1 email waiting to send" : "\(store.outbox) emails waiting to send"
+        HStack(spacing: 7) {
+            Image(systemName: store.offline ? "wifi.slash" : "paperplane")
+            Text(store.offline ? (store.outbox > 0 ? "Offline. \(waiting)" : "Offline. Showing mail saved on this device")
+                               : "Sending \(waiting.replacingOccurrences(of: " waiting to send", with: ""))")
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(.bar)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct Row: View {
     let item: Item
     let showAccount: Bool
