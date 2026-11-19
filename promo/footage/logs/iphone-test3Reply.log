@@ -1,639 +1,311 @@
 Command line invocation:
-    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=D5756E40-BD25-41D8-89E6-5D1AD8D59859 "-only-testing:PromoTour/Tour/test3Reply"
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=E3693F37-D0A1-4ED8-98A5-1BBE3A0E2819 "-only-testing:PromoTour/Tour/test3Reply"
 
 --- xcodebuild: WARNING: Using the first of multiple matching destinations:
-{ platform:iOS Simulator, arch:arm64, id:D5756E40-BD25-41D8-89E6-5D1AD8D59859, OS:26.5, name:Promo iPhone }
-{ platform:iOS Simulator, arch:x86_64, id:D5756E40-BD25-41D8-89E6-5D1AD8D59859, OS:26.5, name:Promo iPhone }
-2026-11-19 11:41:26.642637+0000 PromoTour-Runner[12512:41153] [Default] Running tests...
-2026-11-19 11:41:26.763754+0000 PromoTour-Runner[12512:41681] [General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
-2026-11-19 11:41:26.809157+0000 PromoTour-Runner[12512:41689] [General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
-objc[12512]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x108964310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x108848398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+{ platform:iOS Simulator, arch:arm64, id:E3693F37-D0A1-4ED8-98A5-1BBE3A0E2819, OS:26.5, name:Promo iPhone }
+{ platform:iOS Simulator, arch:x86_64, id:E3693F37-D0A1-4ED8-98A5-1BBE3A0E2819, OS:26.5, name:Promo iPhone }
+2026-11-19 11:57:52.868712+0000 PromoTour-Runner[19849:59097] [Default] Running tests...
     t =      nans Interface orientation changed to Portrait
-Test Suite 'Selected tests' started at 2026-11-19 11:41:32.517.
-Test Suite 'PromoTour.xctest' started at 2026-11-19 11:41:32.518.
-Test Suite 'Tour' started at 2026-11-19 11:41:32.518.
+Test Suite 'Selected tests' started at 2026-11-19 11:57:55.411.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:57:55.414.
+Test Suite 'Tour' started at 2026-11-19 11:57:55.416.
 Test Case '-[PromoTour.Tour test3Reply]' started.
-    t =     0.00s Start Test at 2026-11-19 11:41:32.521
-    t =     0.18s Set Up
-    t =     0.19s Open dev.paulobrien.lantern
-    t =     0.19s     Launch dev.paulobrien.lantern
-2026-11-19 11:41:33.854 xcodebuild[10882:37092] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
-2026-11-19 11:41:33.855 xcodebuild[10882:37092] [MT] IDELaunchParametersSnapshot: no debugger version
-    t =     9.90s         Setting up automation session
-    t =    11.78s         Wait for dev.paulobrien.lantern to idle
-    t =    17.60s Waiting 6.0s for "Reply" Button to exist
-    t =    18.66s     Checking `Expect predicate `existsNoRetry == 1` for object "Reply" Button`
-    t =    18.66s         Checking existence of `"Reply" Button`
-    t =    18.92s Tap "Reply" Button
-    t =    18.92s     Wait for dev.paulobrien.lantern to idle
-    t =    18.92s     Find the "Reply" Button
-    t =    19.08s     Check for interrupting elements affecting "Reply" Button
-    t =    19.18s     Synthesize event
-    t =    19.70s     Wait for dev.paulobrien.lantern to idle
-    t =    22.15s Waiting 2.0s for Button (Element at index 1) to exist
-    t =    23.19s     Checking `Expect predicate `existsNoRetry == 1` for object Button (Element at index 1)`
-    t =    23.20s         Checking existence of `Button (Element at index 1)`
-    t =    23.38s Tap Button (Element at index 1)
-    t =    23.38s     Wait for dev.paulobrien.lantern to idle
-    t =    23.38s     Find the Button (Element at index 1)
-    t =    23.47s     Check for interrupting elements affecting "Reply" Button
-    t =    23.57s     Synthesize event
-    t =    23.60s         Scroll element to visible
-    t =    23.61s         Find the "Reply" Button
-    t =    23.69s         Computed hit point {-1, -1} after scrolling to visible
-    t =    24.12s     Wait for dev.paulobrien.lantern to idle
-    t =    27.73s Waiting 5.0s for TextView (First Match) to exist
-    t =    28.74s     Checking `Expect predicate `existsNoRetry == 1` for object TextView (First Match)`
-    t =    28.74s         Checking existence of `TextView (First Match)`
-    t =    29.39s Tap TextView (First Match)[0.30, 0.00] -> (0.0, 8.0)
-    t =    29.39s     Wait for dev.paulobrien.lantern to idle
-    t =    29.39s     Find the TextView (First Match)
-    t =    30.35s     Check for interrupting elements affecting "
+    t =     0.01s Start Test at 2026-11-19 11:57:55.425
+    t =     0.23s Set Up
+    t =     0.26s Open dev.paulobrien.lantern
+    t =     0.26s     Launch dev.paulobrien.lantern
+2026-11-19 11:57:56.964 xcodebuild[18926:56393] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:57:56.964 xcodebuild[18926:56393] [MT] IDELaunchParametersSnapshot: no debugger version
+objc[19849]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x10b068310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10a390398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =     5.50s         Setting up automation session
+    t =     6.72s         Wait for dev.paulobrien.lantern to idle
+    t =    12.50s Waiting 6.0s for "New message" Button to exist
+    t =    13.56s     Checking `Expect predicate `existsNoRetry == 1` for object "New message" Button`
+    t =    13.56s         Checking existence of `"New message" Button`
+    t =    14.01s Tap "New message" Button
+    t =    14.01s     Wait for dev.paulobrien.lantern to idle
+    t =    14.01s     Find the "New message" Button
+    t =    14.79s     Check for interrupting elements affecting "New message" Button
+    t =    14.93s     Synthesize event
+    t =    15.27s     Wait for dev.paulobrien.lantern to idle
+    t =    18.01s Waiting 4.0s for TextField (Element at index 0) to exist
+    t =    19.03s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (Element at index 0)`
+    t =    19.04s         Checking existence of `TextField (Element at index 0)`
+    t =    20.15s Tap TextField (Element at index 0)
+    t =    20.15s     Wait for dev.paulobrien.lantern to idle
+    t =    20.27s     Find the TextField (Element at index 0)
+    t =    20.73s     Check for interrupting elements affecting TextField
+    t =    21.26s     Synthesize event
+    t =    21.87s     Wait for dev.paulobrien.lantern to idle
+    t =    21.87s Type 'maya@studio-north....' into TextField at {{88.0, 196.7}, {224.0, 22.0}}
+    t =    21.87s     Wait for dev.paulobrien.lantern to idle
+    t =    21.89s     Find the TextField at {{88.0, 196.7}, {224.0, 22.0}}
+    t =    22.89s     Check for interrupting elements affecting TextField
+    t =    23.44s     Synthesize event
+    t =    24.11s     Wait for dev.paulobrien.lantern to idle
+    t =    25.12s Checking existence of `TextField (Element at index 1)`
+    t =    26.39s Tap TextField (Element at index 1)
+    t =    26.39s     Wait for dev.paulobrien.lantern to idle
+    t =    26.39s     Find the TextField (Element at index 1)
+    t =    28.53s     Check for interrupting elements affecting TextField
+    t =    28.93s     Synthesize event
+    t =    29.25s     Wait for dev.paulobrien.lantern to idle
+    t =    29.80s Type 'Lunch ' into TextField at {{88.0, 239.0}, {294.0, 22.0}}
+    t =    29.80s     Wait for dev.paulobrien.lantern to idle
+    t =    30.00s     Find the TextField at {{88.0, 239.0}, {294.0, 22.0}}
+    t =    30.53s     Check for interrupting elements affecting TextField
+    t =    30.89s     Synthesize event
+    t =    31.23s     Wait for dev.paulobrien.lantern to idle
+    t =    31.72s Type 'on ' into TextField at {{88.0, 239.0}, {294.0, 22.0}}
+    t =    31.73s     Wait for dev.paulobrien.lantern to idle
+    t =    31.74s     Find the TextField at {{88.0, 239.0}, {294.0, 22.0}}
+    t =    32.09s     Check for interrupting elements affecting "Lunch " TextField
+    t =    32.29s     Synthesize event
+    t =    32.56s     Wait for dev.paulobrien.lantern to idle
+    t =    32.69s Type 'Friday? ' into "Lunch " TextField
+    t =    32.69s     Wait for dev.paulobrien.lantern to idle
+    t =    32.70s     Find the "Lunch " TextField
+    t =    32.95s     Check for interrupting elements affecting "Lunch on " TextField
+    t =    33.19s     Synthesize event
+    t =    33.58s     Wait for dev.paulobrien.lantern to idle
+    t =    34.12s Checking existence of `TextView (First Match)`
+    t =    34.57s Tap TextView (First Match)[0.20, 0.02]
+    t =    34.57s     Wait for dev.paulobrien.lantern to idle
+    t =    34.58s     Find the TextView (First Match)
+    t =    35.74s     Check for interrupting elements affecting "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    30.48s     Synthesize event
-    t =    30.48s         Find the "
+Northwind Studio" TextView
+    t =    35.95s     Synthesize event
+    t =    35.96s         Find the "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    31.37s         Find the "
+Northwind Studio" TextView
+    t =    36.46s         Find the "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    32.07s         Find the "
+Northwind Studio" TextView
+    t =    36.97s         Find the "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    33.20s     Wait for dev.paulobrien.lantern to idle
-    t =    38.22s Type 'Love ' into "
+Northwind Studio" TextView
+    t =    37.77s     Wait for dev.paulobrien.lantern to idle
+    t =    38.79s Type 'Hi ' into "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    38.22s     Wait for dev.paulobrien.lantern to idle
-    t =    38.22s     Find the "
+Northwind Studio" TextView
+    t =    38.79s     Wait for dev.paulobrien.lantern to idle
+    t =    38.80s     Find the "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    38.53s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    41.29s     Check for interrupting elements affecting "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    38.67s     Synthesize event
-    t =    39.13s     Wait for dev.paulobrien.lantern to idle
-    t =    39.44s Type 'the ' into "
+Northwind Studio" TextView
+    t =    41.61s     Synthesize event
+    t =    41.91s     Wait for dev.paulobrien.lantern to idle
+    t =    42.36s Type 'Maya, ' into "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    39.44s     Wait for dev.paulobrien.lantern to idle
-    t =    39.44s     Find the "
+Northwind Studio" TextView
+    t =    42.36s     Wait for dev.paulobrien.lantern to idle
+    t =    42.37s     Find the "
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->
-> Here are the three directions we " TextView
-    t =    39.97s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    44.39s     Check for interrupting elements affecting "Hi 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love 
-> Here are the three direction" TextView
-    t =    40.08s     Synthesize event
-    t =    40.35s     Wait for dev.paulobrien.lantern to idle
-    t =    40.48s Type 'second ' into "
+Northwind Studio" TextView
+    t =    44.81s     Synthesize event
+    t =    45.21s     Wait for dev.paulobrien.lantern to idle
+    t =    45.34s Type 'are ' into "Hi 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love 
-> Here are the three direction" TextView
-    t =    40.48s     Wait for dev.paulobrien.lantern to idle
-    t =    40.48s     Find the "
+Northwind Studio" TextView
+    t =    45.34s     Wait for dev.paulobrien.lantern to idle
+    t =    45.35s     Find the "Hi 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love 
-> Here are the three direction" TextView
-    t =    40.62s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    47.94s     Check for interrupting elements affecting "Hi Maya, 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the 
-> Here are the three direc" TextView
-    t =    40.73s     Synthesize event
-    t =    41.05s     Wait for dev.paulobrien.lantern to idle
-    t =    41.18s Type 'direction, ' into "
+Northwind Studio" TextView
+    t =    48.25s     Synthesize event
+    t =    48.53s     Wait for dev.paulobrien.lantern to idle
+    t =    48.66s Type 'you ' into "Hi Maya, 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the 
-> Here are the three direc" TextView
-    t =    41.18s     Wait for dev.paulobrien.lantern to idle
-    t =    41.18s     Find the "
+Northwind Studio" TextView
+    t =    48.67s     Wait for dev.paulobrien.lantern to idle
+    t =    48.67s     Find the "Hi Maya, 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the 
-> Here are the three direc" TextView
-    t =    41.43s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    49.73s     Check for interrupting elements affecting "Hi Maya, are 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second 
-> Here are the thre" TextView
-    t =    41.53s     Synthesize event
-    t =    41.92s     Wait for dev.paulobrien.lantern to idle
-    t =    42.05s Type 'Maya. ' into "
+Northwind Studio" TextView
+    t =    50.22s     Synthesize event
+    t =    50.51s     Wait for dev.paulobrien.lantern to idle
+    t =    50.65s Type 'free ' into "Hi Maya, are 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second 
-> Here are the thre" TextView
-    t =    42.06s     Wait for dev.paulobrien.lantern to idle
-    t =    42.06s     Find the "
+Northwind Studio" TextView
+    t =    50.65s     Wait for dev.paulobrien.lantern to idle
+    t =    50.66s     Find the "Hi Maya, are 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second 
-> Here are the thre" TextView
-    t =    42.22s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    51.89s     Check for interrupting elements affecting "Hi Maya, are you 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, 
-> Here a" TextView
-    t =    42.34s     Synthesize event
-    t =    42.65s     Wait for dev.paulobrien.lantern to idle
-    t =    42.78s Type 'Let's ' into "
+Northwind Studio" TextView
+    t =    52.19s     Synthesize event
+    t =    52.48s     Wait for dev.paulobrien.lantern to idle
+    t =    52.62s Type 'for ' into "Hi Maya, are you 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, 
-> Here a" TextView
-    t =    42.78s     Wait for dev.paulobrien.lantern to idle
-    t =    42.79s     Find the "
+Northwind Studio" TextView
+    t =    52.62s     Wait for dev.paulobrien.lantern to idle
+    t =    52.63s     Find the "Hi Maya, are you 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, 
-> Here a" TextView
-    t =    43.09s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    53.85s     Check for interrupting elements affecting "Hi Maya, are you free 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. 
-> " TextView
-    t =    43.23s     Synthesize event
-    t =    43.55s     Wait for dev.paulobrien.lantern to idle
-    t =    43.68s Type 'go ' into "
+Northwind Studio" TextView
+    t =    54.14s     Synthesize event
+    t =    54.41s     Wait for dev.paulobrien.lantern to idle
+    t =    54.55s Type 'lunch ' into "Hi Maya, are you free 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. 
-> " TextView
-    t =    43.68s     Wait for dev.paulobrien.lantern to idle
-    t =    43.69s     Find the "
+Northwind Studio" TextView
+    t =    54.55s     Wait for dev.paulobrien.lantern to idle
+    t =    54.56s     Find the "Hi Maya, are you free 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. 
-> " TextView
-    t =    44.27s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    55.51s     Check for interrupting elements affecting "Hi Maya, are you free for 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    44.44s     Synthesize event
-    t =    44.86s     Wait for dev.paulobrien.lantern to idle
-    t =    44.99s Type 'with ' into "
+Northwind Studio" TextView
+    t =    55.79s     Synthesize event
+    t =    56.14s     Wait for dev.paulobrien.lantern to idle
+    t =    56.49s Type 'on ' into "Hi Maya, are you free for 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    44.99s     Wait for dev.paulobrien.lantern to idle
-    t =    45.02s     Find the "
+Northwind Studio" TextView
+    t =    56.49s     Wait for dev.paulobrien.lantern to idle
+    t =    56.49s     Find the "Hi Maya, are you free for 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    46.69s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    57.33s     Check for interrupting elements affecting "Hi Maya, are you free for lunch 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    46.86s     Synthesize event
-    t =    47.17s     Wait for dev.paulobrien.lantern to idle
-    t =    47.29s Type 'it ' into "
+Northwind Studio" TextView
+    t =    57.54s     Synthesize event
+    t =    57.79s     Wait for dev.paulobrien.lantern to idle
+    t =    57.93s Type 'Friday? ' into "Hi Maya, are you free for lunch 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    47.29s     Wait for dev.paulobrien.lantern to idle
-    t =    47.30s     Find the "
+Northwind Studio" TextView
+    t =    57.93s     Wait for dev.paulobrien.lantern to idle
+    t =    57.94s     Find the "Hi Maya, are you free for lunch 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    47.66s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    58.30s     Check for interrupting elements affecting "Hi Maya, are you free for lunch on 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    47.77s     Synthesize event
-    t =    48.02s     Wait for dev.paulobrien.lantern to idle
-    t =    48.15s Type 'and ' into "
+Northwind Studio" TextView
+    t =    58.50s     Synthesize event
+    t =    58.84s     Wait for dev.paulobrien.lantern to idle
+    t =    58.98s Type 'My ' into "Hi Maya, are you free for lunch on 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    48.15s     Wait for dev.paulobrien.lantern to idle
-    t =    48.15s     Find the "
+Northwind Studio" TextView
+    t =    58.98s     Wait for dev.paulobrien.lantern to idle
+    t =    58.99s     Find the "Hi Maya, are you free for lunch on 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    48.51s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    59.41s     Check for interrupting elements affecting "Hi Maya, are you free for lunch on Friday? 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    48.65s     Synthesize event
-    t =    48.93s     Wait for dev.paulobrien.lantern to idle
-    t =    49.06s Type 'I'll ' into "
+Northwind Studio" TextView
+    t =    59.60s     Synthesize event
+    t =    59.86s     Wait for dev.paulobrien.lantern to idle
+    t =    60.00s Type 'treat. ' into "Hi Maya, are you free for lunch on Friday? 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    49.06s     Wait for dev.paulobrien.lantern to idle
-    t =    49.07s     Find the "
+Northwind Studio" TextView
+    t =    60.00s     Wait for dev.paulobrien.lantern to idle
+    t =    60.01s     Find the "Hi Maya, are you free for lunch on Friday? 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    49.40s     Check for interrupting elements affecting "
+Northwind Studio" TextView
+    t =    60.39s     Check for interrupting elements affecting "Hi Maya, are you free for lunch on Friday? My 
 
 -- 
 Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    49.49s     Synthesize event
-    t =    49.78s     Wait for dev.paulobrien.lantern to idle
-    t =    49.91s Type 'send ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    49.91s     Wait for dev.paulobrien.lantern to idle
-    t =    49.91s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    50.12s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    50.28s     Synthesize event
-    t =    50.57s     Wait for dev.paulobrien.lantern to idle
-    t =    50.70s Type 'the ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    50.70s     Wait for dev.paulobrien.lantern to idle
-    t =    50.70s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    51.11s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    51.20s     Synthesize event
-    t =    51.48s     Wait for dev.paulobrien.lantern to idle
-    t =    51.61s Type 'final ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    51.62s     Wait for dev.paulobrien.lantern to idle
-    t =    51.62s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    52.23s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    52.35s     Synthesize event
-    t =    52.66s     Wait for dev.paulobrien.lantern to idle
-    t =    52.79s Type 'copy ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    52.79s     Wait for dev.paulobrien.lantern to idle
-    t =    52.79s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    53.11s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    53.29s     Synthesize event
-    t =    53.58s     Wait for dev.paulobrien.lantern to idle
-    t =    53.71s Type 'on ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    53.71s     Wait for dev.paulobrien.lantern to idle
-    t =    53.71s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    53.93s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    54.05s     Synthesize event
-    t =    54.33s     Wait for dev.paulobrien.lantern to idle
-    t =    54.46s Type 'Thursday. ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    54.46s     Wait for dev.paulobrien.lantern to idle
-    t =    54.46s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    54.80s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,
->Love the second direction, Maya. Let" TextView
-    t =    54.90s     Synthesize event
-    t =    55.28s     Wait for dev.paulobrien.lantern to idle
-    t =    57.93s Tear Down
-Test Case '-[PromoTour.Tour test3Reply]' passed (58.472 seconds).
-Test Suite 'Tour' passed at 2026-11-19 11:42:30.994.
-	 Executed 1 test, with 0 failures (0 unexpected) in 58.472 (58.476) seconds
-Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:42:30.995.
-	 Executed 1 test, with 0 failures (0 unexpected) in 58.472 (58.477) seconds
-Test Suite 'Selected tests' passed at 2026-11-19 11:42:30.995.
-	 Executed 1 test, with 0 failures (0 unexpected) in 58.472 (58.478) seconds
-2026-11-19 11:44:08.192 xcodebuild[10882:37092] [MT] IDETestOperationsObserverDebug: 187.966 elapsed -- Testing started completed.
-2026-11-19 11:44:08.195 xcodebuild[10882:37092] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
-2026-11-19 11:44:08.195 xcodebuild[10882:37092] [MT] IDETestOperationsObserverDebug: 187.967 sec, +187.967 sec -- end
+Northwind Studio" TextView
+    t =    60.58s     Synthesize event
+    t =    60.90s     Wait for dev.paulobrien.lantern to idle
+    t =    63.55s Tear Down
+Test Case '-[PromoTour.Tour test3Reply]' passed (63.931 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:58:59.357.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.931 (63.941) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:58:59.359.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.931 (63.945) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:58:59.360.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.931 (63.949) seconds
+2026-11-19 12:00:33.496 xcodebuild[18926:56393] [MT] IDETestOperationsObserverDebug: 171.164 elapsed -- Testing started completed.
+2026-11-19 12:00:33.498 xcodebuild[18926:56393] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 12:00:33.498 xcodebuild[18926:56393] [MT] IDETestOperationsObserverDebug: 171.168 sec, +171.168 sec -- end
 
 Test session results, code coverage, and logs:
-	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-40-52-+0000.xcresult
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-57-27-+0000.xcresult
 
 ** TEST EXECUTE SUCCEEDED **
 
