@@ -183,7 +183,7 @@ struct SettingsView: View {
             }
             OfflineSection()
             Section("Masked Email") {
-                ForEach(store.accounts.filter { $0.account.kind == "fastmail" }) { s in
+                ForEach(store.accounts.filter { $0.account.kind == "fastmail" || $0.account.kind == Demo.kind }) { s in
                     Button { masking = s } label: {
                         Label(store.accounts.count > 1 ? "Masked addresses for \(s.account.label)" : "Masked addresses", systemImage: "theatermasks")
                     }

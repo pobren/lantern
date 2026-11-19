@@ -18,6 +18,10 @@ enum Demo {
         guard let i = a.firstIndex(of: "-JCScreen"), i + 1 < a.count else { return nil }
         return a[i + 1]
     }
+    /// Filming the promo video (-JCTour): a UI test drives the app, so no screenshot picture is saved.
+    static var tour: Bool { ProcessInfo.processInfo.arguments.contains("-JCTour") }
+    /// Promo video: a new mail alert arrives a moment after the app goes to the background (-JCAlert).
+    static var alert: Bool { ProcessInfo.processInfo.arguments.contains("-JCAlert") }
 }
 
 /// Answers the app's requests to the sample server, as if it were a real JMAP server across the internet.
@@ -158,6 +162,8 @@ final class DemoServer: @unchecked Sendable {
             case "Identity/set": answer = identitySet(args)
             case "Email/set": answer = emailSet(args, &created)
             case "EmailSubmission/set": answer = submissionSet(args, &created)
+            case "MaskedEmail/get": answer = ["accountId": "demo", "state": "1", "list": masked]
+            case "MaskedEmail/set": answer = maskedSet(args)
             default:
                 out.append(["error", ["type": "unknownMethod"], id])
                 continue
@@ -166,6 +172,42 @@ final class DemoServer: @unchecked Sendable {
             out.append([name, answer, id])
         }
         return out
+    }
+
+    // MARK: Masked Email (Fastmail's extension), so sample mail can show it too
+
+    private var masked: [[String: Any]] = [
+        ["id": "m1", "email": "quiet.river42@example.com", "state": "enabled", "forDomain": "https://hillside-books.example",
+         "description": "Hillside Books", "createdAt": "2026-11-12T09:00:00Z"],
+        ["id": "m2", "email": "amber.fox17@example.com", "state": "enabled", "forDomain": "https://northwind-coffee.example",
+         "description": "Northwind Coffee", "createdAt": "2026-10-30T09:00:00Z"],
+        ["id": "m3", "email": "green.maple88@example.com", "state": "enabled", "forDomain": "https://railbooking.example",
+         "description": "Rail Booking", "createdAt": "2026-10-02T09:00:00Z"],
+        ["id": "m4", "email": "silver.hawk05@example.com", "state": "disabled", "forDomain": "https://prize-desk.example",
+         "description": "Old competition site", "createdAt": "2026-06-14T09:00:00Z"],
+    ]
+    private var maskedWords = ["bright.otter", "calm.harbour", "swift.heron", "gentle.cedar", "lucky.pebble"]
+
+    private func maskedSet(_ args: [String: Any]) -> [String: Any] {
+        var created: [String: Any] = [:]
+        for (key, value) in (args["create"] as? [String: Any]) ?? [:] {
+            var m = (value as? [String: Any]) ?? [:]
+            let word = maskedWords.isEmpty ? "new.address" : maskedWords.removeFirst()
+            let id = "m\(masked.count + 1)"
+            let email = "\(word)\(Int.random(in: 10...99))@example.com"
+            m["id"] = id; m["email"] = email; m["state"] = "enabled"
+            m["createdAt"] = ISO8601DateFormatter().string(from: Date())
+            masked.insert(m, at: 0)
+            created[key] = ["id": id, "email": email]
+        }
+        var updated: [String: Any] = [:]
+        for (id, change) in (args["update"] as? [String: Any]) ?? [:] {
+            if let i = masked.firstIndex(where: { $0["id"] as? String == id }), let state = (change as? [String: Any])?["state"] {
+                masked[i]["state"] = state
+            }
+            updated[id] = NSNull()
+        }
+        return ["accountId": "demo", "oldState": "1", "newState": "2", "created": created, "updated": updated]
     }
 
     private func resolve(_ ref: [String: Any], _ results: [String: [String: Any]]) -> Any {

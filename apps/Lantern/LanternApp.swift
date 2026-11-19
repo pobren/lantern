@@ -60,7 +60,7 @@ struct LanternApp: App {
             window
         }
         .onChange(of: phase) { _, now in
-            if now == .background { Self.scheduleRefresh() }
+            if now == .background { Self.scheduleRefresh(); Notifier.promoAlert(store) }
             if now == .active { Task { await InstantAlerts.shared.sync(store) } }
         }
         .backgroundTask(.appRefresh(Self.refreshTask)) {

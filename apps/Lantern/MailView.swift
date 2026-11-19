@@ -41,12 +41,17 @@ struct RootView: View {
         #if os(macOS)
         let openEmail = true
         // The folder column is see-through glass that the screenshot picture can't draw, so Mac shots show two columns.
-        columns = .doubleColumn
+        columns = Demo.tour ? .all : .doubleColumn
         if ProcessInfo.processInfo.arguments.contains("-JCDark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
         NSLog("JCDEBUG showing \(screen), \(store.list.count) emails"); fflush(stdout)
         // A tidy, consistent window size for the Mac shots (1440 by 900 with a caption above).
         if let w = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
-            w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)
+            if Demo.tour, let screen = w.screen ?? NSScreen.main {
+                // Promo video: fill the screen being filmed, with a little desktop showing round the edge.
+                w.setFrame(screen.visibleFrame.insetBy(dx: 24, dy: 18), display: true)
+            } else {
+                w.setFrame(NSRect(x: 60, y: 60, width: 1280, height: 740), display: true)
+            }
             w.makeKeyAndOrderFront(nil)
         }
         #else
@@ -68,6 +73,7 @@ struct RootView: View {
         }
         #if os(macOS)
         // The screenshot workflow picks up the picture the app draws of its own window.
+        guard !Demo.tour else { return }
         try? await Task.sleep(nanoseconds: 3_000_000_000)
         await Snapshot.save(screen)
         #endif
@@ -516,7 +522,7 @@ struct MoveMenu: View {
 private struct SolidForScreenshots: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
-        if Demo.launchedForScreens {
+        if Demo.launchedForScreens && !Demo.tour {
             content.scrollContentBackground(.hidden).background(Color(nsColor: .windowBackgroundColor))
         } else {
             content

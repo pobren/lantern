@@ -1,0 +1,132 @@
+# Promo video footage: films JMAP Connect on sample mail, driven by the PromoTour UI tests, on an iPhone simulator
+# and on a real GitHub Mac screen. Each test is one scene and becomes one clip in promo/footage/. Runs when a commit
+# on the promo branch says [footage], or by hand.
+name: Promo footage
+
+on:
+  push:
+    branches: [claude/project-thread-fttuy9]
+    paths: ["apps/**", ".github/workflows/promo-footage.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  film:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[footage')
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, mac]
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+      - name: Make the Xcode project
+        working-directory: apps
+        run: |
+          if curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip && unzip -q /tmp/xcodegen.zip -d /tmp/xg; then
+            /tmp/xg/xcodegen/bin/xcodegen generate
+          else
+            brew install xcodegen && xcodegen generate
+          fi
+      - name: Let this Mac record its screen and run UI tests
+        continue-on-error: true
+        run: |
+          sudo automationmodetool enable-automationmode-without-authentication || true
+          now=$(date +%s)
+          for db in "/Library/Application Support/com.apple.TCC/TCC.db" "$HOME/Library/Application Support/com.apple.TCC/TCC.db"; do
+            [ -f "$db" ] || continue
+            for client in /usr/sbin/screencapture /bin/bash /bin/zsh /bin/sh /usr/bin/env "$(command -v bash)"; do
+              sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$client',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" || true
+            done
+          done
+          for p in $(ps -axo comm | grep -iE "runner|provisioner" | sort -u); do
+            sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$p',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" || true
+          done
+      - name: Bigger Mac screen if this Mac allows it
+        if: matrix.device == 'mac'
+        continue-on-error: true
+        run: |
+          brew install displayplacer > /dev/null 2>&1 || true
+          displayplacer list | tee /tmp/displays.txt | head -60 || true
+          id=$(grep -m1 "Persistent screen id" /tmp/displays.txt | awk '{print $4}')
+          for res in 1920x1200 1920x1080 1680x1050 1600x1000 1440x900 1280x800; do
+            if grep -q "res:$res" /tmp/displays.txt; then
+              displayplacer "id:$id res:$res scaling:off origin:(0,0) degree:0" && echo "screen now $res" && break
+            fi
+          done
+          system_profiler SPDisplaysDataType | grep -i resolution || true
+          # A plain dark desktop behind the app.
+          osascript -e 'tell application "System Events" to tell every desktop to set picture to "/System/Library/Desktop Pictures/Solid Colors/Black.png"' || true
+          osascript -e 'tell application "System Events" to set autohide of dock preferences to true' || true
+      - name: Build the app and the tour
+        working-directory: apps
+        run: |
+          set -o pipefail
+          if [ "${{ matrix.device }}" = iphone ]; then
+            DEST="generic/platform=iOS Simulator"; EXTRA="CODE_SIGNING_ALLOWED=NO"
+          else
+            DEST="platform=macOS"; EXTRA="CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual ENABLE_HARDENED_RUNTIME=NO"
+          fi
+          xcodebuild build-for-testing -project Lantern.xcodeproj -scheme Promo -configuration Debug \
+            -destination "$DEST" -derivedDataPath build/promo DEVELOPMENT_TEAM= $EXTRA > /tmp/build.log 2>&1 \
+            || { grep -E "error:" /tmp/build.log | sort -u | head -40; tail -n 30 /tmp/build.log; exit 1; }
+      - name: Film the iPhone
+        if: matrix.device == 'iphone'
+        working-directory: apps
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')
+          TYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys,re; t=[x for x in json.load(sys.stdin)['devicetypes'] if re.search('iPhone 1[6-9] Pro\$', x['name'])]; print(t[-1]['identifier'])")
+          UDID=$(xcrun simctl create "Promo iPhone" "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"; xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+          xcrun simctl ui "$UDID" appearance light
+          mkdir -p ../promo/footage/iphone ../promo/footage/logs
+          for t in test1Inbox test2Labels test3Reply test4Search test5Masked test6Alert test7Dark; do
+            [ "$t" = test7Dark ] && xcrun simctl ui "$UDID" appearance dark
+            xcrun simctl io "$UDID" recordVideo --codec h264 --force "../promo/footage/iphone/$t.mp4" > /dev/null 2>&1 &
+            REC=$!
+            sleep 2
+            xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo \
+              -destination "id=$UDID" -only-testing:PromoTour/Tour/$t > "../promo/footage/logs/iphone-$t.log" 2>&1 || true
+            grep -E "PROMO|error|Test Case" "../promo/footage/logs/iphone-$t.log" | tail -n 12 || true
+            sleep 1
+            kill -INT $REC; wait $REC || true
+          done
+          xcrun simctl io "$UDID" screenshot ../promo/footage/iphone/home.png || true
+          ls -la ../promo/footage/iphone
+      - name: Film the Mac
+        if: matrix.device == 'mac'
+        working-directory: apps
+        run: |
+          mkdir -p ../promo/footage/mac ../promo/footage/logs
+          cp /tmp/displays.txt ../promo/footage/logs/mac-displays.txt 2>/dev/null || true
+          for t in test1MacTour test2MacSearch test3MacFolders test4MacMasked test5MacDark; do
+            screencapture -v -V 120 -k "../promo/footage/mac/$t.mov" > /dev/null 2>&1 &
+            REC=$!
+            sleep 2
+            xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo \
+              -destination "platform=macOS" -only-testing:PromoTour/Tour/$t > "../promo/footage/logs/mac-$t.log" 2>&1 || true
+            grep -E "PROMO|error|Test Case" "../promo/footage/logs/mac-$t.log" | tail -n 12 || true
+            sleep 1
+            kill -INT $REC; wait $REC || true
+            pkill -x "JMAP Connect" || true
+          done
+          ls -la ../promo/footage/mac
+      - name: Save the footage to the branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898729+github-actions[bot]@users.noreply.github.com"
+          git add -f promo/footage
+          git commit -m "Promo footage (${{ matrix.device }}) [skip ci]" || exit 0
+          for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && break; sleep 7; done

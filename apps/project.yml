@@ -81,7 +81,29 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
         SKIP_INSTALL: YES
+  # Films the promo video on sample mail (promo-footage.yml). Not part of the app or its builds.
+  PromoTour:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: PromoTour
+    dependencies:
+      - target: Lantern
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.promotour
+        TEST_TARGET_NAME: Lantern
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
 schemes:
+  Promo:
+    build:
+      targets:
+        Lantern: all
+        PromoTour: [test]
+    test:
+      config: Debug
+      targets: [PromoTour]
   Lantern:
     build:
       targets:

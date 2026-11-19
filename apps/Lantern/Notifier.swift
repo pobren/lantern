@@ -20,7 +20,7 @@ enum Notifier {
     private static var showBadge: Bool { UserDefaults.standard.object(forKey: badgeKey) as? Bool ?? true }
 
     static func ask() async {
-        guard enabled, !Demo.launchedForScreens else { return }
+        guard enabled, !Demo.launchedForScreens || Demo.alert else { return }
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
     }
 
@@ -69,6 +69,23 @@ enum Notifier {
         content.categoryIdentifier = AlertActions.category
         #endif
         center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
+    }
+
+    /// Promo video only (-JCAlert): an alert for the newest sample email, a moment after the app goes to the background,
+    /// just as an instant alert would arrive.
+    static func promoAlert(_ store: Store) {
+        guard Demo.alert, let item = store.list.first(where: { $0.email.isUnread }) ?? store.list.first else { return }
+        let content = UNMutableNotificationContent()
+        content.title = item.email.sender.display
+        content.subtitle = item.email.title
+        content.body = item.email.preview ?? ""
+        content.sound = .default
+        content.userInfo = ["account": item.account.id, "email": item.email.id]
+        #if os(iOS)
+        content.categoryIdentifier = AlertActions.category
+        #endif
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "promo", content: content, trigger: trigger))
     }
 
     /// The unread count on the app icon (Dock on Mac, home screen on iPhone and iPad).

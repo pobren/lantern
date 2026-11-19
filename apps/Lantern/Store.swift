@@ -14,7 +14,7 @@ struct Account: Codable, Identifiable, Hashable {
     var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
     var kindName: String { kind == Demo.kind ? "Sample mail" : kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
     var label: String {
-        if kind == Demo.kind { return "Sample mail" }
+        if kind == Demo.kind { return Demo.tour ? Demo.me.email : "Sample mail" }
         return username.isEmpty ? (kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "Mail") : username
     }
 }
