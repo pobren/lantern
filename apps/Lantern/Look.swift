@@ -3,6 +3,9 @@
 
 import SwiftUI
 import CryptoKit
+#if os(iOS)
+import UIKit
+#endif
 
 enum Look {
     static let accent = Color(red: 0x2F / 255, green: 0x5B / 255, blue: 0xD3 / 255)
@@ -158,5 +161,43 @@ struct SheetHeader: ViewModifier {
 extension View {
     func sheetHeader(_ title: String, icon: String, tint: Color, blurb: String) -> some View {
         modifier(SheetHeader(title: title, icon: icon, tint: tint, blurb: blurb))
+    }
+}
+
+/// Links to the JMAP Connect community on jmapconnect.app. Bug reports arrive with the app version, device and
+/// system already filled in, so people don't have to look them up.
+enum Community {
+    enum Kind: String { case bug, idea }
+
+    static let home = URL(string: "https://jmapconnect.app/community/")!
+
+    static func new(_ kind: Kind) -> URL {
+        let info = Bundle.main.infoDictionary
+        let app = "\(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
+        var c = URLComponents(string: "https://jmapconnect.app/community/new/")!
+        c.queryItems = [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "app", value: app),
+                        URLQueryItem(name: "device", value: device), URLQueryItem(name: "os", value: system)]
+        return c.url ?? home
+    }
+
+    private static var device: String {
+        var s = utsname()
+        uname(&s)
+        let id = withUnsafeBytes(of: &s.machine) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
+        #if os(macOS)
+        return "Mac (\(id))"
+        #else
+        return id   // such as iPhone17,1
+        #endif
+    }
+
+    private static var system: String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        #if os(macOS)
+        let name = "macOS"
+        #else
+        let name = UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS"
+        #endif
+        return "\(name) \(v.majorVersion).\(v.minorVersion)" + (v.patchVersion > 0 ? ".\(v.patchVersion)" : "")
     }
 }

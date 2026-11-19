@@ -177,6 +177,13 @@ struct SettingsView: View {
                 }
                 fastmailTools
                 Section("Accounts") { accounts }
+                Section {
+                    Link(destination: Community.new(.bug)) { Row(title: "Report a problem", icon: "ladybug.fill", tint: .pink, opens: true) }
+                    Link(destination: Community.new(.idea)) { Row(title: "Suggest an idea", icon: "lightbulb.fill", tint: .yellow, opens: true) }
+                    Link(destination: Community.home) { Row(title: "Ask the community", icon: "person.3.fill", tint: .blue, opens: true) }
+                } header: { Text("Help") } footer: {
+                    Text("Opens the JMAP Connect community, where people help each other and we answer.")
+                }
                 Section { about }
             }
             .navigationTitle("Settings")
