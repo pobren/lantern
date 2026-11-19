@@ -65,6 +65,9 @@ enum Notifier {
         content.sound = .default
         content.threadIdentifier = account.id + "/" + e.threadId
         content.userInfo = ["account": account.id, "email": e.id]
+        #if os(iOS)
+        content.categoryIdentifier = AlertActions.category
+        #endif
         center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
     }
 
@@ -86,4 +89,25 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
+
+    /// A tap opens that email; Archive and Mark as read (on instant alerts) work without opening the app.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard let account = info["account"] as? String, let email = info["email"] as? String else { return }
+        #if os(iOS)
+        if response.actionIdentifier == AlertActions.archive || response.actionIdentifier == AlertActions.read {
+            await AlertActions.run(response.actionIdentifier, account: account, email: email)
+            return
+        }
+        #endif
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        await MainActor.run { AlertRouter.shared.pending = MessageRef(account: account, email: email) }
+    }
+}
+
+/// The email a tapped alert asked to open, for the main window to pick up (even if the app was closed).
+@MainActor
+final class AlertRouter: ObservableObject {
+    static let shared = AlertRouter()
+    @Published var pending: MessageRef?
 }

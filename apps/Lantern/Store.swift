@@ -679,6 +679,15 @@ final class Store: ObservableObject {
 
     // MARK: Opening and saving one email
 
+    /// Opens an email from a tapped alert: every inbox on screen, with that email selected.
+    func show(_ ref: MessageRef) async {
+        if search.isEmpty == false { search = "" }
+        if folder != .allInboxes { await open(.allInboxes) } else if list.isEmpty { await reloadList() }
+        guard let item = await item(ref) else { return }
+        if !list.contains(where: { $0.id == item.id }) { list.insert(item, at: 0) }
+        selection = item.id
+    }
+
     /// An email for its own window: from the list if it's there, otherwise fetched.
     func item(_ ref: MessageRef) async -> Item? {
         if let hit = list.first(where: { $0.account.id == ref.account && $0.email.id == ref.email }) { return hit }

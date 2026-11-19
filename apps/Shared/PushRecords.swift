@@ -20,6 +20,9 @@ struct PushRecord: Codable {
     var device: String
     var live = false
     var lastEmail: String?
+    var unread: Int?            // this account's unread inbox count when the last alert came in
+    var badge: Bool?            // the app's "unread count on the app icon" setting
+
 
     func privateKey() throws -> P256.KeyAgreement.PrivateKey { try P256.KeyAgreement.PrivateKey(rawRepresentation: key) }
 }

@@ -95,6 +95,11 @@ struct RootView: View {
         .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
         .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
+        .onReceive(AlertRouter.shared.$pending) { ref in
+            guard let ref else { return }
+            AlertRouter.shared.pending = nil
+            Task { await store.show(ref) }
+        }
         .overlay(alignment: .bottom) {
             if let problem = store.problem {
                 Label(problem, systemImage: "exclamationmark.triangle")

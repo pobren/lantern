@@ -9,6 +9,7 @@
 import Foundation
 import UIKit
 import CryptoKit
+import UserNotifications
 
 @MainActor
 final class InstantAlerts: ObservableObject {
@@ -95,6 +96,12 @@ final class InstantAlerts: ObservableObject {
             do { try await keep(s, device: device) } catch {
                 problems.append(accounts.count > 1 ? "\(s.account.label): \(error.localizedDescription)" : error.localizedDescription)
             }
+        }
+        // The extension sets the icon's unread count with each alert, if that's switched on in Settings.
+        let badge = UserDefaults.standard.object(forKey: Notifier.badgeKey) as? Bool ?? true
+        for var r in PushRecords.all() where r.badge != badge {
+            r.badge = badge
+            PushRecords.save(r)
         }
         status = problems.isEmpty ? "On. New mail shows the moment it arrives." : problems.joined(separator: "\n")
     }
@@ -243,6 +250,62 @@ final class InstantAlerts: ObservableObject {
         if let d = f.date(from: s) { return d }
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f.date(from: s)
+    }
+}
+
+/// The buttons on a new mail alert. They run in the background with the account's details from the shared
+/// Keychain, so they work without opening the app.
+enum AlertActions {
+    static let category = "newMail"
+    static let archive = "archive"
+    static let read = "read"
+
+    static func register() {
+        let archiveButton = UNNotificationAction(identifier: archive, title: "Archive", options: [],
+                                                 icon: UNNotificationActionIcon(systemImageName: "archivebox"))
+        let readButton = UNNotificationAction(identifier: read, title: "Mark as read", options: [],
+                                              icon: UNNotificationActionIcon(systemImageName: "envelope.open"))
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: category, actions: [archiveButton, readButton], intentIdentifiers: []),
+        ])
+    }
+
+    static func run(_ action: String, account: String, email: String) async {
+        guard let r = PushRecords.read(account), let url = URL(string: r.apiURL) else { return }
+        let acct = r.mailAccountId
+        func call(_ calls: [[Any]]) async -> [String: [String: Any]] {
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.timeoutInterval = 20
+            req.setValue("Bearer \(r.token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: [
+                "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"], "methodCalls": calls,
+            ])
+            guard let (data, _) = try? await URLSession.shared.data(for: req),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let list = root["methodResponses"] as? [[Any]] else { return [:] }
+            var out: [String: [String: Any]] = [:]
+            for x in list where x.count == 3 { if let id = x[2] as? String, let a = x[1] as? [String: Any] { out[id] = a } }
+            return out
+        }
+        if action == read {
+            _ = await call([["Email/set", ["accountId": acct, "update": [email: ["keywords/$seen": true]]], "u"]])
+            return
+        }
+        // Archive the way the app does: take the Inbox label off, and file it in Archive unless it has other labels.
+        let got = await call([
+            ["Mailbox/get", ["accountId": acct, "properties": ["role"]], "m"],
+            ["Email/get", ["accountId": acct, "ids": [email], "properties": ["mailboxIds"]], "e"],
+        ])
+        let boxes = (got["m"]?["list"] as? [[String: Any]]) ?? []
+        func box(_ role: String) -> String? { boxes.first { $0["role"] as? String == role }?["id"] as? String }
+        guard let inbox = box("inbox"), let archiveBox = box("archive"),
+              let e = (got["e"]?["list"] as? [[String: Any]])?.first,
+              let ids = e["mailboxIds"] as? [String: Any], ids[inbox] != nil else { return }
+        var patch: [String: Any] = ["mailboxIds/\(inbox)": NSNull(), "keywords/$seen": true]
+        if !ids.keys.contains(where: { $0 != inbox && $0 != archiveBox }) { patch["mailboxIds/\(archiveBox)"] = true }
+        _ = await call([["Email/set", ["accountId": acct, "update": [email: patch]], "u"]])
     }
 }
 

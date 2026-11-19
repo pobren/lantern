@@ -38,11 +38,19 @@ enum NewMail {
     static func fill(_ c: UNMutableNotificationContent, info: [AnyHashable: Any]) async {
         guard let relayId = info["s"] as? String, var r = PushRecords.all().first(where: { $0.relayId == relayId }) else { return }
         c.threadIdentifier = r.accountId
+        c.categoryIdentifier = "newMail"   // Archive and Mark as read buttons (AlertActions in the app)
         // The notice itself is encrypted for this device. If it's here and opens, it's really from Fastmail.
         if let e = info["e"] as? String, let data = Data(base64Encoded: e), let key = try? r.privateKey() {
             guard (try? PushCrypto.decrypt(data, key: key, auth: r.auth)) != nil else { return }
         }
         guard let newest = try? await newestEmail(r) else { return }
+        // The unread count on the icon: this account's new count plus the last one seen for each other account.
+        if r.badge ?? true, let n = newest.unread {
+            r.unread = n
+            PushRecords.save(r)
+            let others = PushRecords.all().filter { $0.accountId != r.accountId }.compactMap(\.unread).reduce(0, +)
+            c.badge = NSNumber(value: n + others)
+        }
         // Already shown, or old (mail that went straight to a folder we don't show, such as Spam): keep "New mail".
         if newest.id == r.lastEmail || newest.received.timeIntervalSinceNow < -15 * 60 { return }
         c.title = newest.sender
@@ -54,7 +62,7 @@ enum NewMail {
         PushRecords.save(r)
     }
 
-    struct Newest { let id: String; let sender: String; let subject: String; let received: Date; let folder: String? }
+    struct Newest { let id: String; let sender: String; let subject: String; let received: Date; let folder: String?; let unread: Int? }
 
     /// The newest email that isn't one of yours (Sent or Drafts), in one request to Fastmail.
     static func newestEmail(_ r: PushRecord) async throws -> Newest? {
@@ -68,7 +76,7 @@ enum NewMail {
         req.httpBody = try JSONSerialization.data(withJSONObject: [
             "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
             "methodCalls": [
-                ["Mailbox/get", ["accountId": acct, "properties": ["name", "role"]], "m"],
+                ["Mailbox/get", ["accountId": acct, "properties": ["name", "role", "unreadEmails"]], "m"],
                 ["Email/query", ["accountId": acct, "sort": [["property": "receivedAt", "isAscending": false]], "limit": 5], "q"],
                 ["Email/get", ["accountId": acct, "#ids": ["resultOf": "q", "name": "Email/query", "path": "/ids"],
                                "properties": ["from", "subject", "receivedAt", "mailboxIds"]], "g"],
@@ -82,10 +90,12 @@ enum NewMail {
         for x in responses where x.count == 3 { if let id = x[2] as? String, let args = x[1] as? [String: Any] { out[id] = args } }
 
         var names: [String: String] = [:], roles: [String: String] = [:]
+        var unread: Int?
         for m in (out["m"]?["list"] as? [[String: Any]]) ?? [] {
             guard let id = m["id"] as? String else { continue }
             names[id] = m["name"] as? String
             if let role = m["role"] as? String { roles[id] = role }
+            if m["role"] as? String == "inbox" { unread = m["unreadEmails"] as? Int }
         }
         let iso = ISO8601DateFormatter()
         for e in (out["g"]?["list"] as? [[String: Any]]) ?? [] {
@@ -98,7 +108,7 @@ enum NewMail {
             let received = (e["receivedAt"] as? String).flatMap { iso.date(from: $0) } ?? Date()
             let inInbox = boxes.contains { roles[$0] == "inbox" }
             let folder = inInbox ? nil : boxes.compactMap { names[$0] }.first
-            return Newest(id: id, sender: sender, subject: e["subject"] as? String ?? "", received: received, folder: folder)
+            return Newest(id: id, sender: sender, subject: e["subject"] as? String ?? "", received: received, folder: folder, unread: unread)
         }
         return nil
     }

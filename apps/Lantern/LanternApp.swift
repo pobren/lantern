@@ -19,6 +19,9 @@ struct LanternApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        #if os(iOS)
+        AlertActions.register()
+        #endif
     }
 
     var body: some Scene {
