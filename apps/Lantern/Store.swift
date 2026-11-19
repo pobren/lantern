@@ -67,6 +67,8 @@ final class AccountState: ObservableObject, Identifiable {
     }
 
     func box(_ role: String) -> Mailbox? { mailboxes.first { $0.role == role } }
+    /// Fastmail's Scheduled folder, where mail waits to send later.
+    var scheduledBox: Mailbox? { box("scheduled") ?? mailboxes.first { $0.parentId == nil && $0.name == "Scheduled" } }
     func box(id: String) -> Mailbox? { mailboxes.first { $0.id == id } }
 
     /// Folders in sidebar order, each with how deep it sits under its parents.
@@ -237,6 +239,9 @@ final class Store: ObservableObject {
         do {
             if state.client.session == nil { try await state.client.connect() }
             state.mailboxes = try await state.client.mailboxes()
+            if let scheduled = state.scheduledBox, let sent = state.box("sent"), !isSample(state) {
+                try? await state.client.releaseScheduled(scheduled: scheduled.id, sent: sent.id)
+            }
             if state.identities.isEmpty { state.identities = (try? await state.client.identities()) ?? [] }
             if let inbox = state.box("inbox") {
                 state.inbox = try await state.client.emails(filter: ["inMailbox": inbox.id], limit: 100)
@@ -460,6 +465,27 @@ final class Store: ObservableObject {
 
     /// The email laid out as its sender designed it, plus its attachments.
     /// How to leave the mailing list an email came from, if it says. Nothing while offline or for sample mail.
+    /// When this email is waiting to send later, the pending send.
+    func waiting(_ email: Email, account: Account) async -> Waiting? {
+        guard let s = state(for: account), !isSample(s), !offline else { return nil }
+        let held = email.mailboxIds.keys.contains { $0 == s.scheduledBox?.id || $0 == s.box("sent")?.id }
+        guard held else { return nil }
+        return try? await s.client.waiting(email.id)
+    }
+
+    /// Stops a scheduled email and puts it back in Drafts.
+    func cancelScheduled(_ email: Email, waiting: Waiting, account: Account) async -> Bool {
+        guard let s = state(for: account), let drafts = s.box("drafts") else { return false }
+        do {
+            try await s.client.cancelScheduled(email.id, waiting: waiting, scheduled: s.scheduledBox?.id, drafts: drafts.id)
+            await refresh()
+            return true
+        } catch {
+            report(s, error)
+            return false
+        }
+    }
+
     func unsubscribe(_ email: Email, account: Account) async -> Unsubscribe? {
         guard let s = state(for: account), !isSample(s), !offline else { return nil }
         let u = try? await s.client.unsubscribe(for: email.id)
@@ -646,7 +672,8 @@ final class Store: ObservableObject {
         do {
             try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                     inReplyTo: threading.inReplyTo, references: threading.references,
-                                    attachments: attachments, drafts: drafts.id, sent: sent.id, replacing: replacing, sendAt: sendAt)
+                                    attachments: attachments, drafts: drafts.id, sent: sent.id, scheduled: s.scheduledBox?.id,
+                                    replacing: replacing, sendAt: sendAt)
         } catch let error where Self.isOffline(error) && !isSample(s) && sendAt == nil {
             // No connection: it waits in the Outbox and sends itself when the connection is back.
             goOffline()

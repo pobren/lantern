@@ -479,10 +479,14 @@ final class JMAPClient: @unchecked Sendable {
     /// life as a saved draft, that copy is removed.
     func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String, replacing: String? = nil, sendAt: Date? = nil) async throws {
+              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil) async throws {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var submission: [String: Any] = ["identityId": identity.id, "emailId": "#draft"]
+        // Sent mail is filed in Sent. Mail held to send later waits in Scheduled (when the account has one, as
+        // Fastmail does), and moves on to Sent once it has gone (releaseScheduled).
+        var filed = sent
         if let sendAt, sendAt > Date().addingTimeInterval(30) {
+            if let scheduled { filed = scheduled }
             // Send later (RFC 4865 FUTURERELEASE through JMAP): the server holds the email until then.
             let from = address ?? identity.email
             let all = (to + cc + bcc).map { ["email": $0.email] }
@@ -496,7 +500,7 @@ final class JMAPClient: @unchecked Sendable {
             ["Email/set", create, "c"],
             ["EmailSubmission/set", ["accountId": acc,
                                       "create": ["send": submission],
-                                      "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(sent)": true,
+                                      "onSuccessUpdateEmail": ["#send": ["mailboxIds/\(drafts)": NSNull(), "mailboxIds/\(filed)": true,
                                                                          "keywords/$draft": NSNull()]]], "s"]
         ], using: [Self.core, Self.mail, Self.submission])
         if let failed = r["c"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {

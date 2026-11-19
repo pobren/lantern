@@ -154,3 +154,65 @@ extension JMAPClient {
         return out
     }
 }
+
+// MARK: Scheduled emails
+
+/// An email waiting in Fastmail's Scheduled folder: when it goes, and the submission that sends it.
+struct Waiting {
+    let submissionId: String
+    let sendAt: Date?
+}
+
+extension JMAPClient {
+    /// The submissions for these emails, by email id, as (id, undoStatus, sendAt).
+    private func submissions(for emailIds: [String]) async throws -> [String: [(id: String, status: String, sendAt: Date?)]] {
+        guard let acc = accountId, !emailIds.isEmpty else { return [:] }
+        let r = try await call([
+            ["EmailSubmission/query", ["accountId": acc, "filter": ["emailIds": emailIds]], "q"],
+            ["EmailSubmission/get", ["accountId": acc, "#ids": ["resultOf": "q", "name": "EmailSubmission/query", "path": "/ids"],
+                                     "properties": ["emailId", "undoStatus", "sendAt"]], "g"],
+        ], using: [Self.core, Self.mail, Self.submission])
+        var out: [String: [(id: String, status: String, sendAt: Date?)]] = [:]
+        for s in (r["g"]?["list"] as? [[String: Any]]) ?? [] {
+            guard let id = s["id"] as? String, let email = s["emailId"] as? String else { continue }
+            out[email, default: []].append((id, s["undoStatus"] as? String ?? "", Self.date(s["sendAt"])))
+        }
+        return out
+    }
+
+    /// Emails in Scheduled that Fastmail has now sent move on to Sent, where you'd look for them.
+    func releaseScheduled(scheduled: String, sent: String) async throws {
+        guard let acc = accountId else { return }
+        let q = try await call([["Email/query", ["accountId": acc, "filter": ["inMailbox": scheduled], "limit": 100], "q"]])
+        let ids = (q["q"]?["ids"] as? [String]) ?? []
+        let subs = try await submissions(for: ids)
+        let gone = ids.filter { id in
+            guard let list = subs[id], !list.isEmpty else { return false }
+            return list.allSatisfy { $0.status == "final" }
+        }
+        guard !gone.isEmpty else { return }
+        var update: [String: Any] = [:]
+        for id in gone { update[id] = ["mailboxIds/\(scheduled)": NSNull() as Any, "mailboxIds/\(sent)": true as Any] }
+        _ = try await call([["Email/set", ["accountId": acc, "update": update], "u"]])
+    }
+
+    /// The pending send for this email, if it's still waiting to go.
+    func waiting(_ emailId: String) async throws -> Waiting? {
+        guard let s = try await submissions(for: [emailId])[emailId]?.first(where: { $0.status == "pending" }) else { return nil }
+        return Waiting(submissionId: s.id, sendAt: s.sendAt)
+    }
+
+    /// Stops a scheduled email going and puts it back in Drafts, so it can be changed and sent again.
+    func cancelScheduled(_ emailId: String, waiting: Waiting, scheduled: String?, drafts: String) async throws {
+        guard let acc = accountId else { return }
+        var boxes: [String: Any] = ["mailboxIds/\(drafts)": true as Any, "keywords/$draft": true as Any]
+        if let scheduled { boxes["mailboxIds/\(scheduled)"] = NSNull() as Any }
+        let r = try await call([
+            ["EmailSubmission/set", ["accountId": acc, "update": [waiting.submissionId: ["undoStatus": "canceled"]]], "c"],
+        ], using: [Self.core, Self.mail, Self.submission])
+        if let failed = r["c"]?["notUpdated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
+            throw JMAPError.method(first["type"] as? String ?? "notUpdated", first["description"] as? String)
+        }
+        _ = try await call([["Email/set", ["accountId": acc, "update": [emailId: boxes]], "u"]])
+    }
+}

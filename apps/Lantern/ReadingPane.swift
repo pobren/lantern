@@ -22,6 +22,8 @@ struct ReadingPane: View {
     @State private var unsub: Unsubscribe?
     @State private var askingUnsub = false
     @State private var unsubDone: String?
+    @State private var waiting: Waiting?
+    @State private var cancelled = false
     @Environment(\.openURL) private var openURL
 
     private var shown: Email { thread.first { $0.id == open } ?? thread.last ?? item.email }
@@ -81,6 +83,25 @@ struct ReadingPane: View {
                     .padding(.horizontal, 22)
                 }
                 .padding(.bottom, 10)
+            }
+
+            if cancelled {
+                Label("Not sent. It's back in Drafts.", systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            } else if let waiting {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock")
+                    Text(waiting.sendAt.map { "Sends \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Waiting to send")
+                        .font(.callout)
+                    Spacer()
+                    Button {
+                        Task { if await store.cancelScheduled(shown, waiting: waiting, account: item.account) { cancelled = true } }
+                    } label: { Label("Don't send", systemImage: "xmark.circle") }
+                        .buttonStyle(.borderless)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 22).padding(.bottom, 8)
             }
 
             if let unsubDone {
@@ -199,7 +220,13 @@ struct ReadingPane: View {
         showImagesOnce = false
         unsub = nil
         unsubDone = nil
+        waiting = nil
+        cancelled = false
         let e = shown, account = item.account
+        Task { @MainActor in
+            let w = await store.waiting(e, account: account)
+            if open == e.id || (open == nil && e.id == shown.id) { waiting = w }
+        }
         Task { @MainActor in
             let u = await store.unsubscribe(e, account: account)
             if open == e.id || (open == nil && e.id == shown.id) { unsub = u }
