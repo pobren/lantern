@@ -51,6 +51,8 @@ jobs:
               print("Already set up; Paul's mailbox signs in."); raise SystemExit
           r = call("admin", pw, [["x:Bootstrap/set", {"update": {"singleton": {"defaultHostname": host, "defaultDomain": host,
                                   "requestTlsCertificate": True, "generateDkimKeys": False}}}, "a"]])
+          if "updated" not in r[0][1]:
+              raise SystemExit("Setup refused: " + json.dumps(r))
           done = r[0][1]["updated"]["singleton"]
           print(f"::add-mask::{done['secret']}")
           print("Setup done; waiting for the server to restart itself")
