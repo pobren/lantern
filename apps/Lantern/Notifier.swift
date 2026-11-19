@@ -37,6 +37,12 @@ enum Notifier {
         guard !fresh.isEmpty else { return }
         UserDefaults.standard.set(max(newest, last), forKey: key)
         guard enabled else { return }
+        #if os(iOS)
+        // Instant alerts already tell you about each email for this account, even once you've tapped the alert
+        // and it's gone from the lock screen. Telling you again from here would show the same email twice.
+        if UserDefaults.standard.bool(forKey: InstantAlerts.enabledKey),
+           PushRecords.all().contains(where: { $0.accountId == account.id && $0.live }) { return }
+        #endif
 
         let center = UNUserNotificationCenter.current()
         if fresh.count > 4 {
