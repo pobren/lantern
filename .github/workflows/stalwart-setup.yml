@@ -107,6 +107,10 @@ jobs:
               print("Turn on automatic certificates:", q(["x:Domain/set", {"update": {dom["id"]: {"certificateManagement": {"@type": "Automatic", "acmeProviderId": acme_id}}}}, "d"])[0][1])
           tasks = q(["x:Task/get", {}, "t"])[0][1]["list"]
           for t in tasks: print("Task:", json.dumps(t))
+          stalled = [t["id"] for t in tasks if t.get("@type") == "AcmeRenewal" and t.get("status", {}).get("@type") in ("Stalled", "Retry")]
+          if stalled:
+              print("Clear the waiting certificate task so it tries again now:", q(["x:Task/set", {"destroy": stalled}, "t"])[0][1])
+              tasks = [t for t in tasks if t["id"] not in stalled]
           if not any(t.get("@type") == "AcmeRenewal" for t in tasks):
               print("Ask for the certificate now:", q(["x:Task/set", {"create": {"r": {"@type": "AcmeRenewal", "domainId": dom["id"]}}}, "t"])[0][1])
           for i in range(30):
