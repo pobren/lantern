@@ -1,0 +1,66 @@
+# One-off setup of Paul's Stalwart test server (Hetzner, made from the cloud config in project files), then the
+# same app checks as the Docker ones. Run by hand from the Actions tab. Needs the STALWART_ADMIN_PASSWORD secret.
+name: Stalwart test server
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: Server name
+        default: stalwart.jmapconnect.app
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HOST: ${{ inputs.host }}
+      PW: ${{ secrets.STALWART_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the server to start (first boot installs Docker, a few minutes)
+        run: |
+          for i in $(seq 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "http://$HOST:8080/.well-known/jmap" || true)
+            echo "try $i: $code"; [ "$code" != "000" ] && break; sleep 5
+          done
+      - name: First run setup, then Paul's mailbox
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, time, urllib.request, urllib.error
+          host, pw = os.environ["HOST"], os.environ["PW"]
+          def call(user, password, calls):
+              req = urllib.request.Request(f"http://{host}:8080/jmap/", json.dumps({"using": ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"], "methodCalls": calls}).encode(),
+                                           {"Content-Type": "application/json", "Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()})
+              return json.load(urllib.request.urlopen(req, timeout=20))["methodResponses"]
+          def works(user, password):
+              try:
+                  call(user, password, [["x:Domain/get", {"properties": ["name"]}, "d"]]); return True
+              except urllib.error.HTTPError:
+                  return False
+          admin = f"paul@{host}"
+          if works(admin, pw):
+              print("Already set up; Paul's mailbox signs in."); raise SystemExit
+          r = call("admin", pw, [["x:Bootstrap/set", {"update": {"singleton": {"defaultHostname": host, "defaultDomain": host,
+                                  "requestTlsCertificate": True, "generateDkimKeys": False}}}, "a"]])
+          done = r[0][1]["updated"]["singleton"]
+          print(f"::add-mask::{done['secret']}")
+          print("Setup done; waiting for the server to restart itself")
+          for i in range(60):
+              time.sleep(5)
+              if works(done["username"], done["secret"]): break
+          else:
+              raise SystemExit("The server didn't come back after setup")
+          dom = call(done["username"], done["secret"], [["x:Domain/get", {"properties": ["name"]}, "d"]])[0][1]["list"][0]["id"]
+          r = call(done["username"], done["secret"], [["x:Account/set", {"create": {"p": {"@type": "User", "name": "paul", "domainId": dom,
+                    "description": "Paul (JMAP Connect testing)", "credentials": {"0": {"@type": "Password", "secret": pw}}}}}, "a"]])
+          print("Mailbox:", "created" if r[0][1].get("created") else r)
+          PY
+      - name: App checks over https (falls back to port 8080 if the certificate isn't ready yet)
+        run: |
+          if curl -s -f -o /dev/null -m 10 "https://$HOST/.well-known/jmap" -u "paul@$HOST:$PW" -L; then
+            python3 -I tests/jmap-servers/smoke.py "https://$HOST/.well-known/jmap" "paul@$HOST" "$PW"
+          else
+            echo "::warning::No https certificate yet, checking over port 8080 instead"
+            JMAP_ORIGIN="http://$HOST:8080" python3 -I tests/jmap-servers/smoke.py "http://$HOST:8080/.well-known/jmap" "paul@$HOST" "$PW"
+          fi
