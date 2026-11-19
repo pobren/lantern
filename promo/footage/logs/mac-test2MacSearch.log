@@ -1,0 +1,59 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination platform=macOS "-only-testing:PromoTour/Tour/test2MacSearch"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+{ platform:macOS, arch:x86_64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+2026-11-19 11:14:15.206604+0000 PromoTour-Runner[5788:21321] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-11-19 11:14:15.394.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:14:15.395.
+Test Suite 'Tour' started at 2026-11-19 11:14:15.395.
+Test Case '-[PromoTour.Tour test2MacSearch]' started.
+    t =     0.00s Start Test at 2026-11-19 11:14:15.398
+    t =     0.23s Set Up
+2026-11-19 11:14:15.880 xcodebuild[5478:20464] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:14:15.881 xcodebuild[5478:20464] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     0.25s Open dev.paulobrien.lantern
+    t =     0.25s     Launch dev.paulobrien.lantern
+    t =     1.39s         Wait for accessibility to load
+    t =     3.08s         Setting up automation session
+    t =     3.14s         Wait for dev.paulobrien.lantern to idle
+    t =     7.91s Waiting 5.0s for "Search" TextField to exist
+    t =     8.95s     Checking `Expect predicate `existsNoRetry == 1` for object "Search" TextField`
+    t =     8.95s         Checking existence of `"Search" TextField`
+    t =     9.35s Click "Search" TextField
+    t =     9.35s     Wait for dev.paulobrien.lantern to idle
+    t =     9.48s     Find the "Search" TextField
+    t =     9.55s     Check for interrupting elements affecting "Search" TextField
+    t =     9.64s     Synthesize event
+    t =    10.00s     Wait for dev.paulobrien.lantern to idle
+    t =    10.52s Type 'Lisbon ' into "Search" TextField
+    t =    10.52s     Wait for dev.paulobrien.lantern to idle
+    t =    10.53s     Find the "Search" TextField
+    t =    10.60s     Check for interrupting elements affecting "Search" TextField
+    t =    10.62s     Synthesize event
+    t =    12.91s     Wait for dev.paulobrien.lantern to idle
+    t =    15.04s Type '↩' key (XCUIKeyboardKeyReturn) with no modifiers
+    t =    15.04s     Wait for dev.paulobrien.lantern to idle
+    t =    15.04s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    15.42s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    15.42s     Synthesize event
+    t =    15.77s     Wait for dev.paulobrien.lantern to idle
+    t =    19.05s Tear Down
+Test Case '-[PromoTour.Tour test2MacSearch]' passed (19.290 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:14:34.686.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.290 (19.291) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:14:34.687.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.290 (19.292) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:14:34.688.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.290 (19.294) seconds
+2026-11-19 11:14:35.126 xcodebuild[5478:20464] [MT] IDETestOperationsObserverDebug: 21.268 elapsed -- Testing started completed.
+2026-11-19 11:14:35.126 xcodebuild[5478:20464] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:14:35.126 xcodebuild[5478:20464] [MT] IDETestOperationsObserverDebug: 21.268 sec, +21.268 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-14-12-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

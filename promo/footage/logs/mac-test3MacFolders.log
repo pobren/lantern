@@ -1,0 +1,65 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination platform=macOS "-only-testing:PromoTour/Tour/test3MacFolders"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+{ platform:macOS, arch:x86_64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+2026-11-19 11:16:13.225912+0000 PromoTour-Runner[9518:31588] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-11-19 11:16:13.314.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:16:13.315.
+Test Suite 'Tour' started at 2026-11-19 11:16:13.315.
+Test Case '-[PromoTour.Tour test3MacFolders]' started.
+    t =     0.00s Start Test at 2026-11-19 11:16:13.320
+    t =     0.30s Set Up
+    t =     0.31s Open dev.paulobrien.lantern
+    t =     0.31s     Launch dev.paulobrien.lantern
+2026-11-19 11:16:13.893 xcodebuild[9451:31267] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:16:13.893 xcodebuild[9451:31267] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.52s         Wait for accessibility to load
+    t =     4.91s         Setting up automation session
+    t =     5.00s         Wait for dev.paulobrien.lantern to idle
+    t =     8.91s Waiting 3.0s for "Clients" StaticText to exist
+    t =     9.95s     Checking `Expect predicate `existsNoRetry == 1` for object "Clients" StaticText`
+    t =     9.95s         Checking existence of `"Clients" StaticText`
+    t =    10.54s Click "Clients" StaticText
+    t =    10.54s     Wait for dev.paulobrien.lantern to idle
+    t =    10.55s     Find the "Clients" StaticText
+    t =    10.67s     Check for interrupting elements affecting "Clients" StaticText
+    t =    10.86s     Synthesize event
+    t =    11.57s     Wait for dev.paulobrien.lantern to idle
+    t =    13.96s Waiting 3.0s for "Travel" StaticText to exist
+    t =    14.99s     Checking `Expect predicate `existsNoRetry == 1` for object "Travel" StaticText`
+    t =    15.00s         Checking existence of `"Travel" StaticText`
+    t =    15.39s Click "Travel" StaticText
+    t =    15.39s     Wait for dev.paulobrien.lantern to idle
+    t =    15.40s     Find the "Travel" StaticText
+    t =    15.52s     Check for interrupting elements affecting "Travel" StaticText
+    t =    15.57s     Synthesize event
+    t =    15.92s     Wait for dev.paulobrien.lantern to idle
+    t =    18.32s Waiting 3.0s for "Inbox" StaticText to exist
+    t =    19.37s     Checking `Expect predicate `existsNoRetry == 1` for object "Inbox" StaticText`
+    t =    19.37s         Checking existence of `"Inbox" StaticText`
+    t =    19.58s Click "Inbox" StaticText
+    t =    19.58s     Wait for dev.paulobrien.lantern to idle
+    t =    19.59s     Find the "Inbox" StaticText
+    t =    19.68s     Check for interrupting elements affecting "Inbox" StaticText
+    t =    19.73s     Synthesize event
+    t =    20.13s     Wait for dev.paulobrien.lantern to idle
+    t =    22.48s Tear Down
+Test Case '-[PromoTour.Tour test3MacFolders]' passed (22.726 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:16:36.044.
+	 Executed 1 test, with 0 failures (0 unexpected) in 22.726 (22.729) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:16:36.045.
+	 Executed 1 test, with 0 failures (0 unexpected) in 22.726 (22.730) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:16:36.045.
+	 Executed 1 test, with 0 failures (0 unexpected) in 22.726 (22.731) seconds
+2026-11-19 11:16:36.686 xcodebuild[9451:31267] [MT] IDETestOperationsObserverDebug: 24.460 elapsed -- Testing started completed.
+2026-11-19 11:16:36.686 xcodebuild[9451:31267] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:16:36.687 xcodebuild[9451:31267] [MT] IDETestOperationsObserverDebug: 24.460 sec, +24.460 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-16-11-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

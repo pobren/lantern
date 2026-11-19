@@ -1,0 +1,124 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination platform=macOS "-only-testing:PromoTour/Tour/test4MacMasked"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+{ platform:macOS, arch:x86_64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
+2026-11-19 11:18:14.359902+0000 PromoTour-Runner[13782:41909] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-11-19 11:18:14.461.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:18:14.461.
+Test Suite 'Tour' started at 2026-11-19 11:18:14.461.
+Test Case '-[PromoTour.Tour test4MacMasked]' started.
+    t =     0.00s Start Test at 2026-11-19 11:18:14.462
+    t =     0.23s Set Up
+    t =     0.25s Open dev.paulobrien.lantern
+    t =     0.25s     Launch dev.paulobrien.lantern
+2026-11-19 11:18:15.081 xcodebuild[13465:41119] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:18:15.081 xcodebuild[13465:41119] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.48s         Wait for accessibility to load
+    t =     2.44s         Setting up automation session
+    t =     2.54s         Wait for dev.paulobrien.lantern to idle
+    t =     6.05s Type ',' key with modifiers '⌘' (0x10)
+    t =     6.06s     Wait for dev.paulobrien.lantern to idle
+    t =     6.06s     Find the Target Application 'dev.paulobrien.lantern'
+    t =     6.82s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =     6.82s     Synthesize event
+    t =     8.24s     Wait for dev.paulobrien.lantern to idle
+    t =    10.26s Checking existence of `Window (First Match)`
+    t =    10.28s Find the "Masked addresses" Button
+    t =    11.18s Scroll ScrollView (First Match) by dx: 0.00, dy: -200.00
+    t =    11.18s     Wait for dev.paulobrien.lantern to idle
+    t =    11.19s     Find the ScrollView (First Match)
+    t =    11.20s     Check for interrupting elements affecting ScrollView
+    t =    11.21s     Synthesize event
+    t =    11.53s     Wait for dev.paulobrien.lantern to idle
+    t =    11.94s Find the "Masked addresses" Button
+    t =    12.39s Scroll ScrollView at {{710.0, 262.0}, {500.0, 620.0}} by dx: 0.00, dy: -200.00
+    t =    12.39s     Wait for dev.paulobrien.lantern to idle
+    t =    12.39s     Find the ScrollView at {{710.0, 262.0}, {500.0, 620.0}}
+    t =    12.41s     Check for interrupting elements affecting ScrollView
+    t =    12.42s     Synthesize event
+    t =    12.72s     Wait for dev.paulobrien.lantern to idle
+    t =    13.14s Find the "Masked addresses" Button
+    t =    14.50s Scroll ScrollView at {{710.0, 262.0}, {500.0, 620.0}} by dx: 0.00, dy: -200.00
+    t =    14.50s     Wait for dev.paulobrien.lantern to idle
+    t =    14.50s     Find the ScrollView at {{710.0, 262.0}, {500.0, 620.0}}
+    t =    14.54s     Check for interrupting elements affecting ScrollView
+    t =    14.57s     Synthesize event
+    t =    14.89s     Wait for dev.paulobrien.lantern to idle
+    t =    15.29s Find the "Masked addresses" Button
+    t =    15.54s Scroll ScrollView at {{710.0, 262.0}, {500.0, 620.0}} by dx: 0.00, dy: -200.00
+    t =    15.54s     Wait for dev.paulobrien.lantern to idle
+    t =    15.55s     Find the ScrollView at {{710.0, 262.0}, {500.0, 620.0}}
+    t =    15.57s     Check for interrupting elements affecting ScrollView
+    t =    15.60s     Synthesize event
+    t =    15.92s     Wait for dev.paulobrien.lantern to idle
+    t =    16.33s Find the "Masked addresses" Button
+    t =    16.46s Waiting 6.0s for "Masked addresses" Button to exist
+    t =    17.50s     Checking `Expect predicate `existsNoRetry == 1` for object "Masked addresses" Button`
+    t =    17.50s         Checking existence of `"Masked addresses" Button`
+    t =    17.59s Click "Masked addresses" Button
+    t =    17.59s     Wait for dev.paulobrien.lantern to idle
+    t =    17.59s     Find the "Masked addresses" Button
+    t =    17.68s     Check for interrupting elements affecting "Masked addresses" Button
+    t =    17.69s     Synthesize event
+    t =    18.40s     Wait for dev.paulobrien.lantern to idle
+    t =    21.19s Waiting 6.0s for "New masked address" Button to exist
+    t =    22.22s     Checking `Expect predicate `existsNoRetry == 1` for object "New masked address" Button`
+    t =    22.22s         Checking existence of `"New masked address" Button`
+    t =    22.30s Click "New masked address" Button
+    t =    22.30s     Wait for dev.paulobrien.lantern to idle
+    t =    22.31s     Find the "New masked address" Button
+    t =    22.39s     Check for interrupting elements affecting "New masked address" Button
+    t =    22.42s     Synthesize event
+    t =    22.93s     Wait for dev.paulobrien.lantern to idle
+    t =    24.20s Waiting 6.0s for TextField (First Match) to exist
+    t =    25.23s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    25.23s         Checking existence of `TextField (First Match)`
+    t =    25.46s         Capturing element debug description
+    t =    26.28s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    26.28s         Checking existence of `TextField (First Match)`
+    t =    26.48s         Capturing element debug description
+    t =    27.20s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    27.20s         Checking existence of `TextField (First Match)`
+    t =    27.35s         Capturing element debug description
+    t =    28.27s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    28.27s         Checking existence of `TextField (First Match)`
+    t =    28.43s         Capturing element debug description
+    t =    29.26s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    29.26s         Checking existence of `TextField (First Match)`
+    t =    29.45s         Capturing element debug description
+    t =    30.20s     Checking `Expect predicate `existsNoRetry == 1` for object TextField (First Match)`
+    t =    30.20s         Checking existence of `TextField (First Match)`
+    t =    30.45s         Capturing element debug description
+    t =    30.45s     Checking existence of `TextField (First Match)`
+    t =    30.61s Collecting debug information to assist test failure triage
+    t =    30.61s     Requesting snapshot of accessibility hierarchy for app with pid 13786
+PROMO missing TextField (First Match)
+    t =    31.59s Waiting 6.0s for "Make and copy" Button to exist
+    t =    32.61s     Checking `Expect predicate `existsNoRetry == 1` for object "Make and copy" Button`
+    t =    32.61s         Checking existence of `"Make and copy" Button`
+    t =    32.70s Click "Make and copy" Button
+    t =    32.71s     Wait for dev.paulobrien.lantern to idle
+    t =    32.71s     Find the "Make and copy" Button
+    t =    32.81s     Check for interrupting elements affecting "Make and copy" Button
+    t =    32.83s     Synthesize event
+    t =    33.19s     Wait for dev.paulobrien.lantern to idle
+    t =    36.24s Tear Down
+Test Case '-[PromoTour.Tour test4MacMasked]' passed (36.483 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:18:50.946.
+	 Executed 1 test, with 0 failures (0 unexpected) in 36.483 (36.485) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:18:50.946.
+	 Executed 1 test, with 0 failures (0 unexpected) in 36.483 (36.485) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:18:50.947.
+	 Executed 1 test, with 0 failures (0 unexpected) in 36.483 (36.486) seconds
+2026-11-19 11:18:51.494 xcodebuild[13465:41119] [MT] IDETestOperationsObserverDebug: 37.836 elapsed -- Testing started completed.
+2026-11-19 11:18:51.494 xcodebuild[13465:41119] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:18:51.494 xcodebuild[13465:41119] [MT] IDETestOperationsObserverDebug: 37.836 sec, +37.836 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-18-11-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
