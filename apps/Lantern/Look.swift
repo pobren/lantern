@@ -138,11 +138,10 @@ struct SheetHeader: ViewModifier {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 46, height: 46)
-                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint.gradient))
-                    .shadow(color: tint.opacity(0.3), radius: 6, y: 2)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint.opacity(0.14)))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.title2.weight(.semibold))
                     Text(blurb).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

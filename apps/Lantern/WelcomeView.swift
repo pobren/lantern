@@ -202,22 +202,32 @@ struct SettingsView: View {
         // its name and a line on what it's for. (Paul: the old tabs looked plain and half done.)
         NavigationSplitView {
             List(selection: $pane) {
+                // Small, softer icons like System Settings, and short names so nothing is cut off.
+                // (Paul: the colours were too bold and the names were truncated.)
                 ForEach(MacPane.allCases.filter { $0 != .fastmail || hasFastmail }) { p in
-                    Row(title: p.title, icon: p.icon, tint: p.tint).tag(p)
+                    Label {
+                        Text(p.short)
+                    } icon: {
+                        Image(systemName: p.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(p.tint.opacity(0.85)))
+                    }
+                    .tag(p)
                 }
             }
-            .navigationSplitViewColumnWidth(210)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             let p = pane ?? .notifications
             VStack(spacing: 0) {
                 HStack(spacing: 14) {
                     Image(systemName: p.icon)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(p.tint.gradient))
-                        .shadow(color: p.tint.opacity(0.3), radius: 6, y: 2)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(p.tint)
+                        .frame(width: 44, height: 44)
+                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(p.tint.opacity(0.14)))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(p.title).font(.title2.weight(.semibold))
                         Text(p.blurb).font(.callout).foregroundStyle(.secondary)
@@ -557,6 +567,9 @@ private extension AccountState {
 enum MacPane: String, CaseIterable, Identifiable, Hashable {
     case notifications, sending, reading, offline, fastmail, accounts
     var id: String { rawValue }
+    /// The sidebar name: short enough never to be cut off.
+    var short: String { self == .sending ? "Sending" : title }
+
     var title: String {
         switch self {
         case .notifications: return "Notifications"
