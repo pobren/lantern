@@ -11,6 +11,8 @@ struct LanternApp: App {
     @StateObject private var store = Store()
     #if os(macOS)
     @NSApplicationDelegateAdaptor(ScreenshotAppDelegate.self) private var screenshots
+    #else
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var push
     #endif
     @Environment(\.scenePhase) private var phase
     static let refreshTask = "dev.paulobrien.lantern.refresh"
@@ -56,10 +58,12 @@ struct LanternApp: App {
         }
         .onChange(of: phase) { _, now in
             if now == .background { Self.scheduleRefresh() }
+            if now == .active { Task { await InstantAlerts.shared.sync(store) } }
         }
         .backgroundTask(.appRefresh(Self.refreshTask)) {
             Self.scheduleRefresh()
             await store.backgroundCheck()
+            await InstantAlerts.shared.sync(store)
         }
         #endif
     }

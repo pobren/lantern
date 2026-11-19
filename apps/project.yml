@@ -9,7 +9,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.0"
+    MARKETING_VERSION: "1.2"   # instant alerts test builds (1.0 is with Apple, 1.1 is offline mail)
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
@@ -20,9 +20,15 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Lantern
+      - path: Shared
+    dependencies:
+      # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
+      - target: Notify
+        platformFilters: [iOS]
     info:
       path: Lantern/Info.plist
       properties:
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
         CFBundleName: JMAP Connect    # the name in the Mac menu bar and Finder
@@ -51,6 +57,27 @@ targets:
         "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
         ENABLE_APP_SANDBOX: YES
         SUPPORTS_MACCATALYST: NO
+  Notify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Notify
+      - path: Shared
+    info:
+      path: Notify/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.notify
+        PRODUCT_NAME: Notify
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
+        SKIP_INSTALL: YES
 schemes:
   Lantern:
     build:

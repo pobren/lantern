@@ -1,7 +1,7 @@
 // New mail notifications and the unread badge.
 // On Mac, Lantern hears about new mail the moment it arrives (JMAP push) while it's open. On iPhone and iPad it
-// also checks in the background when iOS lets it, usually every 15 minutes or so; instant push on iPhone comes
-// with Mail App accounts, which send it from your own server.
+// also checks in the background when iOS lets it, usually every 15 minutes or so; with instant alerts switched on,
+// Fastmail's notices come through our relay (see InstantAlerts.swift).
 
 import Foundation
 import UserNotifications
@@ -48,16 +48,24 @@ enum Notifier {
             center.add(UNNotificationRequest(identifier: "batch-\(account.id)-\(Int(newest.timeIntervalSince1970))", content: content, trigger: nil))
             return
         }
-        for e in fresh {
-            let content = UNMutableNotificationContent()
-            content.title = e.sender.display
-            content.subtitle = e.title
-            content.body = e.preview ?? ""
-            content.sound = .default
-            content.threadIdentifier = account.id + "/" + e.threadId
-            content.userInfo = ["account": account.id, "email": e.id]
-            center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
+        // Instant alerts may already have shown some of these: skip any already on screen.
+        Task {
+            let shown = Set(await center.deliveredNotifications().compactMap { $0.request.content.userInfo["email"] as? String })
+            for e in fresh where !shown.contains(e.id) {
+                post(e, account: account, center: center)
+            }
         }
+    }
+
+    private static func post(_ e: Email, account: Account, center: UNUserNotificationCenter) {
+        let content = UNMutableNotificationContent()
+        content.title = e.sender.display
+        content.subtitle = e.title
+        content.body = e.preview ?? ""
+        content.sound = .default
+        content.threadIdentifier = account.id + "/" + e.threadId
+        content.userInfo = ["account": account.id, "email": e.id]
+        center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
     }
 
     /// The unread count on the app icon (Dock on Mac, home screen on iPhone and iPad).

@@ -125,6 +125,10 @@ struct SettingsView: View {
     @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Notifier.enabledKey) private var notify = true
     @AppStorage(Notifier.badgeKey) private var badge = true
+    #if os(iOS)
+    @AppStorage(InstantAlerts.enabledKey) private var instant = false
+    @ObservedObject private var alerts = InstantAlerts.shared
+    #endif
 
     var body: some View {
         Form {
@@ -134,8 +138,18 @@ struct SettingsView: View {
                 Toggle("Show the unread count on the app icon", isOn: $badge)
                     .onChange(of: badge) { _, _ in Notifier.badge(store.unreadInboxes) }
                 #if os(iOS)
-                Text("iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Instant alerts", isOn: $instant)
+                    .disabled(!notify)
+                    .onChange(of: instant) { _, _ in Task { await alerts.sync(store) } }
+                if instant {
+                    if alerts.working { ProgressView().controlSize(.small) }
+                    if !alerts.status.isEmpty { Text(alerts.status).font(.caption).foregroundStyle(.secondary) }
+                    Text("Fastmail tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: Fastmail encrypts the notice for this device, which then fetches the sender and subject from Fastmail itself.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Without instant alerts, iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 #endif
             }
             Section("Sending") {
@@ -175,7 +189,12 @@ struct SettingsView: View {
                             Text(s.account.username).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Remove", role: .destructive) { store.remove(s) }
+                        Button("Remove", role: .destructive) {
+                            store.remove(s)
+                            #if os(iOS)
+                            Task { await InstantAlerts.shared.sync(store) }
+                            #endif
+                        }
                     }
                 }
                 if ServerKind.fastmailOnly {

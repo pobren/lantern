@@ -100,7 +100,7 @@ jobs:
       - name: Register the app IDs with Apple (Xcode's automatic signing then makes their profiles)
         run: |
           T=$(ruby /tmp/jwt.rb ~/private_keys/AuthKey_${ASC_KEY_ID}.p8)
-          for pair in "dev.paulobrien.lantern:Lantern"; do
+          for pair in "dev.paulobrien.lantern:Lantern" "dev.paulobrien.lantern.notify:Lantern Notify"; do
             id=${pair%%:*}; name=${pair#*:}
             body=$(printf '{"data":{"type":"bundleIds","attributes":{"identifier":"%s","name":"%s","platform":"UNIVERSAL"}}}' "$id" "$name")
             code=$(curl -gsS -o /tmp/b.json -w "%{http_code}" -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" \
@@ -108,6 +108,16 @@ jobs:
             echo "$id: HTTP $code"
             [ "$code" = 201 ] || grep -o '"detail" *: *"[^"]*"' /tmp/b.json || true
           done
+          # Instant alerts: Apple push on the app's ID (Xcode adds the rest of the capabilities itself).
+          app=$(curl -gsS -H "Authorization: Bearer $T" "https://api.appstoreconnect.apple.com/v1/bundleIds?filter[identifier]=dev.paulobrien.lantern&fields[bundleIds]=identifier" \
+            | python3 -c 'import json,sys; print(next((d["id"] for d in json.load(sys.stdin)["data"] if d["attributes"]["identifier"]=="dev.paulobrien.lantern"), ""))')
+          if [ -n "$app" ]; then
+            code=$(curl -gsS -o /tmp/c.json -w "%{http_code}" -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" \
+              -d "{\"data\":{\"type\":\"bundleIdCapabilities\",\"attributes\":{\"capabilityType\":\"PUSH_NOTIFICATIONS\"},\"relationships\":{\"bundleId\":{\"data\":{\"type\":\"bundleIds\",\"id\":\"$app\"}}}}}" \
+              https://api.appstoreconnect.apple.com/v1/bundleIdCapabilities)
+            echo "Push capability: HTTP $code"
+            [ "$code" = 201 ] || grep -o '"detail" *: *"[^"]*"' /tmp/c.json || true
+          fi
       - name: Name the app JMAP Connect in App Store Connect (TestFlight and the App Store show this name)
         continue-on-error: true
         run: |
