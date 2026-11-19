@@ -38,6 +38,7 @@ enum NewMail {
     static func fill(_ c: UNMutableNotificationContent, info: [AnyHashable: Any]) async {
         guard let relayId = info["s"] as? String, var r = PushRecords.all().first(where: { $0.relayId == relayId }) else { return }
         c.threadIdentifier = r.accountId
+        c.summaryArgument = r.label   // the stack reads "3 more from you@example.com"
         c.categoryIdentifier = "newMail"   // Archive and Mark as read buttons (AlertActions in the app)
         // The notice itself is encrypted for this device. If it's here and opens, it's really from Fastmail.
         if let e = info["e"] as? String, let data = Data(base64Encoded: e), let key = try? r.privateKey() {

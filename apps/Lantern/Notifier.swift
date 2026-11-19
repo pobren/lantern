@@ -71,6 +71,7 @@ enum Notifier {
         content.sound = .default
         content.threadIdentifier = account.id + "/" + e.threadId
         content.userInfo = ["account": account.id, "email": e.id]
+        content.summaryArgument = account.label
         #if os(iOS)
         content.categoryIdentifier = AlertActions.category
         #endif
