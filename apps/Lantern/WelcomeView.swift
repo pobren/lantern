@@ -77,6 +77,26 @@ struct AddAccountView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Add \(kind.name)").font(Look.size(20, weight: .semibold))
+            let saved = store.savedKeys(kind: kind)
+            if !saved.isEmpty {
+                // Keys this person used before, kept in their iCloud Keychain: no new key needed.
+                ForEach(saved) { k in
+                    Button {
+                        Task {
+                            working = true; problem = nil
+                            do { try await store.add(saved: k); dismiss() }
+                            catch { problem = error.localizedDescription }
+                            working = false
+                        }
+                    } label: {
+                        Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(working)
+                }
+                Text("Or use a new key:").font(.callout).foregroundStyle(.secondary)
+            }
             Text(kind.tokenHelp).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if kind.sessionURL.isEmpty {
                 TextField(kind.id == "mailapp" ? "Mail App address, such as mail.yourdomain.com" : "JMAP session address", text: $address)
@@ -123,6 +143,16 @@ struct SettingsView: View {
     @State private var adding: ServerKind?
     @State private var masking: AccountState?
     @State private var away: AccountState?
+    @State private var removing: AccountState?
+
+    private func remove(forgetKey: Bool) {
+        guard let s = removing else { return }
+        removing = nil
+        store.remove(s, forgetKey: forgetKey)
+        #if os(iOS)
+        Task { await InstantAlerts.shared.sync(store) }
+        #endif
+    }
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Notifier.enabledKey) private var notify = true
@@ -306,16 +336,21 @@ struct SettingsView: View {
                     Text(s.account.kindName).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(role: .destructive) {
-                    store.remove(s)
-                    #if os(iOS)
-                    Task { await InstantAlerts.shared.sync(store) }
-                    #endif
-                } label: { Label("Remove", systemImage: "minus.circle") }
+                Button(role: .destructive) { removing = s } label: { Label("Remove", systemImage: "minus.circle") }
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.red)
                 .accessibilityLabel("Remove \(s.account.label)")
             }
         }
+        Color.clear.frame(height: 0)
+            .confirmationDialog("Remove \(removing?.account.label ?? "this account")?",
+                                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                                titleVisibility: .visible) {
+                Button(role: .destructive) { remove(forgetKey: false) } label: { Label("Remove, keep the key", systemImage: "minus.circle") }
+                Button(role: .destructive) { remove(forgetKey: true) } label: { Label("Remove and forget the key", systemImage: "key.slash") }
+                Button("Cancel", role: .cancel) { removing = nil }
+            } message: {
+                Text("Your mail stays in Fastmail. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.")
+            }
         if ServerKind.fastmailOnly {
             Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
         } else {

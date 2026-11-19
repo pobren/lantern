@@ -11,6 +11,7 @@ struct Account: Codable, Identifiable, Hashable {
     let sessionURL: String
     var username: String
 
+    var saved: SavedKeys.Saved { SavedKeys.Saved(kind: kind, sessionURL: sessionURL, username: username) }
     var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
     var kindName: String { kind == Demo.kind ? "Sample mail" : kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
     var label: String {
@@ -177,6 +178,7 @@ final class Store: ObservableObject {
         let s = try await client.connect()
         let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: session, username: s.username)
         Keychain.save(account.id, secret)
+        SavedKeys.save(account.saved, token: secret)
         let state = AccountState(account: account, client: client)
         accounts.append(state)
         save()
@@ -196,7 +198,27 @@ final class Store: ObservableObject {
         await reloadList()
     }
 
-    func remove(_ state: AccountState) {
+    /// Saved keys (iCloud Keychain) for accounts that aren't added on this device, so they can come back in one tap.
+    func savedKeys(kind: ServerKind) -> [SavedKeys.Saved] {
+        let here = Set(accounts.map(\.account.saved.id))
+        return SavedKeys.all().filter { $0.kind == kind.id && !here.contains($0.id) }.sorted { $0.username < $1.username }
+    }
+
+    /// Signs back in with a saved key. If Fastmail no longer accepts it (deleted on the website), it's forgotten.
+    func add(saved: SavedKeys.Saved) async throws {
+        guard let token = SavedKeys.token(saved), let kind = [ServerKind.fastmail, .mailApp, .other].first(where: { $0.id == saved.kind }) else {
+            throw JMAPError.missing("the saved key")
+        }
+        do {
+            try await add(kind: kind, address: saved.sessionURL, token: token)
+        } catch JMAPError.signIn {
+            SavedKeys.delete(saved)
+            throw JMAPError.missing("a working key: it was deleted in \(kind.name), so make a new one")
+        }
+    }
+
+    func remove(_ state: AccountState, forgetKey: Bool = false) {
+        if forgetKey { SavedKeys.delete(state.account.saved) }
         listeners[state.id]?.cancel()
         listeners[state.id] = nil
         syncs[state.id]?.cancel()
