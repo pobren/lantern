@@ -1,4 +1,4 @@
-Persistent screen id: EEBC8EBB-1747-4179-8CB3-7038F756154C
+Persistent screen id: B3D1606E-8040-4705-AB91-E0E2EC1FD4B3
 Contextual screen id: 1
 Serial screen id: s305419896
 Type: 31 inch external screen
@@ -25,4 +25,4 @@ Resolutions for rotation 0:
 
 Execute the command below to set your screens to the current arrangement. If screen ids are switching, please run `displayplacer --help` for info on using contextual or serial ids instead of persistent ids.
 
-displayplacer "id:EEBC8EBB-1747-4179-8CB3-7038F756154C res:1024x768 hz:60 color_depth:7 enabled:true scaling:off origin:(0,0) degree:0"
+displayplacer "id:B3D1606E-8040-4705-AB91-E0E2EC1FD4B3 res:1024x768 hz:60 color_depth:7 enabled:true scaling:off origin:(0,0) degree:0"

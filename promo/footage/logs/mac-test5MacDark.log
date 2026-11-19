@@ -2,54 +2,69 @@ Command line invocation:
     /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination platform=macOS "-only-testing:PromoTour/Tour/test5MacDark"
 
 --- xcodebuild: WARNING: Using the first of multiple matching destinations:
-{ platform:macOS, arch:arm64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
-{ platform:macOS, arch:x86_64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
-2026-11-19 11:20:13.253685+0000 PromoTour-Runner[17547:50768] [Default] Running tests...
-Test Suite 'Selected tests' started at 2026-11-19 11:20:13.310.
-Test Suite 'PromoTour.xctest' started at 2026-11-19 11:20:13.311.
-Test Suite 'Tour' started at 2026-11-19 11:20:13.311.
+{ platform:macOS, arch:arm64, id:ec34c77ef4c29786be3e220b7fad23e0c8dac1f0, name:My Mac }
+{ platform:macOS, arch:x86_64, id:ec34c77ef4c29786be3e220b7fad23e0c8dac1f0, name:My Mac }
+2026-11-19 11:39:07.838332+0000 PromoTour-Runner[9924:33345] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-11-19 11:39:07.900.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:39:07.900.
+Test Suite 'Tour' started at 2026-11-19 11:39:07.900.
 Test Case '-[PromoTour.Tour test5MacDark]' started.
-    t =     0.00s Start Test at 2026-11-19 11:20:13.312
-    t =     0.18s Set Up
-    t =     0.19s Open dev.paulobrien.lantern
-2026-11-19 11:20:13.617 xcodebuild[17535:50629] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
-2026-11-19 11:20:13.617 xcodebuild[17535:50629] [MT] IDELaunchParametersSnapshot: no debugger version
-    t =     0.19s     Launch dev.paulobrien.lantern
-    t =     0.91s         Wait for accessibility to load
-    t =     1.79s         Setting up automation session
-    t =     1.81s         Wait for dev.paulobrien.lantern to idle
-    t =     4.91s Waiting 6.0s for "Notes from Tuesday's review" StaticText to exist
-    t =     6.00s     Checking `Expect predicate `existsNoRetry == 1` for object "Notes from Tuesday's review" StaticText`
-    t =     6.00s         Checking existence of `"Notes from Tuesday's review" StaticText`
-    t =     6.55s Click "Notes from Tuesday's review" StaticText
-    t =     6.55s     Wait for dev.paulobrien.lantern to idle
-    t =     6.65s     Find the "Notes from Tuesday's review" StaticText
-    t =     6.90s     Check for interrupting elements affecting "Notes from Tuesday's review" StaticText
-    t =     6.92s     Synthesize event
-    t =     7.26s     Wait for dev.paulobrien.lantern to idle
-    t =     9.78s Waiting 6.0s for "Sketches for the spring launch" StaticText to exist
-    t =    10.82s     Checking `Expect predicate `existsNoRetry == 1` for object "Sketches for the spring launch" StaticText`
-    t =    10.82s         Checking existence of `"Sketches for the spring launch" StaticText`
-    t =    10.95s Click "Sketches for the spring launch" StaticText
-    t =    10.95s     Wait for dev.paulobrien.lantern to idle
-    t =    10.96s     Find the "Sketches for the spring launch" StaticText
-    t =    11.04s     Check for interrupting elements affecting "Sketches for the spring launch" StaticText
-    t =    11.08s     Synthesize event
-    t =    11.93s     Wait for dev.paulobrien.lantern to idle
-    t =    14.44s Tear Down
-Test Case '-[PromoTour.Tour test5MacDark]' passed (14.691 seconds).
-Test Suite 'Tour' passed at 2026-11-19 11:20:28.003.
-	 Executed 1 test, with 0 failures (0 unexpected) in 14.691 (14.692) seconds
-Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:20:28.004.
-	 Executed 1 test, with 0 failures (0 unexpected) in 14.691 (14.693) seconds
-Test Suite 'Selected tests' passed at 2026-11-19 11:20:28.005.
-	 Executed 1 test, with 0 failures (0 unexpected) in 14.691 (14.694) seconds
-2026-11-19 11:20:28.542 xcodebuild[17535:50629] [MT] IDETestOperationsObserverDebug: 15.932 elapsed -- Testing started completed.
-2026-11-19 11:20:28.542 xcodebuild[17535:50629] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
-2026-11-19 11:20:28.542 xcodebuild[17535:50629] [MT] IDETestOperationsObserverDebug: 15.932 sec, +15.932 sec -- end
+    t =     0.00s Start Test at 2026-11-19 11:39:07.901
+    t =     0.26s Set Up
+    t =     0.29s Open dev.paulobrien.lantern
+    t =     0.29s     Launch dev.paulobrien.lantern
+2026-11-19 11:39:08.389 xcodebuild[9912:33148] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:39:08.389 xcodebuild[9912:33148] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     1.27s         Wait for accessibility to load
+    t =     2.88s         Setting up automation session
+    t =     3.33s         Wait for dev.paulobrien.lantern to idle
+    t =     7.79s Waiting 6.0s for "Maya Chen" StaticText to exist
+    t =     8.83s     Checking `Expect predicate `existsNoRetry == 1` for object "Maya Chen" StaticText`
+    t =     8.83s         Checking existence of `"Maya Chen" StaticText`
+    t =     9.47s Click "Maya Chen" StaticText
+    t =     9.47s     Wait for dev.paulobrien.lantern to idle
+    t =     9.63s     Find the "Maya Chen" StaticText
+    t =     9.73s     Check for interrupting elements affecting "Maya Chen" StaticText
+    t =     9.76s     Synthesize event
+    t =    10.54s     Wait for dev.paulobrien.lantern to idle
+    t =    11.06s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    11.06s     Wait for dev.paulobrien.lantern to idle
+    t =    11.09s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    11.42s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    11.42s     Synthesize event
+    t =    11.45s     Wait for dev.paulobrien.lantern to idle
+    t =    13.07s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    13.07s     Wait for dev.paulobrien.lantern to idle
+    t =    13.08s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    13.34s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    13.35s     Synthesize event
+    t =    13.39s     Wait for dev.paulobrien.lantern to idle
+    t =    15.00s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    15.00s     Wait for dev.paulobrien.lantern to idle
+    t =    15.00s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    15.38s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    15.38s     Synthesize event
+    t =    15.41s     Wait for dev.paulobrien.lantern to idle
+    t =    17.02s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    17.02s     Wait for dev.paulobrien.lantern to idle
+    t =    17.02s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    17.24s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    17.24s     Synthesize event
+    t =    17.27s     Wait for dev.paulobrien.lantern to idle
+    t =    18.88s Tear Down
+Test Case '-[PromoTour.Tour test5MacDark]' passed (19.167 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:39:27.069.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.167 (19.168) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:39:27.070.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.167 (19.169) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:39:27.070.
+	 Executed 1 test, with 0 failures (0 unexpected) in 19.167 (19.170) seconds
+2026-11-19 11:39:27.613 xcodebuild[9912:33148] [MT] IDETestOperationsObserverDebug: 20.529 elapsed -- Testing started completed.
+2026-11-19 11:39:27.613 xcodebuild[9912:33148] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:39:27.613 xcodebuild[9912:33148] [MT] IDETestOperationsObserverDebug: 20.529 sec, +20.529 sec -- end
 
 Test session results, code coverage, and logs:
-	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-20-11-+0000.xcresult
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-39-06-+0000.xcresult
 
 ** TEST EXECUTE SUCCEEDED **
 

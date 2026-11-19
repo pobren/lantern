@@ -2,71 +2,92 @@ Command line invocation:
     /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination platform=macOS "-only-testing:PromoTour/Tour/test1MacTour"
 
 --- xcodebuild: WARNING: Using the first of multiple matching destinations:
-{ platform:macOS, arch:arm64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
-{ platform:macOS, arch:x86_64, id:fe24c57e9d4d31d7ebe97a269f246b3ebb20b831, name:My Mac }
-2026-11-19 11:12:20.973306+0000 PromoTour-Runner[2859:12636] [Default] Running tests...
-Test Suite 'Selected tests' started at 2026-11-19 11:12:21.475.
-Test Suite 'PromoTour.xctest' started at 2026-11-19 11:12:21.476.
-Test Suite 'Tour' started at 2026-11-19 11:12:21.476.
+{ platform:macOS, arch:arm64, id:ec34c77ef4c29786be3e220b7fad23e0c8dac1f0, name:My Mac }
+{ platform:macOS, arch:x86_64, id:ec34c77ef4c29786be3e220b7fad23e0c8dac1f0, name:My Mac }
+2026-11-19 11:34:55.312447+0000 PromoTour-Runner[2834:12617] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-11-19 11:34:55.651.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:34:55.652.
+Test Suite 'Tour' started at 2026-11-19 11:34:55.652.
 Test Case '-[PromoTour.Tour test1MacTour]' started.
-    t =     0.00s Start Test at 2026-11-19 11:12:21.477
-    t =     1.33s Set Up
-    t =     1.35s Open dev.paulobrien.lantern
-    t =     1.36s     Launch dev.paulobrien.lantern
-2026-11-19 11:12:23.815 xcodebuild[2602:11710] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
-2026-11-19 11:12:23.817 xcodebuild[2602:11710] [MT] IDELaunchParametersSnapshot: no debugger version
-    t =     4.22s         Wait for accessibility to load
-    t =     6.71s         Setting up automation session
-    t =     8.80s         Wait for dev.paulobrien.lantern to idle
-    t =    14.55s Waiting 6.0s for "Saturday plans" StaticText to exist
-    t =    15.58s     Checking `Expect predicate `existsNoRetry == 1` for object "Saturday plans" StaticText`
-    t =    15.58s         Checking existence of `"Saturday plans" StaticText`
-    t =    16.22s Click "Saturday plans" StaticText
-    t =    16.22s     Wait for dev.paulobrien.lantern to idle
-    t =    16.41s     Find the "Saturday plans" StaticText
-    t =    16.70s     Check for interrupting elements affecting "Saturday plans" StaticText
-    t =    16.81s     Synthesize event
-    t =    17.21s     Wait for dev.paulobrien.lantern to idle
-    t =    19.22s Waiting 6.0s for "Contract, signed copy attached" StaticText to exist
-    t =    20.25s     Checking `Expect predicate `existsNoRetry == 1` for object "Contract, signed copy attached" StaticText`
-    t =    20.25s         Checking existence of `"Contract, signed copy attached" StaticText`
-    t =    20.49s Click "Contract, signed copy attached" StaticText
-    t =    20.49s     Wait for dev.paulobrien.lantern to idle
-    t =    20.50s     Find the "Contract, signed copy attached" StaticText
-    t =    20.72s     Check for interrupting elements affecting "Contract, signed copy attached" StaticText
-    t =    20.80s     Synthesize event
-    t =    21.21s     Wait for dev.paulobrien.lantern to idle
-    t =    23.22s Waiting 6.0s for "Re: Lisbon in April" StaticText to exist
-    t =    24.25s     Checking `Expect predicate `existsNoRetry == 1` for object "Re: Lisbon in April" StaticText`
-    t =    24.25s         Checking existence of `"Re: Lisbon in April" StaticText`
-    t =    24.50s Click "Re: Lisbon in April" StaticText
-    t =    24.50s     Wait for dev.paulobrien.lantern to idle
-    t =    24.51s     Find the "Re: Lisbon in April" StaticText
-    t =    24.77s     Check for interrupting elements affecting "Re: Lisbon in April" StaticText
-    t =    24.82s     Synthesize event
-    t =    25.16s     Wait for dev.paulobrien.lantern to idle
-    t =    27.17s Waiting 6.0s for "Sketches for the spring launch" StaticText to exist
-    t =    28.20s     Checking `Expect predicate `existsNoRetry == 1` for object "Sketches for the spring launch" StaticText`
-    t =    28.20s         Checking existence of `"Sketches for the spring launch" StaticText`
-    t =    28.31s Click "Sketches for the spring launch" StaticText
-    t =    28.32s     Wait for dev.paulobrien.lantern to idle
-    t =    28.32s     Find the "Sketches for the spring launch" StaticText
-    t =    28.41s     Check for interrupting elements affecting "Sketches for the spring launch" StaticText
-    t =    28.45s     Synthesize event
-    t =    29.50s     Wait for dev.paulobrien.lantern to idle
-    t =    31.51s Type 'r' key with modifiers '⌘' (0x10)
-    t =    31.51s     Wait for dev.paulobrien.lantern to idle
-    t =    31.52s     Find the Target Application 'dev.paulobrien.lantern'
-    t =    31.85s     Check for interrupting elements affecting "JMAP Connect" Application
-    t =    31.85s     Synthesize event
-    t =    33.31s     Wait for dev.paulobrien.lantern to idle
-    t =    34.84s Waiting 5.0s for TextView (First Match) to exist
-    t =    35.87s     Checking `Expect predicate `existsNoRetry == 1` for object TextView (First Match)`
-    t =    35.87s         Checking existence of `TextView (First Match)`
-    t =    36.17s Click TextView (First Match)
-    t =    36.17s     Wait for dev.paulobrien.lantern to idle
-    t =    36.17s     Find the TextView (First Match)
-    t =    36.29s     Check for interrupting elements affecting "
+    t =     0.00s Start Test at 2026-11-19 11:34:55.654
+    t =     1.18s Set Up
+    t =     1.21s Open dev.paulobrien.lantern
+    t =     1.21s     Launch dev.paulobrien.lantern
+2026-11-19 11:34:57.658 xcodebuild[2381:11248] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:34:57.659 xcodebuild[2381:11248] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =     3.85s         Wait for accessibility to load
+    t =    10.71s         Setting up automation session
+    t =    12.66s         Wait for dev.paulobrien.lantern to idle
+    t =    16.68s Waiting 6.0s for "Maya Chen" StaticText to exist
+    t =    17.72s     Checking `Expect predicate `existsNoRetry == 1` for object "Maya Chen" StaticText`
+    t =    17.72s         Checking existence of `"Maya Chen" StaticText`
+    t =    18.41s Click "Maya Chen" StaticText
+    t =    18.41s     Wait for dev.paulobrien.lantern to idle
+    t =    18.49s     Find the "Maya Chen" StaticText
+    t =    18.62s     Check for interrupting elements affecting "Maya Chen" StaticText
+    t =    18.70s     Synthesize event
+    t =    19.52s     Wait for dev.paulobrien.lantern to idle
+    t =    20.03s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    20.03s     Wait for dev.paulobrien.lantern to idle
+    t =    20.03s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    20.36s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    20.36s     Synthesize event
+    t =    20.44s     Wait for dev.paulobrien.lantern to idle
+    t =    21.75s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    21.75s     Wait for dev.paulobrien.lantern to idle
+    t =    21.76s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    22.12s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    22.12s     Synthesize event
+    t =    22.31s     Wait for dev.paulobrien.lantern to idle
+    t =    23.62s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    23.63s     Wait for dev.paulobrien.lantern to idle
+    t =    23.63s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    23.88s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    23.88s     Synthesize event
+    t =    23.93s     Wait for dev.paulobrien.lantern to idle
+    t =    25.23s Type '↓' key (XCUIKeyboardKeyDownArrow) with no modifiers
+    t =    25.23s     Wait for dev.paulobrien.lantern to idle
+    t =    25.24s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    25.40s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    25.40s     Synthesize event
+    t =    25.42s     Wait for dev.paulobrien.lantern to idle
+    t =    26.73s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    26.74s     Wait for dev.paulobrien.lantern to idle
+    t =    26.75s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    26.96s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    26.96s     Synthesize event
+    t =    26.98s     Wait for dev.paulobrien.lantern to idle
+    t =    28.29s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    28.29s     Wait for dev.paulobrien.lantern to idle
+    t =    28.31s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    28.54s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    28.54s     Synthesize event
+    t =    28.60s     Wait for dev.paulobrien.lantern to idle
+    t =    29.91s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    29.91s     Wait for dev.paulobrien.lantern to idle
+    t =    29.91s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    30.07s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    30.07s     Synthesize event
+    t =    30.09s     Wait for dev.paulobrien.lantern to idle
+    t =    31.40s Type '↑' key (XCUIKeyboardKeyUpArrow) with no modifiers
+    t =    31.40s     Wait for dev.paulobrien.lantern to idle
+    t =    31.41s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    31.71s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    31.71s     Synthesize event
+    t =    31.77s     Wait for dev.paulobrien.lantern to idle
+    t =    34.08s Type 'r' key with modifiers '⌘' (0x10)
+    t =    34.08s     Wait for dev.paulobrien.lantern to idle
+    t =    34.10s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    34.33s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    34.33s     Synthesize event
+    t =    35.45s     Wait for dev.paulobrien.lantern to idle
+    t =    36.98s Waiting 5.0s for TextView (First Match) to exist
+    t =    38.00s     Checking `Expect predicate `existsNoRetry == 1` for object TextView (First Match)`
+    t =    38.00s         Checking existence of `TextView (First Match)`
+    t =    38.20s Click TextView (First Match)
+    t =    38.20s     Wait for dev.paulobrien.lantern to idle
+    t =    38.21s     Find the TextView (First Match)
+    t =    38.33s     Check for interrupting elements affecting "
 
 -- 
 Sam Taylor
@@ -76,9 +97,15 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    36.34s     Synthesize event
-    t =    36.87s     Wait for dev.paulobrien.lantern to idle
-    t =    37.28s Type 'Love ' into "
+    t =    38.40s     Synthesize event
+    t =    38.87s     Wait for dev.paulobrien.lantern to idle
+    t =    39.19s Type '↑' key (XCUIKeyboardKeyUpArrow) with modifiers '⌘' (0x10)
+    t =    39.19s     Wait for dev.paulobrien.lantern to idle
+    t =    39.20s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    39.47s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    39.47s     Synthesize event
+    t =    39.58s     Wait for dev.paulobrien.lantern to idle
+    t =    39.99s Type 'Hi ' into "
 
 -- 
 Sam Taylor
@@ -88,8 +115,8 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    37.28s     Wait for dev.paulobrien.lantern to idle
-    t =    37.28s     Find the "
+    t =    39.99s     Wait for dev.paulobrien.lantern to idle
+    t =    39.99s     Find the "
 
 -- 
 Sam Taylor
@@ -99,7 +126,7 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    37.43s     Check for interrupting elements affecting "
+    t =    40.09s     Check for interrupting elements affecting "
 
 -- 
 Sam Taylor
@@ -109,9 +136,9 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    37.51s     Synthesize event
-    t =    38.19s     Wait for dev.paulobrien.lantern to idle
-    t =    38.33s Type 'the ' into "
+    t =    40.10s     Synthesize event
+    t =    40.42s     Wait for dev.paulobrien.lantern to idle
+    t =    40.55s Type 'Maya, ' into "
 
 -- 
 Sam Taylor
@@ -121,8 +148,8 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    38.33s     Wait for dev.paulobrien.lantern to idle
-    t =    38.33s     Find the "
+    t =    40.55s     Wait for dev.paulobrien.lantern to idle
+    t =    40.56s     Find the "
 
 -- 
 Sam Taylor
@@ -132,257 +159,298 @@ On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > Hi Sam,
 >
 > Here are the three directions we " TextView
-    t =    38.47s     Check for interrupting elements affecting "
+    t =    40.73s     Check for interrupting elements affecting "Hi 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love 
+> Hi Sam,
 >
-> Here are the three direction" TextView
-    t =    38.79s     Synthesize event
-    t =    39.33s     Wait for dev.paulobrien.lantern to idle
-    t =    39.46s Type 'second ' into "
+> Here are the three directions " TextView
+    t =    40.80s     Synthesize event
+    t =    41.25s     Wait for dev.paulobrien.lantern to idle
+    t =    41.38s Type 'love ' into "Hi 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love 
+> Hi Sam,
 >
-> Here are the three direction" TextView
-    t =    39.46s     Wait for dev.paulobrien.lantern to idle
-    t =    39.47s     Find the "
+> Here are the three directions " TextView
+    t =    41.38s     Wait for dev.paulobrien.lantern to idle
+    t =    41.38s     Find the "Hi 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love 
+> Hi Sam,
 >
-> Here are the three direction" TextView
-    t =    39.65s     Check for interrupting elements affecting "
+> Here are the three directions " TextView
+    t =    41.49s     Check for interrupting elements affecting "Hi Maya, 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the 
+> Hi Sam,
 >
 > Here are the three direc" TextView
-    t =    39.67s     Synthesize event
-    t =    40.52s     Wait for dev.paulobrien.lantern to idle
-    t =    40.65s Type 'direction, ' into "
+    t =    41.67s     Synthesize event
+    t =    42.04s     Wait for dev.paulobrien.lantern to idle
+    t =    42.17s Type 'the ' into "Hi Maya, 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the 
+> Hi Sam,
 >
 > Here are the three direc" TextView
-    t =    40.65s     Wait for dev.paulobrien.lantern to idle
-    t =    40.66s     Find the "
+    t =    42.17s     Wait for dev.paulobrien.lantern to idle
+    t =    42.17s     Find the "Hi Maya, 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the 
+> Hi Sam,
 >
 > Here are the three direc" TextView
-    t =    40.84s     Check for interrupting elements affecting "
+    t =    42.26s     Check for interrupting elements affecting "Hi Maya, love 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second 
+> Hi Sam,
 >
-> Here are the thre" TextView
-    t =    40.94s     Synthesize event
-    t =    41.88s     Wait for dev.paulobrien.lantern to idle
-    t =    42.01s Type 'Maya. ' into "
+> Here are the three " TextView
+    t =    42.44s     Synthesize event
+    t =    42.70s     Wait for dev.paulobrien.lantern to idle
+    t =    42.83s Type 'second ' into "Hi Maya, love 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second 
+> Hi Sam,
 >
-> Here are the thre" TextView
-    t =    42.01s     Wait for dev.paulobrien.lantern to idle
-    t =    42.02s     Find the "
+> Here are the three " TextView
+    t =    42.83s     Wait for dev.paulobrien.lantern to idle
+    t =    42.84s     Find the "Hi Maya, love 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second 
+> Hi Sam,
 >
-> Here are the thre" TextView
-    t =    42.14s     Check for interrupting elements affecting "
+> Here are the three " TextView
+    t =    42.96s     Check for interrupting elements affecting "Hi Maya, love the 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, 
+> Hi Sam,
 >
-> Here a" TextView
-    t =    42.23s     Synthesize event
-    t =    42.84s     Wait for dev.paulobrien.lantern to idle
-    t =    42.97s Type 'Let's ' into "
+> Here are the th" TextView
+    t =    43.01s     Synthesize event
+    t =    43.53s     Wait for dev.paulobrien.lantern to idle
+    t =    43.66s Type 'direction. ' into "Hi Maya, love the 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, 
+> Hi Sam,
 >
-> Here a" TextView
-    t =    42.97s     Wait for dev.paulobrien.lantern to idle
-    t =    42.97s     Find the "
+> Here are the th" TextView
+    t =    43.66s     Wait for dev.paulobrien.lantern to idle
+    t =    43.66s     Find the "Hi Maya, love the 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, 
+> Hi Sam,
 >
-> Here a" TextView
-    t =    43.11s     Check for interrupting elements affecting "
+> Here are the th" TextView
+    t =    43.79s     Check for interrupting elements affecting "Hi Maya, love the second 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. 
+> Hi Sam,
 >
+> Here are" TextView
+    t =    43.84s     Synthesize event
+    t =    44.67s     Wait for dev.paulobrien.lantern to idle
+    t =    44.80s Type 'Let's ' into "Hi Maya, love the second 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi Sam,
+>
+> Here are" TextView
+    t =    44.80s     Wait for dev.paulobrien.lantern to idle
+    t =    44.80s     Find the "Hi Maya, love the second 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi Sam,
+>
+> Here are" TextView
+    t =    44.92s     Check for interrupting elements affecting "Hi Maya, love the second direction. 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi Sam,
+>" TextView
+    t =    45.05s     Synthesize event
+    t =    45.66s     Wait for dev.paulobrien.lantern to idle
+    t =    45.79s Type 'go ' into "Hi Maya, love the second direction. 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi Sam,
+>" TextView
+    t =    45.79s     Wait for dev.paulobrien.lantern to idle
+    t =    45.80s     Find the "Hi Maya, love the second direction. 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi Sam,
+>" TextView
+    t =    45.90s     Check for interrupting elements affecting "Hi Maya, love the second direction. Let’s 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi " TextView
+    t =    45.95s     Synthesize event
+    t =    46.18s     Wait for dev.paulobrien.lantern to idle
+    t =    46.31s Type 'with ' into "Hi Maya, love the second direction. Let’s 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi " TextView
+    t =    46.31s     Wait for dev.paulobrien.lantern to idle
+    t =    46.32s     Find the "Hi Maya, love the second direction. Let’s 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
+> Hi " TextView
+    t =    46.38s     Check for interrupting elements affecting "Hi Maya, love the second direction. Let’s go 
+
+-- 
+Sam Taylor
+Northwind Studio
+
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
 > " TextView
-    t =    43.12s     Synthesize event
-    t =    43.70s     Wait for dev.paulobrien.lantern to idle
-    t =    43.83s Type 'go ' into "
+    t =    46.41s     Synthesize event
+    t =    46.91s     Wait for dev.paulobrien.lantern to idle
+    t =    47.04s Type 'it. ' into "Hi Maya, love the second direction. Let’s go 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. 
->
 > " TextView
-    t =    43.83s     Wait for dev.paulobrien.lantern to idle
-    t =    43.84s     Find the "
+    t =    47.04s     Wait for dev.paulobrien.lantern to idle
+    t =    47.04s     Find the "Hi Maya, love the second direction. Let’s go 
 
 -- 
 Sam Taylor
 Northwind Studio
 
 On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. 
->
 > " TextView
-    t =    44.00s     Check for interrupting elements affecting "
+    t =    47.17s     Check for interrupting elements affecting "Hi Maya, love the second direction. Let’s go with 
 
 -- 
 Sam Taylor
 Northwind Studio
 
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    44.06s     Synthesize event
-    t =    44.37s     Wait for dev.paulobrien.lantern to idle
-    t =    44.50s Type 'with ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    44.50s     Wait for dev.paulobrien.lantern to idle
-    t =    44.61s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    44.71s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    44.80s     Synthesize event
-    t =    45.18s     Wait for dev.paulobrien.lantern to idle
-    t =    45.30s Type 'it. ' into "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    45.30s     Wait for dev.paulobrien.lantern to idle
-    t =    45.31s     Find the "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    45.43s     Check for interrupting elements affecting "
-
--- 
-Sam Taylor
-Northwind Studio
-
-On Thu 19 Nov 2026 at 09:42, Maya Chen wrote:
-> Hi Sam,Love the second direction, Maya. Let’s" TextView
-    t =    45.47s     Synthesize event
-    t =    45.72s     Wait for dev.paulobrien.lantern to idle
-    t =    47.85s Type '⎋' key (XCUIKeyboardKeyEscape) with no modifiers
-    t =    47.86s     Wait for dev.paulobrien.lantern to idle
-    t =    47.86s     Find the Target Application 'dev.paulobrien.lantern'
-    t =    48.16s     Check for interrupting elements affecting "JMAP Connect" Application
-    t =    48.16s     Synthesize event
-    t =    49.05s     Wait for dev.paulobrien.lantern to idle
-    t =    50.08s Checking existence of `"Delete draft" Button`
-    t =    50.41s Checking existence of `"Don't save" Button`
-    t =    51.69s Tear Down
-Test Case '-[PromoTour.Tour test1MacTour]' passed (51.982 seconds).
-Test Suite 'Tour' passed at 2026-11-19 11:13:13.460.
-	 Executed 1 test, with 0 failures (0 unexpected) in 51.982 (51.984) seconds
-Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:13:13.462.
-	 Executed 1 test, with 0 failures (0 unexpected) in 51.982 (51.986) seconds
-Test Suite 'Selected tests' passed at 2026-11-19 11:13:13.463.
-	 Executed 1 test, with 0 failures (0 unexpected) in 51.982 (51.988) seconds
-2026-11-19 11:13:14.117 xcodebuild[2602:11710] [MT] IDETestOperationsObserverDebug: 55.534 elapsed -- Testing started completed.
-2026-11-19 11:13:14.117 xcodebuild[2602:11710] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
-2026-11-19 11:13:14.117 xcodebuild[2602:11710] [MT] IDETestOperationsObserverDebug: 55.534 sec, +55.534 sec -- end
+On Thu 19 Nov 2026 at 09:42, Maya Chen wrot" TextView
+    t =    47.23s     Synthesize event
+    t =    47.52s     Wait for dev.paulobrien.lantern to idle
+    t =    47.65s Type '↩' key (XCUIKeyboardKeyReturn) with no modifiers
+    t =    47.65s     Wait for dev.paulobrien.lantern to idle
+    t =    47.67s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    47.89s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    47.89s     Synthesize event
+    t =    47.97s     Wait for dev.paulobrien.lantern to idle
+    t =    47.98s Type '↩' key (XCUIKeyboardKeyReturn) with no modifiers
+    t =    47.98s     Wait for dev.paulobrien.lantern to idle
+    t =    47.98s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    48.20s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    48.20s     Synthesize event
+    t =    48.29s     Wait for dev.paulobrien.lantern to idle
+    t =    50.30s Type '⎋' key (XCUIKeyboardKeyEscape) with no modifiers
+    t =    50.30s     Wait for dev.paulobrien.lantern to idle
+    t =    50.31s     Find the Target Application 'dev.paulobrien.lantern'
+    t =    50.49s     Check for interrupting elements affecting "JMAP Connect" Application
+    t =    50.49s     Synthesize event
+    t =    51.32s     Wait for dev.paulobrien.lantern to idle
+    t =    52.34s Checking existence of `"Delete draft" Button`
+    t =    52.97s Checking existence of `"Don't save" Button`
+    t =    54.31s Tear Down
+Test Case '-[PromoTour.Tour test1MacTour]' passed (54.902 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:35:50.556.
+	 Executed 1 test, with 0 failures (0 unexpected) in 54.902 (54.904) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:35:50.558.
+	 Executed 1 test, with 0 failures (0 unexpected) in 54.902 (54.906) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:35:50.559.
+	 Executed 1 test, with 0 failures (0 unexpected) in 54.902 (54.908) seconds
+2026-11-19 11:35:51.442 xcodebuild[2381:11248] [MT] IDETestOperationsObserverDebug: 58.136 elapsed -- Testing started completed.
+2026-11-19 11:35:51.442 xcodebuild[2381:11248] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:35:51.442 xcodebuild[2381:11248] [MT] IDETestOperationsObserverDebug: 58.136 sec, +58.136 sec -- end
 
 Test session results, code coverage, and logs:
-	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-12-09-+0000.xcresult
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-34-42-+0000.xcresult
 
 ** TEST EXECUTE SUCCEEDED **
 
