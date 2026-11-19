@@ -7,16 +7,20 @@ import SwiftUI
 /// An account the person added. Saved in settings; its token is in the Keychain.
 struct Account: Codable, Identifiable, Hashable {
     let id: String
-    let kind: String          // "fastmail", "mailapp", "other" or "demo" (sample mail)
+    let kind: String          // a ServerKind id ("fastmail", "stalwart", "other" and so on) or "demo" (sample mail)
     let sessionURL: String
     var username: String
 
     var saved: SavedKeys.Saved { SavedKeys.Saved(kind: kind, sessionURL: sessionURL, username: username) }
     var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
-    var kindName: String { kind == Demo.kind ? "Sample mail" : kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
+    var kindName: String {
+        if kind == Demo.kind { return "Sample mail" }
+        if kind == ServerKind.other.id { return "JMAP" }
+        return ServerKind.named(kind)?.name ?? "JMAP"
+    }
     var label: String {
         if kind == Demo.kind { return "Sample mail" }
-        return username.isEmpty ? (kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "Mail") : username
+        return username.isEmpty ? (kind == ServerKind.other.id ? "Mail" : kindName) : username
     }
 }
 
@@ -166,26 +170,62 @@ final class Store: ObservableObject {
     // MARK: Accounts
 
     func add(kind: ServerKind, address: String, token: String) async throws {
-        var session = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        if session.isEmpty { session = kind.sessionURL }
+        try await add(kind: kind, sessions: [Self.sessionAddress(address.isEmpty ? kind.sessionURL : address)],
+                      secret: token.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Adds an account that signs in with an email address and app password (Stalwart, Thundermail, Mailbux, Cyrus
+    /// and other JMAP servers). With no server given, it's found from the email address's domain. With no email
+    /// address, the password is used as an API token, for servers that hand those out instead.
+    func add(kind: ServerKind, email: String, password: String, server: String) async throws {
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = password.trimmingCharacters(in: .newlines)
+        let server = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = email.isEmpty ? password.trimmingCharacters(in: .whitespaces) : JMAPAuth.basic(user: email, password: password)
+        var sessions: [String] = []
+        if !server.isEmpty { sessions.append(Self.sessionAddress(server)) }
+        else if !kind.sessionURL.isEmpty { sessions.append(kind.sessionURL) }
+        else if let domain = email.split(separator: "@").last.map(String.init)?.lowercased(), email.contains("@"), domain.contains(".") {
+            sessions = ["https://\(domain)/.well-known/jmap", "https://mail.\(domain)/.well-known/jmap", "https://jmap.\(domain)/.well-known/jmap"]
+        }
+        guard !sessions.isEmpty else { throw JMAPError.needServer }
+        try await add(kind: kind, sessions: sessions, secret: secret)
+    }
+
+    /// Tries each possible session address in turn. A wrong password stops at once: the server was found.
+    private func add(kind: ServerKind, sessions: [String], secret: String) async throws {
+        var lastError: Error = JMAPError.badServer
+        for session in sessions {
+            guard let url = URL(string: session) else { continue }
+            let client = JMAPClient(sessionURL: url, token: secret)
+            let s: JMAPSession
+            do { s = try await client.connect() }
+            catch JMAPError.signIn { throw JMAPError.signIn }
+            catch { lastError = error; continue }
+            let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: client.finalSessionURL?.absoluteString ?? session,
+                                  username: s.username)
+            Keychain.save(account.id, secret)
+            SavedKeys.save(account.saved, token: secret)
+            let state = AccountState(account: account, client: client)
+            accounts.append(state)
+            save()
+            await load(state)
+            listen(state)
+            keepSynced(state)
+            await reloadList()
+            return
+        }
+        throw sessions.count > 1 ? JMAPError.notFound : lastError
+    }
+
+    /// Turns what someone typed (mail.example.com, a full https address) into a JMAP session address.
+    static func sessionAddress(_ typed: String) -> String {
+        var session = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if !session.hasPrefix("http") { session = "https://" + session }
         if !session.contains("/jmap") && !session.contains("well-known") {
             session = session.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/.well-known/jmap"
         }
-        guard let url = URL(string: session) else { throw JMAPError.badServer }
-        let secret = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        let client = JMAPClient(sessionURL: url, token: secret)
-        let s = try await client.connect()
-        let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: session, username: s.username)
-        Keychain.save(account.id, secret)
-        SavedKeys.save(account.saved, token: secret)
-        let state = AccountState(account: account, client: client)
-        accounts.append(state)
-        save()
-        await load(state)
-        listen(state)
-        keepSynced(state)
-        await reloadList()
+        return session
     }
 
     /// Adds the sample mail account: made up emails answered inside the app, for trying it without an account.
@@ -199,14 +239,17 @@ final class Store: ObservableObject {
     }
 
     /// Saved keys (iCloud Keychain) for accounts that aren't added on this device, so they can come back in one tap.
-    func savedKeys(kind: ServerKind) -> [SavedKeys.Saved] {
+    func savedKeys(kind: ServerKind) -> [SavedKeys.Saved] { savedKeys(kinds: [kind]) }
+
+    func savedKeys(kinds: [ServerKind]) -> [SavedKeys.Saved] {
         let here = Set(accounts.map(\.account.saved.id))
-        return SavedKeys.all().filter { $0.kind == kind.id && !here.contains($0.id) }.sorted { $0.username < $1.username }
+        let ids = Set(kinds.map(\.id))
+        return SavedKeys.all().filter { ids.contains($0.kind) && !here.contains($0.id) }.sorted { $0.username < $1.username }
     }
 
     /// Signs back in with a saved key. If Fastmail no longer accepts it (deleted on the website), it's forgotten.
     func add(saved: SavedKeys.Saved) async throws {
-        guard let token = SavedKeys.token(saved), let kind = [ServerKind.fastmail, .mailApp, .other].first(where: { $0.id == saved.kind }) else {
+        guard let token = SavedKeys.token(saved), let kind = ServerKind.named(saved.kind) else {
             throw JMAPError.missing("the saved key")
         }
         do {

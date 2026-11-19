@@ -394,7 +394,7 @@ struct ComposeView: View {
                     #if os(iOS)
                     .datePickerStyle(.graphical)
                     #endif
-                Text("Fastmail keeps the email and sends it then, even if this device is off.")
+                Text("Your mail server keeps the email and sends it then, even if this device is off.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .formStyle(.grouped)

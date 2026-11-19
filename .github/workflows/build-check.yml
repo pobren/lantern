@@ -4,7 +4,7 @@ name: Build check
 
 on:
   push:
-    branches: ["claude/project-thread-31gnao", "claude/project-thread-h9exug"]
+    branches: ["claude/project-thread-31gnao", "claude/project-thread-h9exug", "claude/project-thread-z1fj2h"]
     paths: ["apps/**", ".github/workflows/build-check.yml"]
   workflow_dispatch:
 

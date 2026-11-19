@@ -1,10 +1,12 @@
-// First run: add a Fastmail account (Mail App and other JMAP servers later) with an API token. Also Settings, on every device.
+// First run: add a Fastmail account with an API token, or (smaller, underneath) another JMAP provider with an email
+// address and app password. Also Settings, on every device.
 
 import SwiftUI
 
 struct WelcomeView: View {
     @EnvironmentObject var store: Store
     @State private var kind: ServerKind?
+    @State private var other = false
 
     var body: some View {
         VStack(spacing: 26) {
@@ -17,34 +19,28 @@ struct WelcomeView: View {
                 .accessibilityHidden(true)
             VStack(spacing: 10) {
                 Text("Welcome to JMAP Connect").font(Look.size(28, weight: .semibold))
-                Text(ServerKind.fastmailOnly ? "The native mail app for Fastmail. Fast, simple and private." : "Your Mail App and Fastmail email in one fast, native app.")
+                Text("The native mail app for Fastmail. Fast, simple and private.")
                     .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 480)
             }
-            if ServerKind.fastmailOnly {
+            VStack(spacing: 12) {
                 Button { kind = .fastmail } label: {
                     Label("Add your Fastmail account", systemImage: "plus.circle").frame(maxWidth: .infinity).frame(height: 40)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
-                .frame(maxWidth: 400)
+                if ServerKind.otherProviders {
+                    Button { other = true } label: {
+                        Label("Use another JMAP provider", systemImage: "server.rack")
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.callout)
+                }
                 Button { Task { await store.addDemo() } } label: {
                     Label("Try it with sample mail", systemImage: "tray.full")
                 }
                 .buttonStyle(.borderless)
-            } else {
-            VStack(spacing: 10) {
-                Button { kind = .mailApp } label: {
-                    Label("Add a Mail App account", systemImage: "plus.circle").frame(maxWidth: .infinity).frame(height: 40)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large)
-                Button { kind = .fastmail } label: {
-                    Label("Add a Fastmail account", systemImage: "envelope").frame(maxWidth: .infinity).frame(height: 40)
-                }
-                .buttonStyle(.bordered).controlSize(.large)
-                Button { kind = .other } label: { Label("Another JMAP server", systemImage: "server.rack") }
-                    .buttonStyle(.borderless)
+                .font(.callout)
             }
             .frame(maxWidth: 400)
-            }
             ViewThatFits {
                 HStack(spacing: 26) { promises }
                 VStack(spacing: 8) { promises }
@@ -57,6 +53,7 @@ struct WelcomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Look.paper)
         .sheet(item: $kind) { k in AddAccountView(kind: k).environmentObject(store) }
+        .sheet(isPresented: $other) { OtherAccountView().environmentObject(store) }
     }
 
     @ViewBuilder private var promises: some View {
@@ -137,10 +134,105 @@ struct AddAccountView: View {
     }
 }
 
+/// Stalwart, Thundermail, Mailbux, Cyrus or any other JMAP server: pick the provider, then email address and
+/// app password. The server's address is only asked for where it can't be known (self hosted servers), and even
+/// then it can be left empty to find it from the email address.
+struct OtherAccountView: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State private var provider = ServerKind.providers[0]
+    @State private var email = ""
+    @State private var password = ""
+    @State private var server = ""
+    @State private var working = false
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Add another JMAP provider").font(Look.size(20, weight: .semibold))
+            let saved = store.savedKeys(kinds: ServerKind.providers)
+            if !saved.isEmpty {
+                ForEach(saved) { k in
+                    Button {
+                        Task {
+                            working = true; problem = nil
+                            do { try await store.add(saved: k); dismiss() }
+                            catch { problem = error.localizedDescription }
+                            working = false
+                        }
+                    } label: {
+                        Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(working)
+                }
+                Text("Or add a new account:").font(.callout).foregroundStyle(.secondary)
+            }
+            Picker("Provider", selection: $provider) {
+                ForEach(ServerKind.providers) { Text($0.name).tag($0) }
+            }
+            .onChange(of: provider) { _, _ in problem = nil }
+            Text(provider.tokenHelp).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            TextField("Email address", text: $email)
+                .textFieldStyle(.roundedBorder)
+                .textContentType(.username)
+                #if os(iOS)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
+            SecureField("App password", text: $password)
+                .textFieldStyle(.roundedBorder)
+                .textContentType(.password)
+            if provider.asksServer {
+                TextField("Server, such as mail.example.com (optional)", text: $server)
+                    .textFieldStyle(.roundedBorder)
+                    #if os(iOS)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    #endif
+            }
+            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout) }
+            HStack {
+                Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button {
+                    Task {
+                        working = true; problem = nil
+                        do {
+                            try await store.add(kind: provider, email: email, password: password, server: provider.asksServer ? server : "")
+                            dismiss()
+                        } catch { problem = error.localizedDescription }
+                        working = false
+                    }
+                } label: {
+                    if working { ProgressView().controlSize(.small) } else { Label("Add account", systemImage: "checkmark") }
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(password.isEmpty || (email.isEmpty && server.isEmpty) || working)
+            }
+            Text("Your mail goes straight between this device and your provider. Not affiliated with any provider.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(24)
+        #if os(macOS)
+        .frame(width: 480)
+        #else
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.medium, .large])
+        #endif
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State private var adding: ServerKind?
+    @State private var addingOther = false
     @State private var masking: AccountState?
     @State private var away: AccountState?
     @State private var removing: AccountState?
@@ -187,6 +279,7 @@ struct SettingsView: View {
         .sheet(item: $masking) { s in MaskedEmailView(state: s) }
         .sheet(item: $away) { s in OutOfOfficeView(state: s) }
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
+        .sheet(isPresented: $addingOther) { OtherAccountView().environmentObject(store) }
         #else
         TabView {
             Form { notifications; reading }.formStyle(.grouped)
@@ -196,7 +289,7 @@ struct SettingsView: View {
             Form { OfflineSection() }.formStyle(.grouped)
                 .tabItem { Label("Offline", systemImage: "arrow.down.circle") }
             Form { fastmailTools }.formStyle(.grouped)
-                .tabItem { Label("Fastmail", systemImage: "envelope.badge.shield.half.filled") }
+                .tabItem { Label(onlyFastmail ? "Fastmail" : "Extras", systemImage: "envelope.badge.shield.half.filled") }
             Form { Section("Accounts") { accounts }; Section { about } }.formStyle(.grouped)
                 .tabItem { Label("Accounts", systemImage: "person.crop.circle") }
         }
@@ -204,6 +297,7 @@ struct SettingsView: View {
         .sheet(item: $masking) { s in MaskedEmailView(state: s) }
         .sheet(item: $away) { s in OutOfOfficeView(state: s) }
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
+        .sheet(isPresented: $addingOther) { OtherAccountView().environmentObject(store) }
         #endif
     }
 
@@ -261,7 +355,7 @@ struct SettingsView: View {
             }
         } header: { Text("Instant alerts") } footer: {
             Text(instant
-                 ? "Fastmail tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: Fastmail encrypts the notice for this device, which then fetches the sender and subject from Fastmail itself."
+                 ? "Your mail server tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: the server encrypts the notice for this device, which then fetches the sender and subject from the server itself."
                  : "Without instant alerts, iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.")
         }
         #endif
@@ -291,7 +385,7 @@ struct SettingsView: View {
         Section {
             AddressSettings()
         } header: { Text("Signature and Reply to") } footer: {
-            Text("Saved to your Fastmail account, so they match on the web and in other apps.")
+            Text(onlyFastmail ? "Saved to your Fastmail account, so they match on the web and in other apps." : "Saved to your mail account, so they match on the web and in other apps.")
         }
     }
 
@@ -309,7 +403,7 @@ struct SettingsView: View {
     @ViewBuilder private var fastmailTools: some View {
         let fastmail = store.accounts.filter { $0.account.kind == "fastmail" }
         let canAway = store.accounts.filter { $0.client.canVacation }
-        if !fastmail.isEmpty {
+        if !fastmail.isEmpty || !canAway.isEmpty {
             Section {
                 // Separate ids for the two lists: with the same account id twice, the Mac drew Masked Email twice.
                 ForEach(fastmail, id: \.maskKey) { s in
@@ -322,8 +416,12 @@ struct SettingsView: View {
                         Row(title: store.accounts.count > 1 ? "Out of office, \(s.account.label)" : "Out of office", icon: "airplane.departure", tint: .orange)
                     }
                 }
-            } header: { Text("Fastmail") } footer: {
-                Text("Masked Email makes a private address for each website. Out of office replies are saved in Fastmail, so they work with every device switched off.")
+            } header: { Text(onlyFastmail ? "Fastmail" : "Extras") } footer: {
+                if fastmail.isEmpty {
+                    Text("Out of office replies are saved on your mail server, so they work with every device switched off.")
+                } else {
+                    Text("Masked Email makes a private address for each website. Out of office replies are saved \(onlyFastmail ? "in Fastmail" : "on your mail server"), so they work with every device switched off.")
+                }
             }
         }
     }
@@ -350,17 +448,17 @@ struct SettingsView: View {
                 Button(role: .destructive) { remove(forgetKey: true) } label: { Label("Remove and forget the key", systemImage: "key.slash") }
                 Button("Cancel", role: .cancel) { removing = nil }
             } message: {
-                Text("Your mail stays in Fastmail. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.")
+                Text("Your mail stays \(onlyFastmail ? "in Fastmail" : "with your provider"). Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.")
             }
-        if ServerKind.fastmailOnly {
-            Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
-        } else {
-            Menu {
-                Button("Mail App") { adding = .mailApp }
-                Button("Fastmail") { adding = .fastmail }
-                Button("Another JMAP server") { adding = .other }
-            } label: { Label("Add account", systemImage: "plus.circle.fill") }
+        Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
+        if ServerKind.otherProviders {
+            Button { addingOther = true } label: { Label("Add another JMAP provider", systemImage: "server.rack") }
         }
+    }
+
+    /// Every real account is Fastmail (or there are none yet), so Fastmail wording fits.
+    private var onlyFastmail: Bool {
+        store.accounts.allSatisfy { $0.account.kind == ServerKind.fastmail.id || $0.account.kind == Demo.kind }
     }
 
     private var about: some View {
