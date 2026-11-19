@@ -72,6 +72,46 @@ jobs:
                     "description": "Paul (JMAP Connect testing)", "credentials": {"0": {"@type": "Password", "secret": pw}}}}}, "a"]])
           print("Mailbox:", "created" if r[0][1].get("created") else r)
           PY
+      - name: Make sure Stalwart asks Let's Encrypt for the https certificate
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, time, ssl, urllib.request, urllib.error
+          host, pw = os.environ["HOST"], os.environ["PW"]
+          auth = "Basic " + base64.b64encode(f"admin:{pw}".encode()).decode()
+          def q(*calls):
+              req = urllib.request.Request(f"http://{host}:8080/jmap/", json.dumps({"using": ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"], "methodCalls": list(calls)}).encode(),
+                                           {"Content-Type": "application/json", "Authorization": auth})
+              return json.load(urllib.request.urlopen(req, timeout=60))["methodResponses"]
+          def https_ok():
+              try:
+                  urllib.request.urlopen(f"https://{host}/.well-known/jmap", timeout=10)
+              except urllib.error.HTTPError:
+                  return True
+              except Exception as e:
+                  print("  https:", e); return False
+              return True
+          if https_ok():
+              print("https already works"); raise SystemExit
+          dom = q(["x:Domain/get", {"properties": ["id", "name", "certificateManagement"]}, "d"])[0][1]["list"][0]
+          print("Domain certificates:", dom["certificateManagement"])
+          acme = q(["x:AcmeProvider/get", {}, "a"])[0][1]["list"]
+          print("ACME providers:", len(acme))
+          print("Certificates:", [c.get("subjectAlternativeNames") or c.get("id") for c in q(["x:Certificate/get", {}, "c"])[0][1]["list"]])
+          if not acme:
+              r = q(["x:AcmeProvider/set", {"create": {"le": {"contact": {f"mailto:postmaster@{host}": True}}}}, "a"])[0][1]
+              print("Create ACME provider:", r)
+              acme_id = r["created"]["le"]["id"]
+          else:
+              acme_id = acme[0]["id"]
+          if dom["certificateManagement"].get("@type") != "Automatic":
+              print("Turn on automatic certificates:", q(["x:Domain/set", {"update": {dom["id"]: {"certificateManagement": {"@type": "Automatic", "acmeProviderId": acme_id}}}}, "d"])[0][1])
+          for i in range(36):
+              time.sleep(10)
+              if https_ok():
+                  print("https works"); break
+          else:
+              print("::warning::Still no https certificate after 6 minutes")
+          PY
       - name: App checks over https (falls back to port 8080 if the certificate isn't ready yet)
         run: |
           if curl -s -f -o /dev/null -m 10 "https://$HOST/.well-known/jmap" -u "paul@$HOST:$PW" -L; then
