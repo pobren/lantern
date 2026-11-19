@@ -242,8 +242,11 @@ struct SettingsView: View {
                     Picker(store.accounts.count > 1 ? "New emails from (\(s.account.label))" : "New emails from",
                            selection: Binding(get: { store.defaultIdentity(s)?.id ?? "" },
                                               set: { store.setDefaultIdentity($0, account: s.account) })) {
-                        ForEach(s.identities) { Text($0.label).tag($0.id) }
+                        ForEach(s.identities) { Text($0.email).tag($0.id) }
                     }
+                    #if os(iOS)
+                    .pickerStyle(.navigationLink)
+                    #endif
                 }
             } header: { Text("Sending") } footer: {
                 Text("Replies go out from the address the email was sent to, when you can send from it.")
@@ -380,9 +383,12 @@ struct AddressSettings: View {
             let key = list.contains { $0.key == chosen } ? chosen : list[0].key
             Picker("Address", selection: Binding(get: { key }, set: { chosen = $0 })) {
                 ForEach(list, id: \.key) { item in
-                    Text(store.accounts.count > 1 ? "\(item.identity.label), \(item.account.label)" : item.identity.label).tag(item.key)
+                    Text(store.accounts.count > 1 ? "\(item.identity.email), \(item.account.label)" : item.identity.email).tag(item.key)
                 }
             }
+            #if os(iOS)
+            .pickerStyle(.navigationLink)
+            #endif
             if let item = list.first(where: { $0.key == key }) {
                 SignatureRow(identity: item.identity, account: item.account).id(key)
             }
@@ -400,36 +406,43 @@ struct SignatureRow: View {
 
     private var changed: Bool { text != (identity.textSignature ?? "") || replyTo != identity.replyToText }
 
+    // Rows of the settings list, like iOS Settings: Reply to on one line, the signature in its own box-free row,
+    // and Save underneath. (Paul: the old page had pickers wrapping under their labels and a box in a box.)
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TextField("Replies go to (leave empty for this address)", text: $replyTo)
-                .textFieldStyle(.roundedBorder)
-                #if os(iOS)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                #endif
-            Text("Signature").font(.caption).foregroundStyle(.secondary)
-            TextEditor(text: $text)
-                .font(Look.size(13))
-                .frame(minHeight: 70)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
-            HStack {
-                Spacer()
-                Button {
-                    Task {
-                        saving = true
-                        if replyTo != identity.replyToText { _ = await store.saveReplyTo(replyTo, identity: identity, account: account) }
-                        if text != (identity.textSignature ?? "") { await store.saveSignature(text, identity: identity, account: account) }
-                        saving = false
-                    }
-                } label: {
-                    if saving { ProgressView().controlSize(.small) } else { Label("Save", systemImage: "checkmark") }
-                }
-                .disabled(saving || !changed)
+        Group {
+            LabeledContent("Reply to") {
+                TextField("Same address", text: $replyTo)
+                    .multilineTextAlignment(.trailing)
+                    #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    #endif
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Signature").font(.subheadline).foregroundStyle(.secondary)
+                TextEditor(text: $text)
+                    .font(Look.size(15))
+                    .frame(minHeight: 110)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, -5)
+            }
+            .padding(.vertical, 4)
+            Button {
+                Task {
+                    saving = true
+                    if replyTo != identity.replyToText { _ = await store.saveReplyTo(replyTo, identity: identity, account: account) }
+                    if text != (identity.textSignature ?? "") { await store.saveSignature(text, identity: identity, account: account) }
+                    saving = false
+                }
+            } label: {
+                HStack {
+                    Spacer()
+                    if saving { ProgressView().controlSize(.small) } else { Label("Save", systemImage: "checkmark") }
+                    Spacer()
+                }
+            }
+            .disabled(saving || !changed)
         }
         .onAppear { text = identity.textSignature ?? ""; replyTo = identity.replyToText }
     }
