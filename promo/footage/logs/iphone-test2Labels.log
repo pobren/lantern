@@ -1,0 +1,68 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=7807D9C1-D010-41CE-9202-802D630ED689 "-only-testing:PromoTour/Tour/test2Labels"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+{ platform:iOS Simulator, arch:x86_64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+2026-11-19 11:21:45.036986+0000 PromoTour-Runner[15360:49436] [Default] Running tests...
+2026-11-19 11:21:45.325967+0000 PromoTour-Runner[15360:49740] [General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+    t =      nans Interface orientation changed to Portrait
+2026-11-19 11:21:47.138815+0000 PromoTour-Runner[15360:49737] [General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+Test Suite 'Selected tests' started at 2026-11-19 11:21:47.197.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:21:47.198.
+Test Suite 'Tour' started at 2026-11-19 11:21:47.198.
+Test Case '-[PromoTour.Tour test2Labels]' started.
+    t =     0.00s Start Test at 2026-11-19 11:21:47.200
+    t =     0.23s Set Up
+    t =     0.24s Open dev.paulobrien.lantern
+    t =     0.24s     Launch dev.paulobrien.lantern
+2026-11-19 11:21:48.810 xcodebuild[13946:44790] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:21:48.811 xcodebuild[13946:44790] [MT] IDELaunchParametersSnapshot: no debugger version
+objc[15360]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x10ab80310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10ac14398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =     7.52s         Setting up automation session
+    t =    11.47s         Wait for dev.paulobrien.lantern to idle
+    t =    18.78s Waiting 6.0s for "More" Button to exist
+    t =    19.83s     Checking `Expect predicate `existsNoRetry == 1` for object "More" Button`
+    t =    19.84s         Checking existence of `"More" Button`
+    t =    20.41s Tap "More" Button
+    t =    20.41s     Wait for dev.paulobrien.lantern to idle
+    t =    20.42s     Find the "More" Button
+    t =    20.82s     Check for interrupting elements affecting "More" Button
+    t =    21.02s     Synthesize event
+    t =    21.41s     Wait for dev.paulobrien.lantern to idle
+    t =    24.24s Waiting 6.0s for "Labels" Button to exist
+    t =    25.28s     Checking `Expect predicate `existsNoRetry == 1` for object "Labels" Button`
+    t =    25.28s         Checking existence of `"Labels" Button`
+    t =    25.43s Tap "Labels" Button
+    t =    25.43s     Wait for dev.paulobrien.lantern to idle
+    t =    25.44s     Find the "Labels" Button
+    t =    25.58s     Check for interrupting elements affecting "tag" Button
+    t =    25.72s     Synthesize event
+    t =    26.04s     Wait for dev.paulobrien.lantern to idle
+    t =    29.31s Waiting 6.0s for Button (First Match) to exist
+    t =    30.32s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =    30.32s         Checking existence of `Button (First Match)`
+    t =    30.45s Tap Button (First Match)
+    t =    30.45s     Wait for dev.paulobrien.lantern to idle
+    t =    30.46s     Find the Button (First Match)
+    t =    30.58s     Check for interrupting elements affecting "tag" Button
+    t =    30.73s     Synthesize event
+    t =    31.12s     Wait for dev.paulobrien.lantern to idle
+    t =    34.52s Tear Down
+Test Case '-[PromoTour.Tour test2Labels]' passed (35.120 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:22:22.321.
+	 Executed 1 test, with 0 failures (0 unexpected) in 35.120 (35.123) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:22:22.324.
+	 Executed 1 test, with 0 failures (0 unexpected) in 35.120 (35.126) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:22:22.326.
+	 Executed 1 test, with 0 failures (0 unexpected) in 35.120 (35.129) seconds
+2026-11-19 11:22:24.261 xcodebuild[13946:44790] [MT] IDETestOperationsObserverDebug: 58.739 elapsed -- Testing started completed.
+2026-11-19 11:22:24.262 xcodebuild[13946:44790] [MT] IDETestOperationsObserverDebug: 0.001 sec, +0.001 sec -- start
+2026-11-19 11:22:24.262 xcodebuild[13946:44790] [MT] IDETestOperationsObserverDebug: 58.739 sec, +58.739 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-20-15-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

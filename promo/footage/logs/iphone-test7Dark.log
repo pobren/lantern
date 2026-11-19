@@ -1,0 +1,54 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=7807D9C1-D010-41CE-9202-802D630ED689 "-only-testing:PromoTour/Tour/test7Dark"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+{ platform:iOS Simulator, arch:x86_64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+2026-11-19 11:30:31.228919+0000 PromoTour-Runner[31126:92857] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-19 11:30:35.148.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:30:35.150.
+Test Suite 'Tour' started at 2026-11-19 11:30:35.150.
+Test Case '-[PromoTour.Tour test7Dark]' started.
+    t =     0.00s Start Test at 2026-11-19 11:30:35.152
+    t =     0.18s Set Up
+    t =     0.19s Open dev.paulobrien.lantern
+    t =     0.19s     Launch dev.paulobrien.lantern
+2026-11-19 11:30:38.426 xcodebuild[30472:91129] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:30:38.426 xcodebuild[30472:91129] [MT] IDELaunchParametersSnapshot: no debugger version
+objc[31126]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x106ffc310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x105b5c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =     9.83s         Setting up automation session
+    t =    12.69s         Wait for dev.paulobrien.lantern to idle
+    t =    20.33s Waiting 6.0s for "Re: Lisbon in April" StaticText to exist
+    t =    21.37s     Checking `Expect predicate `existsNoRetry == 1` for object "Re: Lisbon in April" StaticText`
+    t =    21.37s         Checking existence of `"Re: Lisbon in April" StaticText`
+    t =    21.71s Tap "Re: Lisbon in April" StaticText
+    t =    21.71s     Wait for dev.paulobrien.lantern to idle
+    t =    21.73s     Find the "Re: Lisbon in April" StaticText
+    t =    22.03s     Check for interrupting elements affecting "Re: Lisbon in April" StaticText
+    t =    22.12s     Synthesize event
+    t =    22.46s     Wait for dev.paulobrien.lantern to idle
+    t =    26.42s Swipe up WebView (First Match)
+    t =    26.42s     Wait for dev.paulobrien.lantern to idle
+    t =    26.43s     Find the WebView (First Match)
+    t =    26.77s     Check for interrupting elements affecting WebView
+    t =    26.85s     Synthesize event
+    t =    27.89s     Wait for dev.paulobrien.lantern to idle
+    t =    30.26s Tear Down
+Test Case '-[PromoTour.Tour test7Dark]' passed (31.035 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:31:06.188.
+	 Executed 1 test, with 0 failures (0 unexpected) in 31.035 (31.037) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:31:06.189.
+	 Executed 1 test, with 0 failures (0 unexpected) in 31.035 (31.039) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:31:06.189.
+	 Executed 1 test, with 0 failures (0 unexpected) in 31.035 (31.041) seconds
+2026-11-19 11:31:07.709 xcodebuild[30472:91129] [MT] IDETestOperationsObserverDebug: 51.861 elapsed -- Testing started completed.
+2026-11-19 11:31:07.709 xcodebuild[30472:91129] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:31:07.709 xcodebuild[30472:91129] [MT] IDETestOperationsObserverDebug: 51.861 sec, +51.861 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-30-11-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

@@ -1,0 +1,90 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=7807D9C1-D010-41CE-9202-802D630ED689 "-only-testing:PromoTour/Tour/test1Inbox"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+{ platform:iOS Simulator, arch:x86_64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+2026-11-19 11:18:41.792460+0000 PromoTour-Runner[12378:40179] [Default] Running tests...
+2026-11-19 11:18:41.931299+0000 PromoTour-Runner[12378:40486] [General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-11-19 11:18:41.976467+0000 PromoTour-Runner[12378:40486] [General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+objc[12378]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x109158310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x104f6c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-19 11:18:53.261.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:18:53.264.
+Test Suite 'Tour' started at 2026-11-19 11:18:53.265.
+Test Case '-[PromoTour.Tour test1Inbox]' started.
+    t =     0.00s Start Test at 2026-11-19 11:18:53.266
+    t =     0.18s Set Up
+    t =     0.29s Open dev.paulobrien.lantern
+    t =     0.30s     Launch dev.paulobrien.lantern
+2026-11-19 11:19:01.786 xcodebuild[11600:38190] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:19:01.787 xcodebuild[11600:38190] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    24.32s         Setting up automation session
+    t =    26.01s         Wait for dev.paulobrien.lantern to idle
+    t =    32.70s Swipe up CollectionView (First Match)
+    t =    32.70s     Wait for dev.paulobrien.lantern to idle
+    t =    32.71s     Find the CollectionView (First Match)
+    t =    33.43s     Check for interrupting elements affecting CollectionView
+    t =    33.73s     Synthesize event
+    t =    35.00s     Wait for dev.paulobrien.lantern to idle
+    t =    37.31s Swipe down CollectionView at {{0.0, 0.0}, {402.0, 874.0}}
+    t =    37.32s     Wait for dev.paulobrien.lantern to idle
+    t =    37.35s     Find the CollectionView at {{0.0, 0.0}, {402.0, 874.0}}
+    t =    38.34s     Check for interrupting elements affecting CollectionView
+    t =    38.71s     Synthesize event
+    t =    39.70s     Wait for dev.paulobrien.lantern to idle
+    t =    42.52s Waiting 4.0s for "Your loyalty card is full" StaticText to exist
+    t =    43.56s     Checking `Expect predicate `existsNoRetry == 1` for object "Your loyalty card is full" StaticText`
+    t =    43.57s         Checking existence of `"Your loyalty card is full" StaticText`
+    t =    44.18s         Capturing element debug description
+    t =    44.54s     Checking `Expect predicate `existsNoRetry == 1` for object "Your loyalty card is full" StaticText`
+    t =    44.54s         Checking existence of `"Your loyalty card is full" StaticText`
+    t =    44.87s         Capturing element debug description
+    t =    45.54s     Checking `Expect predicate `existsNoRetry == 1` for object "Your loyalty card is full" StaticText`
+    t =    45.54s         Checking existence of `"Your loyalty card is full" StaticText`
+    t =    45.95s         Capturing element debug description
+    t =    46.52s     Checking `Expect predicate `existsNoRetry == 1` for object "Your loyalty card is full" StaticText`
+    t =    46.52s         Checking existence of `"Your loyalty card is full" StaticText`
+    t =    46.81s         Capturing element debug description
+    t =    46.81s     Checking existence of `"Your loyalty card is full" StaticText`
+    t =    47.28s Collecting debug information to assist test failure triage
+    t =    47.28s     Requesting snapshot of accessibility hierarchy for app with pid 12919
+    t =    47.45s Waiting 6.0s for "Sketches for the spring launch" StaticText to exist
+    t =    48.48s     Checking `Expect predicate `existsNoRetry == 1` for object "Sketches for the spring launch" StaticText`
+    t =    48.48s         Checking existence of `"Sketches for the spring launch" StaticText`
+    t =    48.90s Tap "Sketches for the spring launch" StaticText
+    t =    48.90s     Wait for dev.paulobrien.lantern to idle
+    t =    48.90s     Find the "Sketches for the spring launch" StaticText
+    t =    49.07s     Check for interrupting elements affecting "Sketches for the spring launch" StaticText
+    t =    49.17s     Synthesize event
+    t =    49.50s     Wait for dev.paulobrien.lantern to idle
+    t =    54.12s Swipe up WebView (First Match)
+    t =    54.12s     Wait for dev.paulobrien.lantern to idle
+    t =    54.12s     Find the WebView (First Match)
+    t =    55.33s     Check for interrupting elements affecting WebView
+    t =    56.06s     Synthesize event
+    t =    57.84s     Wait for dev.paulobrien.lantern to idle
+    t =    59.71s Swipe down WebView (First Match)
+    t =    59.71s     Wait for dev.paulobrien.lantern to idle
+    t =    59.72s     Find the WebView (First Match)
+    t =    60.50s     Check for interrupting elements affecting WebView
+    t =    60.59s     Synthesize event
+    t =    61.32s     Wait for dev.paulobrien.lantern to idle
+    t =    63.22s Tear Down
+Test Case '-[PromoTour.Tour test1Inbox]' passed (63.605 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:19:56.872.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.605 (63.607) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:19:56.873.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.605 (63.608) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:19:56.873.
+	 Executed 1 test, with 0 failures (0 unexpected) in 63.605 (63.612) seconds
+2026-11-19 11:19:58.427 xcodebuild[11600:38190] [MT] IDETestOperationsObserverDebug: 99.495 elapsed -- Testing started completed.
+2026-11-19 11:19:58.427 xcodebuild[11600:38190] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:19:58.427 xcodebuild[11600:38190] [MT] IDETestOperationsObserverDebug: 99.495 sec, +99.495 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-18-11-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

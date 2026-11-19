@@ -1,0 +1,81 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Lantern.xcodeproj -scheme Promo -derivedDataPath build/promo -destination id=7807D9C1-D010-41CE-9202-802D630ED689 "-only-testing:PromoTour/Tour/test6Alert"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+{ platform:iOS Simulator, arch:x86_64, id:7807D9C1-D010-41CE-9202-802D630ED689, OS:26.5, name:Promo iPhone }
+2026-11-19 11:28:39.033986+0000 PromoTour-Runner[28351:85159] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-19 11:28:40.741.
+Test Suite 'PromoTour.xctest' started at 2026-11-19 11:28:40.742.
+Test Suite 'Tour' started at 2026-11-19 11:28:40.749.
+Test Case '-[PromoTour.Tour test6Alert]' started.
+    t =     0.00s Start Test at 2026-11-19 11:28:40.751
+    t =     0.08s Set Up
+    t =     0.09s Open dev.paulobrien.lantern
+    t =     0.10s     Launch dev.paulobrien.lantern
+2026-11-19 11:28:41.533 xcodebuild[27955:84037] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-19 11:28:41.533 xcodebuild[27955:84037] [MT] IDELaunchParametersSnapshot: no debugger version
+objc[28351]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x10b590310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x107380398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =     7.32s         Setting up automation session
+    t =    10.12s         Wait for dev.paulobrien.lantern to idle
+    t =    12.82s Waiting 6.0s for "Allow" Button to exist
+    t =    13.83s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =    13.84s         Checking existence of `"Allow" Button`
+    t =    14.22s Tap "Allow" Button
+    t =    14.22s     Wait for com.apple.springboard to idle
+    t =    14.23s     Find the "Allow" Button
+    t =    14.29s     Check for interrupting elements affecting "Allow" Button
+    t =    14.38s     Synthesize event
+    t =    14.69s     Wait for com.apple.springboard to idle
+    t =    17.02s Pressing Home button
+    t =    17.50s Waiting 12.0s for "Notification" Other to exist
+    t =    18.52s     Checking `Expect predicate `existsNoRetry == 1` for object "Notification" Other`
+    t =    18.53s         Checking existence of `"Notification" Other`
+    t =    19.26s         Capturing element debug description
+    t =    19.50s     Checking `Expect predicate `existsNoRetry == 1` for object "Notification" Other`
+    t =    19.51s         Checking existence of `"Notification" Other`
+    t =    19.89s         Capturing element debug description
+    t =    20.50s     Checking `Expect predicate `existsNoRetry == 1` for object "Notification" Other`
+    t =    20.50s         Checking existence of `"Notification" Other`
+    t =    20.79s         Capturing element debug description
+    t =    21.51s     Checking `Expect predicate `existsNoRetry == 1` for object "Notification" Other`
+    t =    21.51s         Checking existence of `"Notification" Other`
+    t =    21.76s         Capturing element debug description
+    t =    22.51s     Checking `Expect predicate `existsNoRetry == 1` for object "Notification" Other`
+    t =    22.51s         Checking existence of `"Notification" Other`
+    t =    25.25s Checking existence of `"Notification" Other`
+    t =    25.36s Press "Notification" Other for 1.2 seconds
+    t =    25.36s     Wait for com.apple.springboard to idle
+    t =    25.37s     Find the "Notification" Other
+    t =    25.44s     Check for interrupting elements affecting "Notification" Other
+    t =    25.54s     Synthesize event
+    t =    27.89s     Wait for com.apple.springboard to idle
+    t =    32.01s Waiting 3.0s for "Archive" Button to exist
+    t =    33.06s     Checking `Expect predicate `existsNoRetry == 1` for object "Archive" Button`
+    t =    33.06s         Checking existence of `"Archive" Button`
+    t =    33.25s Tap "Archive" Button
+    t =    33.25s     Wait for com.apple.springboard to idle
+    t =    33.25s     Find the "Archive" Button
+    t =    33.45s     Check for interrupting elements affecting "Archive" Button
+    t =    33.56s     Synthesize event
+    t =    33.87s     Wait for com.apple.springboard to idle
+    t =    37.52s Tear Down
+    t =    37.81s Checking for crash reports corresponding to unexpected termination of dev.paulobrien.lantern
+Test Case '-[PromoTour.Tour test6Alert]' passed (57.839 seconds).
+Test Suite 'Tour' passed at 2026-11-19 11:29:38.593.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.839 (57.844) seconds
+Test Suite 'PromoTour.xctest' passed at 2026-11-19 11:29:38.595.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.839 (57.853) seconds
+Test Suite 'Selected tests' passed at 2026-11-19 11:29:38.600.
+	 Executed 1 test, with 0 failures (0 unexpected) in 57.839 (57.859) seconds
+2026-11-19 11:29:41.380 xcodebuild[27955:84037] [MT] IDETestOperationsObserverDebug: 67.057 elapsed -- Testing started completed.
+2026-11-19 11:29:41.380 xcodebuild[27955:84037] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:29:41.380 xcodebuild[27955:84037] [MT] IDETestOperationsObserverDebug: 67.057 sec, +67.057 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/lantern/lantern/apps/build/promo/Logs/Test/Test-Promo-2026.11.19_11-28-28-+0000.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
