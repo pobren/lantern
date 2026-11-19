@@ -121,6 +121,7 @@ struct SettingsView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State private var adding: ServerKind?
+    @State private var masking: AccountState?
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Notifier.enabledKey) private var notify = true
@@ -181,6 +182,15 @@ struct SettingsView: View {
                 Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
             }
             OfflineSection()
+            Section("Masked Email") {
+                ForEach(store.accounts.filter { $0.account.kind == "fastmail" }) { s in
+                    Button { masking = s } label: {
+                        Label(store.accounts.count > 1 ? "Masked addresses for \(s.account.label)" : "Masked addresses", systemImage: "theatermasks")
+                    }
+                }
+                Text("Make a private address for each website, copy it in one tap, and turn it off if it starts getting spam.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Accounts") {
                 ForEach(store.accounts) { s in
                     HStack {
@@ -209,6 +219,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .sheet(item: $masking) { s in MaskedEmailView(state: s) }
         .formStyle(.grouped)
         #if os(macOS)
         .frame(width: 500, height: 620)

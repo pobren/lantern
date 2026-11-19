@@ -34,7 +34,7 @@ struct ServerKind: Identifiable, Hashable {
     static let fastmail = ServerKind(
         id: "fastmail", name: "Fastmail",
         sessionURL: "https://api.fastmail.com/jmap/session",
-        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, and Email submission so you can send.")
+        tokenHelp: "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, Email submission so you can send, and Masked Email if you use it.")
     static let mailApp = ServerKind(
         id: "mailapp", name: "Mail App",
         sessionURL: "",

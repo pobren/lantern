@@ -245,6 +245,14 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            Menu {
+                ForEach(store.labels(for: item)) { entry in
+                    let on = item.email.mailboxIds[entry.box.id] == true
+                    Button { Task { await store.setLabel(item, entry.box, on: !on) } } label: {
+                        Label(String(repeating: "  ", count: entry.depth) + entry.box.name, systemImage: on ? "checkmark" : "tag")
+                    }
+                }
+            } label: { Label("Labels", systemImage: "tag") }
             #if os(iOS)
             spamButton
             #endif

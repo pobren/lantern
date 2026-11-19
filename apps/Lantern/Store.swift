@@ -583,6 +583,33 @@ final class Store: ObservableObject {
         await apply(patches, in: s)
     }
 
+    /// Adds or takes off a label (Fastmail mailbox) on the whole conversation, keeping its other labels.
+    /// An email has to stay somewhere, so the last label can't come off (archive it instead).
+    func setLabel(_ item: Item, _ box: Mailbox, on: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        var thread = (try? await s.client.thread(item.email.threadId)) ?? []
+        if thread.isEmpty { thread = [item.email] }
+        var patches: [String: [String: Any]] = [:]
+        for e in thread {
+            if on, e.mailboxIds[box.id] != true { patches[e.id] = ["mailboxIds/\(box.id)": true] }
+            if !on, e.mailboxIds[box.id] == true {
+                guard e.mailboxIds.keys.contains(where: { $0 != box.id }) else {
+                    problem = "That's the only label on this email. Archive or move it instead."
+                    return
+                }
+                patches[e.id] = ["mailboxIds/\(box.id)": NSNull()]
+            }
+        }
+        await apply(patches, in: s)
+        await reloadList(quietly: true)
+    }
+
+    /// The labels an email can take: every folder except Bin, Spam, Drafts and Sent.
+    func labels(for item: Item) -> [FolderEntry] {
+        guard let s = state(for: item.account) else { return [] }
+        return s.tree.filter { !["trash", "junk", "drafts", "sent"].contains($0.box.role ?? "") }
+    }
+
     /// The In-Reply-To and References headers for an answer to this email.
     nonisolated static func threading(_ replyTo: Email?) -> (inReplyTo: String?, references: [String]) {
         (replyTo?.messageId?.first, replyTo?.references ?? [])
