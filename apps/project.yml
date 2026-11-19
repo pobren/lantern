@@ -67,6 +67,9 @@ targets:
       path: Notify/Info.plist
       properties:
         CFBundleDisplayName: JMAP Connect
+        # Must match the app's own version and build number, or App Store Connect warns (ITMS-90473).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
