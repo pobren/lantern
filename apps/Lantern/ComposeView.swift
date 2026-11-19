@@ -26,6 +26,8 @@ struct ComposeDraft: Identifiable {
     var savedThreading: (inReplyTo: String?, references: [String])?
     /// Files already on a saved draft.
     var attachments: [Outgoing] = []
+    /// For a scheduled email opened to edit: the time it was due to go, kept unless changed.
+    var sendAt: Date?
 
     var threading: (inReplyTo: String?, references: [String]) { savedThreading ?? Store.threading(replyTo) }
 
@@ -162,6 +164,7 @@ struct ComposeView: View {
         _showCc = State(initialValue: !draft.cc.isEmpty)
         _showBcc = State(initialValue: !draft.bcc.isEmpty)
         _files = State(initialValue: draft.attachments)
+        _sendAt = State(initialValue: draft.sendAt.flatMap { $0 > Date() ? $0 : nil })
         _start = State(initialValue: Self.snapshot(draft, draft.attachments))
     }
 

@@ -95,6 +95,8 @@ struct ReadingPane: View {
                     Text(waiting.sendAt.map { "Sends \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Waiting to send")
                         .font(.callout)
                     Spacer()
+                    Button { editScheduled(waiting) } label: { Label("Edit", systemImage: "pencil") }
+                        .buttonStyle(.borderless)
                     Button {
                         Task { if await store.cancelScheduled(shown, waiting: waiting, account: item.account) { cancelled = true } }
                     } label: { Label("Don't send", systemImage: "xmark.circle") }
@@ -310,6 +312,21 @@ struct ReadingPane: View {
                        toggleStar: { Task { await store.flag(item) } },
                        editDraft: store.isEditableDraft(item, shown) ? { editDraft() } : nil,
                        inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged)
+    }
+
+    /// Paul: scheduled emails sit in Scheduled "so you can edit them". Stops the send, then opens it to change,
+    /// with the same send time already set. Sending or scheduling it again replaces the copy in Drafts.
+    private func editScheduled(_ w: Waiting) {
+        let e = shown
+        Task {
+            let text = await store.text(e, account: item.account)
+            let files = page?.attachments ?? []
+            guard await store.cancelScheduled(e, waiting: w, account: item.account) else { return }
+            cancelled = true
+            var d = ComposeDraft.editing(e, account: item.account, text: text, attachments: files, store: store)
+            d.sendAt = w.sendAt
+            compose(d)
+        }
     }
 
     /// Opens a saved draft for writing again; saving or sending it replaces the old copy.
