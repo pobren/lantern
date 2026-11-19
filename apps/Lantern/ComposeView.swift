@@ -137,8 +137,8 @@ struct ComposeView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var draft: ComposeDraft
-    @State private var showCc = false
-    @State private var showBcc = false
+    /// Cc, Bcc and From shown in full, rather than folded into one line under To.
+    @State private var more = false
     @State private var sending = false
     @State private var problem: String?
     @FocusState private var focus: Field?
@@ -161,8 +161,7 @@ struct ComposeView: View {
 
     init(draft: ComposeDraft) {
         _draft = State(initialValue: draft)
-        _showCc = State(initialValue: !draft.cc.isEmpty)
-        _showBcc = State(initialValue: !draft.bcc.isEmpty)
+        _more = State(initialValue: !draft.cc.isEmpty || !draft.bcc.isEmpty)
         _files = State(initialValue: draft.attachments)
         _sendAt = State(initialValue: draft.sendAt.flatMap { $0 > Date() ? $0 : nil })
         _start = State(initialValue: Self.snapshot(draft, draft.attachments))
@@ -476,6 +475,12 @@ struct ComposeView: View {
         if let first = matches(field).first { pick(first, field) }
     }
 
+    /// The address this will be sent from, for the folded line under To.
+    private var fromAddress: String {
+        if !draft.fromEmail.isEmpty { return draft.fromEmail }
+        return chosen?.email ?? ""
+    }
+
     private var form: some View {
         VStack(spacing: 0) {
             if let address = draft.unmatched, let account = draft.account {
@@ -500,7 +505,61 @@ struct ComposeView: View {
                 .padding(.horizontal, 20).frame(minHeight: 38)
                 Divider().padding(.leading, 20)
             }
-            if choices.count > 1 || chosen?.isWildcard == true {
+            row("To") {
+                TextField("", text: $draft.to)
+                    .textFieldStyle(.plain)
+                    .focused($focus, equals: .to)
+                    .onSubmit { pickFirst(.to) }
+                    #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    #endif
+            }
+            if focus == .to { suggestions(.to) }
+            // Like Apple Mail: Cc, Bcc and From fold into one quiet line under To until you tap it.
+            if !more {
+                Button { withAnimation(.snappy) { more = true } } label: {
+                    HStack(spacing: 6) {
+                        Text("Cc/Bcc, From:").foregroundStyle(.secondary)
+                        Text(fromAddress).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                    }
+                    .font(Look.size(14))
+                    .padding(.horizontal, 20).frame(minHeight: 42)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cc, Bcc and From: \(fromAddress)")
+                Divider().padding(.leading, 20)
+            }
+            if more {
+                row("Cc") {
+                    TextField("", text: $draft.cc)
+                        .textFieldStyle(.plain)
+                        .focused($focus, equals: .cc)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                }
+            }
+            if more && focus == .cc { suggestions(.cc) }
+            if more {
+                row("Bcc") {
+                    TextField("", text: $draft.bcc)
+                        .textFieldStyle(.plain)
+                        .focused($focus, equals: .bcc)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                }
+            }
+            if more && focus == .bcc { suggestions(.bcc) }
+            if more && (choices.count > 1 || chosen?.isWildcard == true) {
                 row("From") {
                     Picker("From", selection: chosenKey) {
                         ForEach(choices.indices, id: \.self) { i in
@@ -513,7 +572,7 @@ struct ComposeView: View {
                     Spacer()
                 }
             }
-            if let id = chosen, id.isWildcard {
+            if more, let id = chosen, id.isWildcard {
                 row("As") {
                     TextField("you@\(id.domain)", text: $draft.fromEmail)
                         .textFieldStyle(.plain)
@@ -527,46 +586,6 @@ struct ComposeView: View {
                     }
                 }
             }
-            row("To") {
-                TextField("", text: $draft.to)
-                    .textFieldStyle(.plain)
-                    .focused($focus, equals: .to)
-                    .onSubmit { pickFirst(.to) }
-                    #if os(iOS)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    #endif
-                if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
-                if !showBcc { Button("Bcc") { showBcc = true }.buttonStyle(.borderless) }
-            }
-            if focus == .to { suggestions(.to) }
-            if showCc {
-                row("Cc") {
-                    TextField("", text: $draft.cc)
-                        .textFieldStyle(.plain)
-                        .focused($focus, equals: .cc)
-                        #if os(iOS)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
-                }
-            }
-            if showCc && focus == .cc { suggestions(.cc) }
-            if showBcc {
-                row("Bcc") {
-                    TextField("", text: $draft.bcc)
-                        .textFieldStyle(.plain)
-                        .focused($focus, equals: .bcc)
-                        #if os(iOS)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
-                }
-            }
-            if showBcc && focus == .bcc { suggestions(.bcc) }
             if let sendAt {
                 HStack(spacing: 10) {
                     Image(systemName: "clock").foregroundStyle(Look.accent)
