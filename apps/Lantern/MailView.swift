@@ -21,7 +21,7 @@ struct RootView: View {
     }()
 
     private var sidebar: some View {
-        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, showList: { compact = .content })
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, column: $compact)
     }
     private var middle: some View {
         MessageList(compose: { composing = ComposeDraft.new(store: store) })
@@ -131,8 +131,9 @@ struct Sidebar: View {
     @EnvironmentObject var store: Store
     let compose: () -> Void
     let settings: () -> Void
-    /// On iPhone, moves on to the list of conversations, even when the folder tapped was already open.
-    var showList: () -> Void = {}
+    /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
+    /// tapping a folder sets it to .content, even when that folder was already open.
+    var column: Binding<NavigationSplitViewColumn>? = nil
 
     @State private var naming: Naming?
     @State private var inboxTargeted = false
@@ -148,7 +149,7 @@ struct Sidebar: View {
         Binding(get: { chosen }, set: { f in
             chosen = f
             if let f {
-                showList()
+                column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
         })
@@ -201,7 +202,9 @@ struct Sidebar: View {
                 naming = nil
             }
         }
-        .onChange(of: store.folder) { _, f in if chosen != f { chosen = f } }
+        .onChange(of: store.folder) { _, f in if chosen != f && column?.wrappedValue != .sidebar { chosen = f } }
+        // Back on the folders (iPhone): clear the highlight so tapping the same folder opens it again.
+        .onChange(of: column?.wrappedValue) { _, c in if c == .sidebar { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())
