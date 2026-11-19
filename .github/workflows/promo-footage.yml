@@ -12,6 +12,11 @@ on:
 permissions:
   contents: write
 
+# Re-film only some scenes by listing them here (empty films them all).
+env:
+  IPHONE_SCENES: "test3Reply"
+  MAC_SCENES: "test1MacTour test3MacFolders test5MacDark"
+
 jobs:
   film:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[footage')
@@ -57,7 +62,7 @@ jobs:
           brew install displayplacer > /dev/null 2>&1 || true
           displayplacer list | tee /tmp/displays.txt | head -60 || true
           id=$(grep -m1 "Persistent screen id" /tmp/displays.txt | awk '{print $4}')
-          for res in 1920x1200 1920x1080 1680x1050 1600x1000 1440x900 1280x800; do
+          for res in 1920x1080 1680x1050 1600x1000 1440x900 1280x800; do
             if grep -q "res:$res" /tmp/displays.txt; then
               displayplacer "id:$id res:$res scaling:off origin:(0,0) degree:0" && echo "screen now $res" && break
             fi
@@ -91,7 +96,7 @@ jobs:
           xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
           xcrun simctl ui "$UDID" appearance light
           mkdir -p ../promo/footage/iphone ../promo/footage/logs
-          for t in test1Inbox test2Labels test3Reply test4Search test5Masked test6Alert test7Dark; do
+          for t in ${IPHONE_SCENES:-test1Inbox test2Labels test3Reply test4Search test5Masked test6Alert test7Dark}; do
             [ "$t" = test7Dark ] && xcrun simctl ui "$UDID" appearance dark
             xcrun simctl io "$UDID" recordVideo --codec h264 --force "../promo/footage/iphone/$t.mp4" > /dev/null 2>&1 &
             REC=$!
@@ -110,7 +115,7 @@ jobs:
         run: |
           mkdir -p ../promo/footage/mac ../promo/footage/logs
           cp /tmp/displays.txt ../promo/footage/logs/mac-displays.txt 2>/dev/null || true
-          for t in test1MacTour test2MacSearch test3MacFolders test4MacMasked test5MacDark; do
+          for t in ${MAC_SCENES:-test1MacTour test2MacSearch test3MacFolders test4MacMasked test5MacDark}; do
             screencapture -v -V 120 -k "../promo/footage/mac/$t.mov" > /dev/null 2>&1 &
             REC=$!
             sleep 2

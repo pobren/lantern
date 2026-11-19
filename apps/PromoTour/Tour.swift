@@ -79,7 +79,8 @@ final class Tour: XCTestCase {
         pause(1.5)
         let body = app.textViews.firstMatch
         if body.waitForExistence(timeout: 5) {
-            body.tap(); pause(0.6)
+            // Tap the very top of the email, above the signature and the quote.
+            body.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.0)).withOffset(CGVector(dx: 0, dy: 8)).tap(); pause(0.6)
             type("Love the second direction, Maya. Let's go with it and I'll send the final copy on Thursday.", into: body)
         }
         pause(2.5)
@@ -152,15 +153,20 @@ final class Tour: XCTestCase {
     func test1MacTour() {
         launch("email")
         pause(1)
-        for subject in ["Saturday plans", "Contract, signed copy attached", "Re: Lisbon in April", "Sketches for the spring launch"] {
-            tap(text(subject)); pause(2)
+        // Down the list with the arrow keys, then back up to Maya's email.
+        tap(app.staticTexts["Maya Chen"].firstMatch); pause(0.5)
+        for key in [XCUIKeyboardKey.downArrow, .downArrow, .downArrow, .downArrow, .upArrow, .upArrow, .upArrow, .upArrow] {
+            app.typeKey(key, modifierFlags: []); pause(1.3)
         }
-        // Reply.
+        pause(1)
+        // Reply, typed at the top above the quote.
         app.typeKey("r", modifierFlags: .command); pause(1.5)
         let body = app.textViews.firstMatch
         if body.waitForExistence(timeout: 5) {
-            body.click(); pause(0.4)
-            type("Love the second direction, Maya. Let's go with it.", into: body)
+            body.click(); pause(0.3)
+            app.typeKey(.upArrow, modifierFlags: .command); pause(0.4)
+            type("Hi Maya, love the second direction. Let's go with it.", into: body)
+            app.typeKey(.return, modifierFlags: []); app.typeKey(.return, modifierFlags: [])
             pause(2)
         }
         app.typeKey(.escape, modifierFlags: []); pause(1)
@@ -183,8 +189,9 @@ final class Tour: XCTestCase {
     func test3MacFolders() {
         launch("email")
         for folder in ["Clients", "Travel", "Inbox"] {
-            let f = app.outlines.staticTexts[folder].firstMatch
-            if f.waitForExistence(timeout: 3) { f.click(); pause(2.2) }
+            let f = app.outlines.cells.containing(.staticText, identifier: folder).firstMatch
+            let g = f.exists ? f : app.staticTexts[folder].firstMatch
+            if g.waitForExistence(timeout: 3) { g.click(); pause(2.2) }
         }
     }
 
@@ -208,8 +215,9 @@ final class Tour: XCTestCase {
 
     func test5MacDark() {
         launch("email", ["-JCDark"])
-        for subject in ["Notes from Tuesday's review", "Sketches for the spring launch"] {
-            tap(text(subject)); pause(2.5)
+        tap(app.staticTexts["Maya Chen"].firstMatch); pause(0.5)
+        for key in [XCUIKeyboardKey.downArrow, .downArrow, .upArrow, .upArrow] {
+            app.typeKey(key, modifierFlags: []); pause(1.6)
         }
     }
     #endif
