@@ -21,7 +21,7 @@ struct RootView: View {
     }()
 
     private var sidebar: some View {
-        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true })
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, showList: { compact = .content })
     }
     private var middle: some View {
         MessageList(compose: { composing = ComposeDraft.new(store: store) })
@@ -77,12 +77,9 @@ struct RootView: View {
         Group {
             if store.hasAccounts {
                 Group {
-                    if Demo.screen != nil {
-                        // Screenshots: start on the column the shot needs, on iPhone too.
-                        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
-                    } else {
-                        NavigationSplitView(columnVisibility: $columns) { sidebar } content: { middle } detail: { detail }
-                    }
+                    // Screenshots start on the column the shot needs. In normal use the iPhone opens on the inbox,
+                    // and tapping a folder always moves on to its conversations.
+                    NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
                 }
                 .task {
                     await store.start()
@@ -134,13 +131,27 @@ struct Sidebar: View {
     @EnvironmentObject var store: Store
     let compose: () -> Void
     let settings: () -> Void
+    /// On iPhone, moves on to the list of conversations, even when the folder tapped was already open.
+    var showList: () -> Void = {}
 
     @State private var naming: Naming?
     @State private var inboxTargeted = false
     @State private var folderName = ""
 
+    /// The highlighted folder. It's kept here rather than read straight from the store so the list can clear
+    /// it: on iPhone, going back to the folders clears the highlight, and only then does tapping the same folder
+    /// (Inbox, say, after closing Settings) open it again. Before, the list still thought Inbox was chosen and
+    /// the tap did nothing.
+    @State private var chosen: Folder? = .allInboxes
+
     private var picked: Binding<Folder?> {
-        Binding(get: { store.folder }, set: { f in if let f { Task { await store.open(f) } } })
+        Binding(get: { chosen }, set: { f in
+            chosen = f
+            if let f {
+                showList()
+                Task { await store.open(f) }
+            }
+        })
     }
 
     var body: some View {
@@ -190,6 +201,7 @@ struct Sidebar: View {
                 naming = nil
             }
         }
+        .onChange(of: store.folder) { _, f in if chosen != f { chosen = f } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())
