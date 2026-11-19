@@ -311,12 +311,13 @@ struct SettingsView: View {
         let canAway = store.accounts.filter { $0.client.canVacation }
         if !fastmail.isEmpty {
             Section {
-                ForEach(fastmail) { s in
+                // Separate ids for the two lists: with the same account id twice, the Mac drew Masked Email twice.
+                ForEach(fastmail, id: \.maskKey) { s in
                     Button { masking = s } label: {
                         Row(title: store.accounts.count > 1 ? "Masked Email, \(s.account.label)" : "Masked Email", icon: "theatermasks.fill", tint: .indigo)
                     }
                 }
-                ForEach(canAway) { s in
+                ForEach(canAway, id: \.awayKey) { s in
                     Button { away = s } label: {
                         Row(title: store.accounts.count > 1 ? "Out of office, \(s.account.label)" : "Out of office", icon: "airplane.departure", tint: .orange)
                     }
@@ -490,4 +491,9 @@ struct SignatureRow: View {
         }
         .onAppear { text = identity.textSignature ?? ""; replyTo = identity.replyToText }
     }
+}
+
+private extension AccountState {
+    var maskKey: String { "mask-" + id }
+    var awayKey: String { "away-" + id }
 }
