@@ -189,11 +189,11 @@ final class Store: ObservableObject {
             sessions = ["https://\(domain)/.well-known/jmap", "https://mail.\(domain)/.well-known/jmap", "https://jmap.\(domain)/.well-known/jmap"]
         }
         guard !sessions.isEmpty else { throw JMAPError.needServer }
-        try await add(kind: kind, sessions: sessions, secret: secret)
+        try await add(kind: kind, sessions: sessions, secret: secret, typedEmail: email)
     }
 
     /// Tries each possible session address in turn. A wrong password stops at once: the server was found.
-    private func add(kind: ServerKind, sessions: [String], secret: String) async throws {
+    private func add(kind: ServerKind, sessions: [String], secret: String, typedEmail: String = "") async throws {
         var lastError: Error = JMAPError.badServer
         for session in sessions {
             guard let url = URL(string: session) else { continue }
@@ -203,7 +203,7 @@ final class Store: ObservableObject {
             catch JMAPError.signIn { throw JMAPError.signIn }
             catch { lastError = error; continue }
             let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: client.finalSessionURL?.absoluteString ?? session,
-                                  username: s.username)
+                                  username: Self.accountName(server: s.username, typed: typedEmail))
             Keychain.save(account.id, secret)
             SavedKeys.save(account.saved, token: secret)
             let state = AccountState(account: account, client: client)
@@ -226,6 +226,13 @@ final class Store: ObservableObject {
         if session.contains("/api/ext/jmap") { return session }
         guard let url = URL(string: session), let host = url.host else { return session }
         return "https://\(host)\(url.port.map { ":\($0)" } ?? "")/api/ext/jmap/session"
+    }
+
+    /// The name an account is shown by. Some servers give a key's name (Mail App's keys are often all called
+    /// "JMAP Connect"), so when that isn't an email address the address the person typed is used instead.
+    static func accountName(server: String, typed: String) -> String {
+        let typed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !server.contains("@") && typed.contains("@") ? typed : server
     }
 
     /// Turns what someone typed (mail.example.com, a full https address) into a JMAP session address.
