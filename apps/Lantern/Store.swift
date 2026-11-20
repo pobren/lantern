@@ -193,7 +193,7 @@ final class Store: ObservableObject {
         let server = server.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = email.isEmpty ? password.trimmingCharacters(in: .whitespaces) : JMAPAuth.basic(user: email, password: password)
         var sessions: [String] = []
-        if !server.isEmpty { sessions.append(Self.sessionAddress(server)) }
+        if !server.isEmpty { sessions.append(kind.id == ServerKind.mailApp.id ? Self.mailAppSession(server) : Self.sessionAddress(server)) }
         else if !kind.sessionURL.isEmpty { sessions.append(kind.sessionURL) }
         else if let domain = email.split(separator: "@").last.map(String.init)?.lowercased(), email.contains("@"), domain.contains(".") {
             sessions = ["https://\(domain)/.well-known/jmap", "https://mail.\(domain)/.well-known/jmap", "https://jmap.\(domain)/.well-known/jmap"]
@@ -227,6 +227,16 @@ final class Store: ObservableObject {
             return
         }
         throw sessions.count > 1 ? JMAPError.notFound : lastError
+    }
+
+    /// Mail App keeps JMAP under /api/ext/jmap, the only part of it Cloudflare Access lets apps reach, so its
+    /// /.well-known/jmap can't be used: mail.example.com becomes https://mail.example.com/api/ext/jmap/session.
+    static func mailAppSession(_ typed: String) -> String {
+        var session = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !session.hasPrefix("http") { session = "https://" + session }
+        if session.contains("/api/ext/jmap") { return session }
+        guard let url = URL(string: session), let host = url.host else { return session }
+        return "https://\(host)\(url.port.map { ":\($0)" } ?? "")/api/ext/jmap/session"
     }
 
     /// Turns what someone typed (mail.example.com, a full https address) into a JMAP session address.
