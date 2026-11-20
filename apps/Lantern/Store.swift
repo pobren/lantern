@@ -12,9 +12,12 @@ struct Account: Codable, Identifiable, Hashable {
     var username: String
 
     var saved: SavedKeys.Saved { SavedKeys.Saved(kind: kind, sessionURL: sessionURL, username: username) }
-    var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
+    /// Mail App, even if it was added under another provider by mistake: only Mail App serves JMAP at /api/ext/jmap.
+    var isMailApp: Bool { kind == ServerKind.mailApp.id || sessionURL.contains("/api/ext/jmap/") }
+    var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : isMailApp ? Look.mailApp : Look.other }
     var kindName: String {
         if kind == Demo.kind { return "Sample mail" }
+        if isMailApp { return ServerKind.mailApp.name }
         if kind == ServerKind.other.id { return "JMAP" }
         return ServerKind.named(kind)?.name ?? "JMAP"
     }
@@ -193,7 +196,14 @@ final class Store: ObservableObject {
         let server = server.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = email.isEmpty ? password.trimmingCharacters(in: .whitespaces) : JMAPAuth.basic(user: email, password: password)
         var sessions: [String] = []
-        if !server.isEmpty { sessions.append(kind.id == ServerKind.mailApp.id ? Self.mailAppSession(server) : Self.sessionAddress(server)) }
+        if !server.isEmpty {
+            if kind.id == ServerKind.mailApp.id { sessions.append(Self.mailAppSession(server)) }
+            else {
+                sessions.append(Self.sessionAddress(server))
+                // Mail App picked by mistake as another provider: its JMAP isn't at /.well-known/jmap, so try its own address too.
+                if !server.contains("/jmap") && !server.contains("well-known") { sessions.append(Self.mailAppSession(server)) }
+            }
+        }
         else if !kind.sessionURL.isEmpty { sessions.append(kind.sessionURL) }
         else if let domain = email.split(separator: "@").last.map(String.init)?.lowercased(), email.contains("@"), domain.contains(".") {
             sessions = ["https://\(domain)/.well-known/jmap", "https://mail.\(domain)/.well-known/jmap", "https://jmap.\(domain)/.well-known/jmap"]
@@ -212,7 +222,8 @@ final class Store: ObservableObject {
             do { s = try await client.connect() }
             catch JMAPError.signIn { throw JMAPError.signIn }
             catch { lastError = error; continue }
-            let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: client.finalSessionURL?.absoluteString ?? session,
+            let found = client.finalSessionURL?.absoluteString ?? session
+            let account = Account(id: UUID().uuidString, kind: found.contains("/api/ext/jmap/") ? ServerKind.mailApp.id : kind.id, sessionURL: found,
                                   username: Self.accountName(server: s.username, typed: typedEmail))
             Keychain.save(account.id, secret)
             // A Fastmail sign in belongs to this device only (Fastmail's rule), so it never goes to iCloud Keychain.
