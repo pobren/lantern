@@ -19,6 +19,7 @@ struct MessageActions {
     var starred: Bool
     var mute: (() -> Void)? = nil
     var muted = false
+    var print: (() -> Void)? = nil
 }
 
 private struct MessageActionsKey: FocusedValueKey { typealias Value = MessageActions }
@@ -62,6 +63,10 @@ struct MessageCommands: Commands {
             Button(a?.muted == true ? "Unmute conversation" : "Mute conversation") { a?.mute?() }.keyboardShortcut("m", modifiers: [.command, .shift])
             }
             .disabled(a == nil)
+        }
+        // File > Print prints the open email.
+        CommandGroup(replacing: .printItem) {
+            Button("Print…") { a?.print?() }.keyboardShortcut("p", modifiers: .command).disabled(a?.print == nil)
         }
     }
 }
