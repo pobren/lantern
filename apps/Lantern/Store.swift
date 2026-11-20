@@ -653,6 +653,18 @@ final class Store: ObservableObject {
         await apply([item.email.id: ["keywords/$flagged": on ? true as Any : NSNull() as Any]], in: s)
     }
 
+    /// Mute (Paul, 20 Nov 2026, after Fastmail's): marks every email in the conversation $muted, the keyword
+    /// Fastmail uses, so later replies skip the inbox; muting also archives it. Unmute takes the mark off again.
+    func mute(_ item: Item, _ on: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        var thread = (try? await s.client.thread(item.email.threadId)) ?? []
+        if thread.isEmpty { thread = [item.email] }
+        let ids = Set(thread.map(\.id))
+        replace(account: item.account, ids: ids) { $0.with(keyword: "$muted", on: on) }
+        await apply(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$muted": on ? true as Any : NSNull() as Any] as [String: Any]) }), in: s)
+        if on, let inbox = s.box("inbox"), source(for: item, in: s)?.id == inbox.id { await archive(item) }
+    }
+
     func archive(_ item: Item) async {
         guard let s = state(for: item.account) else { return }
         guard let archive = s.box("archive") else { problem = "\(item.account.label) has no Archive folder."; return }
@@ -752,13 +764,17 @@ final class Store: ObservableObject {
 
     func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil,
-              sendAt: Date? = nil) async throws {
+              sendAt: Date? = nil, undoDraft: ComposeDraft? = nil) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         do {
-            try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+            let hold = sendAt == nil && !isSample(s) ? UndoSend.seconds : 0
+            let sentEmail = try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                     inReplyTo: threading.inReplyTo, references: threading.references,
                                     attachments: attachments, drafts: drafts.id, sent: sent.id, scheduled: s.scheduledBox?.id,
-                                    replacing: replacing, sendAt: sendAt)
+                                    replacing: replacing, sendAt: sendAt, holdFor: hold)
+            if hold > 0, let sentEmail, sentEmail.heldUntil != nil, let draft = undoDraft {
+                offerUndo(sentEmail, account: account, draft: draft)
+            }
         } catch let error where Self.isOffline(error) && !isSample(s) && sendAt == nil {
             // No connection: it waits in the Outbox and sends itself when the connection is back.
             goOffline()

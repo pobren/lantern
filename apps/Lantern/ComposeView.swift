@@ -676,6 +676,14 @@ struct ComposeView: View {
         }
     }
 
+    /// What's written now, to open again if the email is called back with Undo send.
+    private var written: ComposeDraft {
+        var d = draft
+        d.attachments = files
+        d.sendAt = nil
+        return d
+    }
+
     private func send() async {
         guard let account = draft.account, let s = store.state(for: account),
               let identity = s.identities.first(where: { $0.id == draft.identityId }) else { return }
@@ -684,7 +692,8 @@ struct ComposeView: View {
             let address = identity.isWildcard ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
             try await store.send(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
                                  cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text,
-                                 threading: draft.threading, attachments: files, replacing: draft.draftId, sendAt: sendAt)
+                                 threading: draft.threading, attachments: files, replacing: draft.draftId, sendAt: sendAt,
+                                 undoDraft: written)
             dismiss()
         } catch {
             problem = error.localizedDescription

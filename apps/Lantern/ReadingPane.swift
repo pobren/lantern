@@ -311,7 +311,8 @@ struct ReadingPane: View {
                        toggleUnread: { Task { await store.setUnread(item, !item.email.isUnread) } },
                        toggleStar: { Task { await store.flag(item) } },
                        editDraft: store.isEditableDraft(item, shown) ? { editDraft() } : nil,
-                       inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged)
+                       inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged,
+                       mute: { Task { await store.mute(item, !item.email.isMuted) } }, muted: item.email.isMuted)
     }
 
     /// Paul: scheduled emails sit in Scheduled "so you can edit them". Stops the send, then opens it to change,
@@ -345,6 +346,11 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            Button { Task { await store.mute(item, !item.email.isMuted) } } label: {
+                Label(item.email.isMuted ? "Unmute conversation" : "Mute conversation",
+                      systemImage: item.email.isMuted ? "bell" : "bell.slash")
+            }
+            .help(item.email.isMuted ? "Let replies to this conversation into the inbox again" : "Replies to this conversation skip the inbox (⇧⌘M)")
             Menu {
                 ForEach(store.labels(for: item)) { entry in
                     let on = item.email.mailboxIds[entry.box.id] == true

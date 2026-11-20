@@ -147,6 +147,8 @@ struct Email: Codable, Identifiable, Hashable {
     var sender: EmailAddress { from?.first ?? EmailAddress(name: "Unknown sender", email: "") }
     var isUnread: Bool { keywords?["$seen"] != true }
     var isFlagged: Bool { keywords?["$flagged"] == true }
+    /// Muted conversation: Fastmail keeps later replies out of the inbox.
+    var isMuted: Bool { keywords?["$muted"] == true }
     var isDraft: Bool { keywords?["$draft"] == true }
     var title: String { (subject?.isEmpty == false ? subject : nil) ?? "(No subject)" }
     var date: Date { Email.iso.date(from: receivedAt) ?? Email.isoPlain.date(from: receivedAt) ?? .distantPast }

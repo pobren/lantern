@@ -497,6 +497,11 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var sending: some View {
+        Section {
+            UndoSendSetting()
+        } footer: {
+            Text("After you press Send, there's an Undo button for this long. Your mail server holds the email meanwhile, so it still goes if you close the app.")
+        }
         let several = store.accounts.filter { $0.identities.count > 1 }
         if !several.isEmpty {
             Section {

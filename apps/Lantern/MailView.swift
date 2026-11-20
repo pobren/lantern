@@ -110,6 +110,9 @@ struct RootView: View {
             Task { await store.show(ref) }
         }
         .overlay(alignment: .bottom) {
+            UndoSendBar(reopen: { d in composing = d })
+        }
+        .overlay(alignment: .bottom) {
             if let problem = store.problem {
                 Label(problem, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -502,6 +505,7 @@ struct Row: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     if e.isFlagged { Image(systemName: "star.fill").font(.caption2).foregroundStyle(Look.star).accessibilityLabel("Starred") }
+                    if e.isMuted { Image(systemName: "bell.slash.fill").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Muted") }
                     if e.hasAttachment == true { Image(systemName: "paperclip").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Attachment") }
                     Text(When.short(e.date))
                         .font(Look.size(13, weight: e.isUnread ? .semibold : .regular))

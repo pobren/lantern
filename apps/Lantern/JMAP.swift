@@ -571,20 +571,30 @@ final class JMAPClient: @unchecked Sendable {
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent. When the email started
     /// life as a saved draft, that copy is removed.
+    /// `holdFor` (seconds) is Undo send: the server holds the email that long, filed in Sent, so it can still be
+    /// called back (cancelScheduled). Only used when the server can hold mail (maxDelayedSend).
+    @discardableResult
     func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil) async throws {
+              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil,
+              holdFor: Int = 0) async throws -> SentEmail? {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var submission: [String: Any] = ["identityId": identity.id, "emailId": "#draft"]
         // Sent mail is filed in Sent. Mail held to send later waits in Scheduled (when the account has one, as
         // Fastmail does), and moves on to Sent once it has gone (releaseScheduled).
         var filed = sent
+        var hold: Date?
         if let sendAt, sendAt > Date().addingTimeInterval(30) {
             if let scheduled { filed = scheduled }
+            hold = sendAt
+        } else if sendAt == nil, holdFor > 0, maxDelayedSend >= holdFor {
+            hold = Date().addingTimeInterval(TimeInterval(holdFor))
+        }
+        if let hold {
             // Send later (RFC 4865 FUTURERELEASE through JMAP): the server holds the email until then.
             let from = address ?? identity.email
             let all = (to + cc + bcc).map { ["email": $0.email] }
-            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(sendAt)]], "rcptTo": all]
+            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(hold)]], "rcptTo": all]
         }
         let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                             inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
@@ -603,6 +613,9 @@ final class JMAPClient: @unchecked Sendable {
         if let failed = r["s"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
             throw JMAPError.method(first["type"] as? String ?? "notSent", first["description"] as? String)
         }
+        guard let emailId = ((r["c"]?["created"] as? [String: Any])?["draft"] as? [String: Any])?["id"] as? String,
+              let submissionId = ((r["s"]?["created"] as? [String: Any])?["send"] as? [String: Any])?["id"] as? String else { return nil }
+        return SentEmail(emailId: emailId, submissionId: submissionId, heldUntil: hold, filedIn: filed)
     }
 
     /// Opens the server's push channel. Each time mail changes, `changed` runs; the stream ends when the task is cancelled.

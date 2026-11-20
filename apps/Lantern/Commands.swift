@@ -17,6 +17,8 @@ struct MessageActions {
     var inSpam: Bool
     var unread: Bool
     var starred: Bool
+    var mute: (() -> Void)? = nil
+    var muted = false
 }
 
 private struct MessageActionsKey: FocusedValueKey { typealias Value = MessageActions }
@@ -57,6 +59,7 @@ struct MessageCommands: Commands {
             Divider()
             Button(a?.unread == true ? "Mark as read" : "Mark as unread") { a?.toggleUnread() }.keyboardShortcut("u", modifiers: [.command, .shift])
             Button(a?.starred == true ? "Remove star" : "Star") { a?.toggleStar() }.keyboardShortcut("l", modifiers: [.command, .shift])
+            Button(a?.muted == true ? "Unmute conversation" : "Mute conversation") { a?.mute?() }.keyboardShortcut("m", modifiers: [.command, .shift])
             }
             .disabled(a == nil)
         }
