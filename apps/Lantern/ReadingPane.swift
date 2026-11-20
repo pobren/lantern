@@ -315,6 +315,9 @@ struct ReadingPane: View {
             .help("Reply all (⇧⌘R)")
         Button { forward() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
             .help("Forward (⇧⌘F)")
+        #if os(iOS)
+        Button { forwardAttached() } label: { Label("Forward as attachment", systemImage: "paperclip") }
+        #endif
     }
 
     /// Everything the Mac's Message menu can do to this email.
@@ -327,7 +330,10 @@ struct ReadingPane: View {
                        editDraft: store.isEditableDraft(item, shown) ? { editDraft() } : nil,
                        inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged,
                        mute: { Task { await store.mute(item, !item.email.isMuted) } }, muted: item.email.isMuted,
-                       print: { printEmail() })
+                       print: { printEmail() }, forwardAttached: { forwardAttached() },
+                       moveAgain: store.moveAgainTarget(for: item) == nil ? nil : { Task { await store.moveAgain(item) } },
+                       moveAgainName: store.moveAgainTarget(for: item)?.name,
+                       addSender: canAddSender ? { addSender() } : nil)
     }
 
     /// Paul: scheduled emails sit in Scheduled "so you can edit them". Stops the send, then opens it to change,
@@ -361,6 +367,16 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            if let again = store.moveAgainTarget(for: item) {
+                Button { Task { await store.moveAgain(item) } } label: { Label("Move again to \(again.name)", systemImage: "folder.badge.plus") }
+                    .help("Move again (⌥⌘T)")
+            }
+            #if os(macOS)
+            Button { forwardAttached() } label: { Label("Forward as attachment", systemImage: "paperclip") }
+            #endif
+            if canAddSender {
+                Button { addSender() } label: { Label("Add sender to Contacts", systemImage: "person.crop.circle.badge.plus") }
+            }
             Button { Task { await store.mute(item, !item.email.isMuted) } } label: {
                 Label(item.email.isMuted ? "Unmute conversation" : "Mute conversation",
                       systemImage: item.email.isMuted ? "bell" : "bell.slash")
@@ -404,6 +420,21 @@ struct ReadingPane: View {
             let text = await store.text(e, account: item.account)
             compose(ComposeDraft.reply(to: e, account: item.account, all: all, quoting: text, store: store))
         }
+    }
+
+    /// Contacts need an account with Contacts access, and a sender with an address.
+    private var canAddSender: Bool {
+        !shown.sender.email.isEmpty && (store.state(for: item.account)?.client.canContacts ?? false)
+    }
+
+    private func addSender() {
+        let who = shown.sender
+        AddContactRequest(name: who.name ?? "", email: who.email, account: item.account.id).post()
+    }
+
+    private func forwardAttached() {
+        let e = shown
+        Task { if let d = await ComposeDraft.forwardAsAttachment(e, account: item.account, store: store) { compose(d) } }
     }
 
     private func forward() {

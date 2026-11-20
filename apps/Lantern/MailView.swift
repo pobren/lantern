@@ -123,6 +123,14 @@ struct RootView: View {
             UndoSendBar(reopen: { d in composing = d })
         }
         .overlay(alignment: .bottom) {
+            UndoMoveBar()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AddContactRequest.note)) { note in
+            guard let r = note.userInfo?["request"] as? AddContactRequest else { return }
+            showContacts()
+            Task { await people.add(r, store: store) }
+        }
+        .overlay(alignment: .bottom) {
             if let problem = store.problem {
                 Label(problem, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -392,7 +400,7 @@ struct MessageList: View {
                     .onAppear { if item.id == store.list.last?.id { Task { await store.loadMore() } } }
             }
             if store.list.isEmpty && !store.listLoading {
-                Text(store.search.isEmpty ? "Nothing here" : "No emails match")
+                Text(store.search.isEmpty ? (store.listFilter == .all ? "Nothing here" : "No \(store.listFilter.title.lowercased()) emails here") : "No emails match")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
@@ -471,6 +479,7 @@ struct MessageList: View {
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
         .toolbar {
+            ToolbarItem { ListFilterMenu() }
             ToolbarItem {
                 Button { Task { await store.refresh() } } label: { Label("Check for new mail", systemImage: "arrow.clockwise") }
                     .help("Check for new mail")
@@ -482,6 +491,8 @@ struct MessageList: View {
         }
         #else
         .toolbar {
+            ToolbarItem(placement: .bottomBar) { ListFilterMenu() }
+            ToolbarItem(placement: .bottomBar) { Spacer() }
             ToolbarItem(placement: .bottomBar) {
                 Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
             }
@@ -499,6 +510,9 @@ struct MessageList: View {
         Divider()
         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
         MoveMenu(item: item)
+        if let again = store.moveAgainTarget(for: item) {
+            Button { Task { await store.moveAgain(item) } } label: { Label("Move again to \(again.name)", systemImage: "folder.badge.plus") }
+        }
         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
         if store.inSpam(item) {
             Button { Task { await store.markSpam(item, false) } } label: { Label("Not spam", systemImage: "tray.and.arrow.up") }

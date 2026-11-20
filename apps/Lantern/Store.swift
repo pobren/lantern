@@ -141,6 +141,10 @@ final class Store: ObservableObject {
     @Published var offline = false
     /// Emails written offline, waiting to send.
     @Published var outbox = 0
+    /// The folder last chosen from Move to, for Move again (⌥⌘T on the Mac, like Apple Mail).
+    @Published var lastMove: (account: String, box: String)?
+    /// Show only unread, starred or with attachments in the list (Apple Mail's filter button).
+    @Published var listFilter: ListFilter = .all
     var syncs: [String: Task<Void, Never>] = [:]
     var resync: Set<String> = []
     var flushing = false
@@ -422,11 +426,17 @@ final class Store: ObservableObject {
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let wanted = folder
         let scope = searchScope
+        let only = listFilter
         func current() -> Bool {
-            wanted == folder && scope == searchScope && words == search.trimmingCharacters(in: .whitespacesAndNewlines)
+            wanted == folder && scope == searchScope && only == listFilter && words == search.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        /// The list filter (unread, starred, attachments) on top of the folder or search.
+        func narrowed(_ f: [String: Any]) -> [String: Any] {
+            guard let c = only.condition else { return f }
+            return ["operator": "AND", "conditions": [f, c]]
         }
         if list.isEmpty || offline {
-            let saved = await savedItems(words: words, folder: wanted, scope: scope, limit: listLimit)
+            let saved = await savedItems(words: words, folder: wanted, scope: scope, limit: listLimit).filter { only.matches($0.email) }
             if current() && (!saved.isEmpty || offline) {
                 list = saved
                 mayHaveMore = saved.count >= listLimit
@@ -441,7 +451,7 @@ final class Store: ObservableObject {
             for s in accounts {
                 let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
                 let base: [String: Any] = skip.isEmpty ? [:] : ["inMailboxOtherThan": skip]
-                let filter = query.filter(adding: base)
+                let filter = narrowed(query.filter(adding: base))
                 do {
                     items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -450,13 +460,13 @@ final class Store: ObservableObject {
         } else {
             switch wanted {
             case .allInboxes:
-                if words.isEmpty && listLimit <= 100 {
+                if words.isEmpty && listLimit <= 100 && only == .all {
                     items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
                     reached = !offline
                 } else {
                     for s in accounts {
                         guard let inbox = s.box("inbox") else { continue }
-                        let filter: [String: Any] = words.isEmpty ? ["inMailbox": inbox.id] : query.filter(adding: ["inMailbox": inbox.id])
+                        let filter = narrowed(words.isEmpty ? ["inMailbox": inbox.id] : query.filter(adding: ["inMailbox": inbox.id]))
                         do {
                             items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                             reached = true
@@ -465,7 +475,7 @@ final class Store: ObservableObject {
                 }
             case .mailbox(let accountId, let boxId):
                 guard let s = state(id: accountId) else { break }
-                let filter: [String: Any] = words.isEmpty ? ["inMailbox": boxId] : query.filter(adding: ["inMailbox": boxId])
+                let filter = narrowed(words.isEmpty ? ["inMailbox": boxId] : query.filter(adding: ["inMailbox": boxId]))
                 do {
                     items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -475,7 +485,7 @@ final class Store: ObservableObject {
         guard current() else { return }  // the person moved on while this was loading
         guard reached else { return }     // offline: the saved list stays on screen
         backOnline()
-        list = items.sorted { $0.email.date > $1.email.date }
+        list = items.filter { only.matches($0.email) }.sorted { $0.email.date > $1.email.date }
         mayHaveMore = items.count >= listLimit
         await remember(items)
     }
@@ -486,7 +496,7 @@ final class Store: ObservableObject {
         guard !words.isEmpty else { return }
         // from:, to: and the like: saved mail can't answer those, so ask the server straight away.
         if SearchQuery(words).narrowed { await reloadList(); return }
-        let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit)
+        let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit).filter { listFilter.matches($0.email) }
         // Nothing saved yet (a new account, or sample mail): leave the list for the server's search.
         guard !found.isEmpty, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
         list = found
@@ -753,6 +763,28 @@ final class Store: ObservableObject {
                 patch = ["mailboxIds/\(from.id)": NSNull(), "mailboxIds/\(target.id)": true]
             }
             patches[e.id] = patch.merging(extra) { a, _ in a }
+        }
+        // Undo (⌘Z) puts every email back in the mailboxes it was in, with the spam marks as they were.
+        var restore: [String: [String: Any]] = [:]
+        for e in emails {
+            var back: [String: Any] = ["mailboxIds": e.mailboxIds.filter(\.value)]
+            for key in extra.keys where key.hasPrefix("keywords/") {
+                let name = String(key.dropFirst("keywords/".count))
+                back[key] = e.keywords?[name] == true ? true as Any : NSNull() as Any
+            }
+            restore[e.id] = back
+        }
+        let done: String
+        switch target.role {
+        case "trash": done = "Deleted"
+        case "archive": done = "Archived"
+        case "junk": done = "Marked as spam"
+        default: done = from.role == "junk" && target.role == "inbox" ? "Moved to Inbox" : "Moved to \(target.name)"
+        }
+        UndoMove.shared.offer(UndoMove.Done(title: done, account: item.account, patches: restore))
+        // Move again repeats a move you chose from Move to (not Archive, Delete or Spam).
+        if extra.isEmpty && !keepLabels && !exclusive && target.role != "archive" {
+            lastMove = (account: s.id, box: target.id)
         }
         takeOut(item)
         if from.role == "inbox" || exclusive { s.inbox.removeAll { $0.threadId == item.email.threadId } }
