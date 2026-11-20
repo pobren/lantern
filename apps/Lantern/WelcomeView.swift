@@ -1,7 +1,8 @@
-// First run: add a Fastmail account with an API token, or (smaller, underneath) another JMAP provider with an email
+// First run: add a Fastmail account (Sign in with Fastmail, or an API token), or (smaller, underneath) another JMAP provider with an email
 // address and app password. Also Settings, on every device.
 
 import SwiftUI
+import AuthenticationServices
 
 struct WelcomeView: View {
     @EnvironmentObject var store: Store
@@ -71,33 +72,105 @@ struct WelcomeView: View {
 struct AddAccountView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuth
     let kind: ServerKind
     @State private var address = ""
     @State private var token = ""
     @State private var working = false
     @State private var problem: String?
+    /// Fastmail: the API token way, folded away under "Sign in with Fastmail" (Paul, 20 Nov 2026).
+    @State private var useToken = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Add \(kind.name)").font(Look.size(20, weight: .semibold))
-            let saved = store.savedKeys(kind: kind)
-            if !saved.isEmpty {
-                // Keys this person used before, kept in their iCloud Keychain: no new key needed.
-                ForEach(saved) { k in
-                    Button {
-                        Task {
-                            working = true; problem = nil
-                            do { try await store.add(saved: k); dismiss() }
-                            catch { problem = signInProblem(error) }
-                            working = false
-                        }
-                    } label: {
-                        Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+            if kind.id == ServerKind.fastmail.id {
+                Text("Sign in on Fastmail's own page. JMAP Connect never sees your password.")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button { signInWithFastmail() } label: {
+                    Group {
+                        if working && !useToken { ProgressView().controlSize(.small) }
+                        else { Label("Sign in with Fastmail", systemImage: "person.badge.key.fill") }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(working)
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(working)
+                // API tokens used before, kept in iCloud Keychain: still one tap back in.
+                let saved = store.savedKeys(kind: kind)
+                if !saved.isEmpty { savedButtons(saved, prominent: false) }
+                if !useToken {
+                    if let problem { problemLabel(problem) }
+                    HStack {
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                        Spacer()
+                        Button { useToken = true; problem = nil } label: { Label("Use an API token instead", systemImage: "key") }
+                            .buttonStyle(.borderless).font(.callout)
+                    }
+                }
+            }
+            if kind.id != ServerKind.fastmail.id || useToken { tokenWay }
+        }
+        .padding(24)
+        #if os(macOS)
+        .frame(width: 480)
+        #else
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.medium, .large])
+        #endif
+    }
+
+    private func problemLabel(_ text: String) -> some View {
+        Label(text, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Opens Fastmail's sign in page (sharing Safari's sign in, so it's often one tap), then adds the account.
+    private func signInWithFastmail() {
+        Task {
+            working = true; problem = nil
+            defer { working = false }
+            let request = FastmailOAuth.start()
+            do {
+                let back = try await webAuth.authenticate(using: request.url, callbackURLScheme: FastmailOAuth.callbackScheme,
+                                                          preferredBrowserSession: .shared)
+                let secret = try await FastmailOAuth.finish(back, request: request)
+                try await store.addSignedIn(secret: secret)
+                dismiss()
+            } catch let e as ASWebAuthenticationSessionError where e.code == .canceledLogin {
+                // Closed the sign in window: nothing to say.
+            } catch FastmailOAuth.Failure.cancelled {
+            } catch {
+                problem = signInProblem(error)
+            }
+        }
+    }
+
+    /// Keys this person used before, kept in their iCloud Keychain: no new key needed.
+    @ViewBuilder private func savedButtons(_ saved: [SavedKeys.Saved], prominent: Bool) -> some View {
+        ForEach(saved) { k in
+            let button = Button {
+                Task {
+                    working = true; problem = nil
+                    do { try await store.add(saved: k); dismiss() }
+                    catch { problem = signInProblem(error) }
+                    working = false
+                }
+            } label: {
+                Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .disabled(working)
+            if prominent { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
+        }
+    }
+
+    @ViewBuilder private var tokenWay: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if kind.id == ServerKind.fastmail.id { Divider() }
+            let saved = kind.id == ServerKind.fastmail.id ? [] : store.savedKeys(kind: kind)
+            if !saved.isEmpty {
+                savedButtons(saved, prominent: true)
                 Text("Or use a new key:").font(.callout).foregroundStyle(.secondary)
             }
             Text(kind.tokenHelp).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -111,7 +184,7 @@ struct AddAccountView: View {
                     #endif
             }
             SecureField("API token", text: $token).textFieldStyle(.roundedBorder)
-            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true) }
+            if let problem { problemLabel(problem) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -130,13 +203,6 @@ struct AddAccountView: View {
                 .disabled(token.isEmpty || (kind.sessionURL.isEmpty && address.isEmpty) || working)
             }
         }
-        .padding(24)
-        #if os(macOS)
-        .frame(width: 480)
-        #else
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.medium, .large])
-        #endif
     }
 }
 

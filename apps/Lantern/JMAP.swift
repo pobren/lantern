@@ -144,10 +144,15 @@ final class JMAPClient: @unchecked Sendable {
 
     var accountId: String? { session?.primaryAccounts[Self.mail] }
 
-    private func request(_ url: URL, method: String = "GET", body: Data? = nil, contentType: String = "application/json") -> URLRequest {
+    /// Signed in with Fastmail (OAuth) rather than an API token or app password.
+    var usesOAuth: Bool { FastmailOAuth.isOAuth(token) }
+
+    private func request(_ url: URL, method: String = "GET", body: Data? = nil, contentType: String = "application/json",
+                         fresh: Bool = false) async throws -> URLRequest {
         var r = URLRequest(url: url)
         r.httpMethod = method
-        r.setValue(JMAPAuth.header(token), forHTTPHeaderField: "Authorization")
+        // A Fastmail sign in gets a new access token first when its current one is about to run out.
+        r.setValue(try await FastmailOAuth.header(token, force: fresh), forHTTPHeaderField: "Authorization")
         if let body {
             r.httpBody = body
             r.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -158,8 +163,15 @@ final class JMAPClient: @unchecked Sendable {
     @discardableResult
     func connect() async throws -> JMAPSession {
         // /.well-known/jmap usually redirects to the real session address; keep signing in across that hop.
-        let (data, response) = try await http.data(for: request(sessionURL), delegate: KeepSignIn(from: sessionURL, header: JMAPAuth.header(token)))
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        var first = try await request(sessionURL)
+        var (data, response) = try await http.data(for: first, delegate: KeepSignIn(from: sessionURL, header: first.value(forHTTPHeaderField: "Authorization") ?? ""))
+        var code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 && usesOAuth {
+            // The access token ended early (or was revoked): get a new one and try once more.
+            first = try await request(sessionURL, fresh: true)
+            (data, response) = try await http.data(for: first, delegate: KeepSignIn(from: sessionURL, header: first.value(forHTTPHeaderField: "Authorization") ?? ""))
+            code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        }
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard var s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
@@ -184,8 +196,12 @@ final class JMAPClient: @unchecked Sendable {
         if session == nil { try await connect() }
         guard let s = session, let url = URL(string: s.apiUrl) else { throw JMAPError.badServer }
         let body = try JSONSerialization.data(withJSONObject: ["using": using, "methodCalls": calls])
-        let (data, response) = try await http.data(for: request(url, method: "POST", body: body))
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        var (data, response) = try await http.data(for: request(url, method: "POST", body: body))
+        var code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 && usesOAuth {
+            (data, response) = try await http.data(for: request(url, method: "POST", body: body, fresh: true))
+            code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        }
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -436,7 +452,8 @@ final class JMAPClient: @unchecked Sendable {
             .replacingOccurrences(of: "{type}", with: enc(type))
             .replacingOccurrences(of: "{name}", with: "file")
         guard let url = URL(string: address) else { throw JMAPError.badServer }
-        let (data, response) = try await http.data(for: request(url))
+        var (data, response) = try await http.data(for: request(url))
+        if (response as? HTTPURLResponse)?.statusCode == 401 && usesOAuth { (data, response) = try await http.data(for: request(url, fresh: true)) }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw JMAPError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
         return data
     }
@@ -447,7 +464,7 @@ final class JMAPClient: @unchecked Sendable {
         guard let s = session, let acc = accountId else { throw JMAPError.missing("an account") }
         let enc = acc.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? acc
         guard let url = URL(string: s.uploadUrl.replacingOccurrences(of: "{accountId}", with: enc)) else { throw JMAPError.badServer }
-        var r = request(url, method: "POST", body: data, contentType: type)
+        var r = try await request(url, method: "POST", body: data, contentType: type)
         r.timeoutInterval = 300
         let (out, response) = try await http.data(for: r)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -595,11 +612,12 @@ final class JMAPClient: @unchecked Sendable {
             .replacingOccurrences(of: "{closeafter}", with: "no")
             .replacingOccurrences(of: "{ping}", with: "60")
         guard let url = URL(string: address) else { return }
-        var r = request(url)
-        r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        r.timeoutInterval = 600
         while !Task.isCancelled {
             do {
+                // Made afresh each time round, so a Fastmail sign in reconnects with a current access token.
+                var r = try await request(url)
+                r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                r.timeoutInterval = 600
                 let (bytes, _) = try await http.bytes(for: r)
                 for try await line in bytes.lines {
                     if Task.isCancelled { return }

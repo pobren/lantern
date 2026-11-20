@@ -174,6 +174,16 @@ final class Store: ObservableObject {
                       secret: token.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    /// Adds a Fastmail account after "Sign in with Fastmail" (OAuth). `secret` is "oauth:<key id>" from FastmailOAuth.
+    func addSignedIn(secret: String) async throws {
+        do {
+            try await add(kind: .fastmail, sessions: [FastmailOAuth.sessionURL], secret: secret)
+        } catch {
+            await FastmailOAuth.signOut(secret)
+            throw error
+        }
+    }
+
     /// Adds an account that signs in with an email address and app password (Stalwart, Thundermail, Mailbux, Cyrus
     /// and other JMAP servers). With no server given, it's found from the email address's domain. With no email
     /// address, the password is used as an API token, for servers that hand those out instead.
@@ -205,7 +215,8 @@ final class Store: ObservableObject {
             let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: client.finalSessionURL?.absoluteString ?? session,
                                   username: s.username)
             Keychain.save(account.id, secret)
-            SavedKeys.save(account.saved, token: secret)
+            // A Fastmail sign in belongs to this device only (Fastmail's rule), so it never goes to iCloud Keychain.
+            if !FastmailOAuth.isOAuth(secret) { SavedKeys.save(account.saved, token: secret) }
             let state = AccountState(account: account, client: client)
             accounts.append(state)
             save()
@@ -268,6 +279,15 @@ final class Store: ObservableObject {
         syncs[state.id] = nil
         let gone = state.id
         Task { await cache.clear(account: gone, keepPending: false); await countOutbox() }
+        if let secret = Keychain.read(state.id), FastmailOAuth.isOAuth(secret) {
+            // Instant alerts are stopped first, while the sign in still works; then Fastmail is told we're done.
+            Task {
+                #if os(iOS)
+                await InstantAlerts.shared.forget(gone)
+                #endif
+                await FastmailOAuth.signOut(secret)
+            }
+        }
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
         if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }
