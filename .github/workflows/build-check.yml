@@ -1,10 +1,10 @@
 # Builds the app for the iPhone simulator and the Mac without signing or uploading, so a slip in a feature branch
-# shows up before any TestFlight build. Runs on pushes to the 1.1 branches (offline mail, then offline plus instant alerts).
+# shows up before any TestFlight build. Runs on pushes to the feature branches.
 name: Build check
 
 on:
   push:
-    branches: ["claude/project-thread-31gnao", "claude/project-thread-h9exug", "claude/project-thread-z1fj2h"]
+    branches: ["claude/project-thread-31gnao", "claude/project-thread-h9exug", "claude/project-thread-z1fj2h", "claude/project-thread-tq3zod"]
     paths: ["apps/**", ".github/workflows/build-check.yml"]
   workflow_dispatch:
 
