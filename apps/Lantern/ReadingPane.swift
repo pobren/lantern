@@ -448,13 +448,20 @@ struct EmailFile: FileDocument {
 
     init(data: Data) { self.data = data }
     init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        let file = FileWrapper(regularFileWithContents: data)
+        file.preferredFilename = "Email.eml"
+        return file
+    }
 
     /// The subject, made safe for a file name.
     static func name(for e: Email) -> String {
         let bad = CharacterSet(charactersIn: "/\\:?%*|\"<>")
         let clean = e.title.components(separatedBy: bad).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        return String((clean.isEmpty ? "Email" : clean).prefix(80))
+        // The .eml goes on the name itself: left to the save panel, the Mac saved it with no extension, so Finder
+        // couldn't tell it was an email (Paul, 20 Nov 2026). Long subjects are kept whole up to 200 characters.
+        let base = String((clean.isEmpty ? "Email" : clean).prefix(200)).trimmingCharacters(in: .whitespaces)
+        return base + ".eml"
     }
 }
 
