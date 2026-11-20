@@ -21,6 +21,9 @@ enum FastmailOAuth {
     static let issuer = "https://api.fastmail.com"
     static let authorize = URL(string: "https://api.fastmail.com/oauth/authorize")!
     static let tokenURL = URL(string: "https://api.fastmail.com/oauth/refresh")!
+    /// The resource the tokens are for (RFC 8707). Fastmail lists its protected resources in its server metadata and
+    /// refuses a code swap without one ("invalid_target", Paul's test 20 Nov), so every request names the JMAP session.
+    static let resource = "https://api.fastmail.com/jmap/session"
     static let revokeURL = URL(string: "https://api.fastmail.com/oauth/revoke")!
     static let sessionURL = "https://api.fastmail.com/jmap/session"
 
@@ -70,6 +73,7 @@ enum FastmailOAuth {
             .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256"),
             .init(name: "state", value: state),
+            .init(name: "resource", value: resource),
         ]
         return Request(url: c.url!, state: state, verifier: verifier)
     }
@@ -98,7 +102,7 @@ enum FastmailOAuth {
         guard let code = value("code") else { throw Failure.mixUp }
         let tokens = try await post([
             "client_id": clientId, "redirect_uri": redirectURI, "grant_type": "authorization_code",
-            "code": code, "code_verifier": request.verifier,
+            "code": code, "code_verifier": request.verifier, "resource": resource,
         ])
         let key = UUID().uuidString
         OAuthStore.save(key, tokens)
@@ -132,7 +136,7 @@ enum FastmailOAuth {
         if t.access != seen && t.expires.timeIntervalSinceNow > 30 { return t.access }
 
         do {
-            let fresh = try await post(["client_id": clientId, "grant_type": "refresh_token", "refresh_token": t.refresh])
+            let fresh = try await post(["client_id": clientId, "grant_type": "refresh_token", "refresh_token": t.refresh, "resource": resource])
             OAuthStore.save(key, fresh)
             NotificationCenter.default.post(name: refreshed, object: key)
             return fresh.access
