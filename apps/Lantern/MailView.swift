@@ -11,6 +11,7 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @State private var composing: ComposeDraft?
     @State private var settings = false
+    @State private var contacts = false
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
@@ -21,7 +22,8 @@ struct RootView: View {
     }()
 
     private var sidebar: some View {
-        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, column: $compact)
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
+                contacts: { contacts = true }, column: $compact)
     }
     private var middle: some View {
         MessageList(compose: { composing = ComposeDraft.new(store: store) })
@@ -91,7 +93,17 @@ struct RootView: View {
         }
         .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
         .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
+        .sheet(isPresented: $contacts) {
+            ContactsView(compose: { address in
+                var d = ComposeDraft.new(store: store)
+                d.to = address
+                // Let the contacts sheet finish closing before the new email opens.
+                Task { try? await Task.sleep(nanoseconds: 450_000_000); composing = d }
+            })
+            .environmentObject(store)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
+        .onReceive(NotificationCenter.default.publisher(for: .lanternContacts)) { _ in if store.hasAccounts { contacts = true } }
         .onReceive(AlertRouter.shared.$pending) { ref in
             guard let ref else { return }
             AlertRouter.shared.pending = nil
@@ -131,6 +143,7 @@ struct Sidebar: View {
     @EnvironmentObject var store: Store
     let compose: () -> Void
     let settings: () -> Void
+    var contacts: () -> Void = {}
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
     var column: Binding<NavigationSplitViewColumn>? = nil
@@ -218,6 +231,10 @@ struct Sidebar: View {
                     Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
                         .buttonStyle(.borderless)
                     Spacer()
+                    if store.accounts.contains(where: { $0.client.canContacts }) {
+                        Button(action: contacts) { Label("Contacts", systemImage: "person.crop.circle") }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Contacts")
+                    }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
             }
@@ -227,6 +244,9 @@ struct Sidebar: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: settings) { Image(systemName: "gearshape") }.accessibilityLabel("Settings")
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: contacts) { Image(systemName: "person.crop.circle") }.accessibilityLabel("Contacts")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: compose) { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
