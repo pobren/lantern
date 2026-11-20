@@ -46,7 +46,8 @@ struct ServerKind: Identifiable, Hashable {
     static let mailApp = ServerKind(
         id: "mailapp", name: "Mail App",
         sessionURL: "",
-        tokenHelp: "In Mail App, open Settings, then App passwords, and make one for this Mac. Use your Mail App address as the server.")
+        tokenHelp: "In Mail App, open Admin, then API & webhooks, and make a new key with Read, Organise, Send and Delete for your mailboxes. Use your email address, the key as the password and your Mail App address as the server.",
+        usesPassword: true, asksServer: true)
     static let stalwart = ServerKind(
         id: "stalwart", name: "Stalwart",
         sessionURL: "",
@@ -74,8 +75,8 @@ struct ServerKind: Identifiable, Hashable {
         usesPassword: true, asksServer: true)
 
     /// The smaller choices under Fastmail, in the order the website lists them.
-    static let providers: [ServerKind] = [stalwart, thundermail, mailbux, cyrus, other]
-    static let all: [ServerKind] = [fastmail, mailApp] + providers
+    static let providers: [ServerKind] = [stalwart, thundermail, mailbux, cyrus, mailApp, other]
+    static let all: [ServerKind] = [fastmail] + providers
     static func named(_ id: String) -> ServerKind? { all.first { $0.id == id } }
 }
 

@@ -188,11 +188,11 @@ struct OtherAccountView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 #endif
-            SecureField("App password", text: $password)
+            SecureField(provider.id == ServerKind.mailApp.id ? "API key" : "App password", text: $password)
                 .textFieldStyle(.roundedBorder)
                 .textContentType(.password)
             if provider.asksServer {
-                TextField("Server, such as mail.example.com (optional)", text: $server)
+                TextField(provider.id == ServerKind.mailApp.id ? "Mail App address, such as mail.example.com" : "Server, such as mail.example.com (optional)", text: $server)
                     .textFieldStyle(.roundedBorder)
                     #if os(iOS)
                     .keyboardType(.URL)
@@ -219,7 +219,7 @@ struct OtherAccountView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(password.isEmpty || (email.isEmpty && server.isEmpty) || working)
+                .disabled(password.isEmpty || (email.isEmpty && server.isEmpty) || (provider.id == ServerKind.mailApp.id && server.isEmpty) || working)
             }
             Text("Your mail goes straight between this device and your provider. Not affiliated with any provider.")
                 .font(.caption).foregroundStyle(.secondary)
