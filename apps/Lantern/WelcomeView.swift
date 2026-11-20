@@ -29,7 +29,7 @@ struct WelcomeView: View {
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 if ServerKind.otherProviders {
                     Button { other = true } label: {
-                        Label("Use another JMAP provider", systemImage: "server.rack")
+                        Label("Use Mail App or another JMAP provider", systemImage: "server.rack")
                     }
                     .buttonStyle(.borderless)
                     .font(.callout)
@@ -155,7 +155,7 @@ struct OtherAccountView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Add another JMAP provider").font(Look.size(20, weight: .semibold))
+            Text("Add Mail App or another JMAP provider").font(Look.size(20, weight: .semibold))
             let saved = store.savedKeys(kinds: ServerKind.providers)
             if !saved.isEmpty {
                 ForEach(saved) { k in
@@ -459,7 +459,7 @@ struct SettingsView: View {
             }
         Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
         if ServerKind.otherProviders {
-            Button { addingOther = true } label: { Label("Add another JMAP provider", systemImage: "server.rack") }
+            Button { addingOther = true } label: { Label("Add Mail App or another JMAP provider", systemImage: "server.rack") }
         }
     }
 

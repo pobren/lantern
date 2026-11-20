@@ -74,8 +74,8 @@ struct ServerKind: Identifiable, Hashable {
         tokenHelp: "Use your email address and an app password. Leave the server empty to find it from your email address, or enter the address your provider gives for JMAP. If your provider gives you an API token instead, leave the email address empty.",
         usesPassword: true, asksServer: true)
 
-    /// The smaller choices under Fastmail, in the order the website lists them.
-    static let providers: [ServerKind] = [stalwart, thundermail, mailbux, cyrus, mailApp, other]
+    /// The smaller choices under Fastmail. Mail App comes first, so it's the one already picked (Chris, 20 Nov).
+    static let providers: [ServerKind] = [mailApp, stalwart, thundermail, mailbux, cyrus, other]
     static let all: [ServerKind] = [fastmail] + providers
     static func named(_ id: String) -> ServerKind? { all.first { $0.id == id } }
 }
