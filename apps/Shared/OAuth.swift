@@ -35,14 +35,14 @@ enum FastmailOAuth {
     static let callbackScheme = "app.jmapconnect"
     static let redirectURI = "app.jmapconnect:/oauth/fastmail"
 
-    /// Mail, sending, out of office, contacts and Masked Email: what the app uses, nothing more.
+    /// Mail and contacts. Apps that sign in without registering (as we do) use the general mail scopes from the
+    /// OAuth profile for open public clients, which Fastmail lists in its server metadata; the JMAP-only scopes are
+    /// for registered apps (asking for them gave "this request is invalid", Paul's test 20 Nov 2026).
+    /// Mail covers reading, sending and out of office. offline_access gives the refresh token.
     static let scopes = [
-        "urn:ietf:params:jmap:core",
-        "urn:ietf:params:jmap:mail",
-        "urn:ietf:params:jmap:submission",
-        "urn:ietf:params:jmap:vacationresponse",
-        "urn:ietf:params:jmap:contacts",
-        "https://www.fastmail.com/dev/maskedemail",
+        "urn:ietf:params:oauth:scope:mail",
+        "urn:ietf:params:oauth:scope:contacts",
+        "offline_access",
     ]
 
     static let prefix = "oauth:"
