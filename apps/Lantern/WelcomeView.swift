@@ -80,6 +80,8 @@ struct AddAccountView: View {
     @State private var problem: String?
     /// Fastmail: the API token way, folded away under "Sign in with Fastmail" (Paul, 20 Nov 2026).
     @State private var useToken = false
+    /// Fastmail's page opens as soon as this sheet does, so adding Fastmail is one click (Paul, 20 Nov 2026).
+    @State private var opened = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -113,6 +115,12 @@ struct AddAccountView: View {
             if kind.id != ServerKind.fastmail.id || useToken { tokenWay }
         }
         .padding(24)
+        .task {
+            guard kind.id == ServerKind.fastmail.id, !opened else { return }
+            opened = true
+            try? await Task.sleep(nanoseconds: 350_000_000) // let the sheet finish opening first
+            signInWithFastmail()
+        }
         #if os(macOS)
         .frame(width: 480)
         #else
@@ -125,7 +133,9 @@ struct AddAccountView: View {
         Label(text, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true)
     }
 
-    /// Opens Fastmail's sign in page (sharing Safari's sign in, so it's often one tap), then adds the account.
+    /// Opens Fastmail's sign in page, then adds the account. A private browser session, so the system doesn't first ask
+    /// "JMAP Connect wants to use api.fastmail.com to sign in" (an extra click Paul found annoying, 20 Nov 2026); passwords
+    /// and passkeys still fill in from the Keychain.
     private func signInWithFastmail() {
         Task {
             working = true; problem = nil
@@ -133,7 +143,7 @@ struct AddAccountView: View {
             let request = FastmailOAuth.start()
             do {
                 let back = try await webAuth.authenticate(using: request.url, callbackURLScheme: FastmailOAuth.callbackScheme,
-                                                          preferredBrowserSession: .shared)
+                                                          preferredBrowserSession: .ephemeral)
                 let secret = try await FastmailOAuth.finish(back, request: request)
                 try await store.addSignedIn(secret: secret)
                 dismiss()
