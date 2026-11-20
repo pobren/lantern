@@ -195,7 +195,7 @@ extension JMAPClient {
     }
 
     /// Your latest emails from or to any of these addresses, newest first, one per conversation.
-    func recent(with addresses: [String], limit: Int = 8) async throws -> [Email] {
+    func recent(with addresses: [String], limit: Int = 10) async throws -> [Email] {
         let list = addresses.filter { $0.contains("@") }
         guard !list.isEmpty else { return [] }
         let conditions: [[String: Any]] = list.flatMap { [["from": $0], ["to": $0], ["cc": $0]] }

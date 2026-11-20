@@ -436,11 +436,12 @@ final class Store: ObservableObject {
         defer { listLoading = false }
         var items: [Item] = []
         var reached = false
+        let query = SearchQuery(words)
         if !words.isEmpty && scope == .allMail {
             for s in accounts {
-                var filter: [String: Any] = ["text": words]
                 let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
-                if !skip.isEmpty { filter["inMailboxOtherThan"] = skip }
+                let base: [String: Any] = skip.isEmpty ? [:] : ["inMailboxOtherThan": skip]
+                let filter = query.filter(adding: base)
                 do {
                     items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -455,8 +456,7 @@ final class Store: ObservableObject {
                 } else {
                     for s in accounts {
                         guard let inbox = s.box("inbox") else { continue }
-                        var filter: [String: Any] = ["inMailbox": inbox.id]
-                        if !words.isEmpty { filter["text"] = words }
+                        let filter: [String: Any] = words.isEmpty ? ["inMailbox": inbox.id] : query.filter(adding: ["inMailbox": inbox.id])
                         do {
                             items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                             reached = true
@@ -465,8 +465,7 @@ final class Store: ObservableObject {
                 }
             case .mailbox(let accountId, let boxId):
                 guard let s = state(id: accountId) else { break }
-                var filter: [String: Any] = ["inMailbox": boxId]
-                if !words.isEmpty { filter["text"] = words }
+                let filter: [String: Any] = words.isEmpty ? ["inMailbox": boxId] : query.filter(adding: ["inMailbox": boxId])
                 do {
                     items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -485,6 +484,8 @@ final class Store: ObservableObject {
     func searchSaved() async {
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return }
+        // from:, to: and the like: saved mail can't answer those, so ask the server straight away.
+        if SearchQuery(words).narrowed { await reloadList(); return }
         let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit)
         // Nothing saved yet (a new account, or sample mail): leave the list for the server's search.
         guard !found.isEmpty, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }

@@ -351,12 +351,27 @@ struct MessageList: View {
     @Environment(\.openWindow) private var openWindow
     #endif
     let compose: () -> Void
+    #if os(macOS)
+    @FocusState private var searchFocused: Bool
+    #endif
+
+    /// The search being shown, for each result's "why it matched" line (nil when not searching).
+    private var query: SearchQuery? {
+        let words = store.search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? nil : SearchQuery(words)
+    }
+
+    private func pick(_ s: SearchSuggestion) {
+        store.search = s.search
+        RecentSearches.add(s.search)
+        Task { await store.reloadList() }
+    }
 
     var body: some View {
         List(selection: $store.selection) {
             ForEach(store.list) { item in
                 Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
-                    place: store.searchingAllMail ? store.place(of: item) : nil)
+                    place: store.searchingAllMail ? store.place(of: item) : nil, query: query)
                     .tag(item.id)
                     .onDrag { NSItemProvider(object: item.id as NSString) }
                     #if os(iOS)
@@ -401,9 +416,10 @@ struct MessageList: View {
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search", text: $store.search)
+                    TextField("Search, or try from: to: subject: has:attachment", text: $store.search)
                         .textFieldStyle(.plain)
-                        .onSubmit { Task { await store.reloadList() } }
+                        .focused($searchFocused)
+                        .onSubmit { RecentSearches.add(store.search); Task { await store.reloadList() } }
                     if !store.search.isEmpty {
                         Button { store.search = "" } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
@@ -412,6 +428,8 @@ struct MessageList: View {
                 .padding(.horizontal, 9).frame(height: 30)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
                 .padding(.horizontal, 12).padding(.vertical, 8)
+                // Suggestions while the search box is in use: people, an address, narrowing words, recent searches.
+                if searchFocused { SearchSuggestionsList(pick: pick) }
                 if !store.search.isEmpty {
                     Picker("Search in", selection: $store.searchScope) {
                         Text("All mail").tag(SearchScope.allMail)
@@ -426,15 +444,21 @@ struct MessageList: View {
         }
         #else
         .searchable(text: $store.search, prompt: "Search")
+        .searchSuggestions {
+            ForEach(store.searchSuggestions(for: store.search).prefix(8)) { s in
+                Button { pick(s) } label: { Label(s.title, systemImage: s.icon) }
+            }
+        }
         .searchScopes($store.searchScope) {
             Text("All mail").tag(SearchScope.allMail)
             Text(store.folderTitle).tag(SearchScope.thisFolder)
         }
-        .onSubmit(of: .search) { Task { await store.reloadList() } }
+        .onSubmit(of: .search) { RecentSearches.add(store.search); Task { await store.reloadList() } }
         #endif
         .onChange(of: store.searchScope) { _, _ in
             if !store.search.trimmingCharacters(in: .whitespaces).isEmpty { Task { await store.reloadList() } }
         }
+        .task { await store.prepareSearchSuggestions() }
         .onChange(of: store.search) { _, words in
             // Saved mail answers as you type; pressing Return asks the server too.
             Task { if words.isEmpty { await store.reloadList() } else { await store.searchSaved() } }
@@ -515,6 +539,8 @@ struct Row: View {
     let item: Item
     let showAccount: Bool
     var place: String? = nil
+    /// While searching: what was searched for, so the row can show why it matched.
+    var query: SearchQuery? = nil
 
     var body: some View {
         let e = item.email
@@ -534,13 +560,21 @@ struct Row: View {
                         .font(Look.size(13, weight: e.isUnread ? .semibold : .regular))
                         .foregroundStyle(e.isUnread ? Look.accent : .secondary)
                 }
-                Text(e.title)
+                Text.highlighting(e.title, query?.highlights ?? [])
                     .font(Look.size(14, weight: e.isUnread ? .medium : .regular))
                     .lineLimit(1)
-                Text(e.preview ?? "")
+                Text.highlighting(e.preview ?? "", query?.highlights ?? [])
                     .font(Look.size(13.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                if let query {
+                    let why = query.reasons(e)
+                    if !why.isEmpty {
+                        Label("Found in " + why.joined(separator: ", "), systemImage: "text.magnifyingglass")
+                            .font(.caption2).foregroundStyle(Look.accent)
+                            .lineLimit(1)
+                    }
+                }
                 if showAccount || place != nil {
                     HStack(spacing: 5) {
                         if showAccount { AccountDot(account: item.account, size: 6); Text(item.account.label) }
