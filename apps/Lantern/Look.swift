@@ -9,6 +9,8 @@ import UIKit
 
 enum Look {
     static let accent = Color(red: 0x2F / 255, green: 0x5B / 255, blue: 0xD3 / 255)
+    /// Delete on swipe: a softer red than the system's, easy on the eye in light and dark.
+    static let softRed = Color(red: 0xE0 / 255, green: 0x5A / 255, blue: 0x55 / 255)
     static let fastmail = Color(red: 0x2F / 255, green: 0x5B / 255, blue: 0xD3 / 255)
     static let mailApp = Color(red: 0xD9 / 255, green: 0x82 / 255, blue: 0x2B / 255)
     static let other = Color(red: 0x2E / 255, green: 0x9E / 255, blue: 0x5B / 255)

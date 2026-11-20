@@ -385,6 +385,7 @@ struct MessageList: View {
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+                            .tint(Look.softRed) // the app's blue accent was taking over (Paul, 20 Nov 2026)
                         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
                             .tint(.gray)
                     }
