@@ -3,6 +3,9 @@
 
 import SwiftUI
 import CryptoKit
+#if os(iOS)
+import UIKit
+#endif
 
 enum Look {
     static let accent = Color(red: 0x2F / 255, green: 0x5B / 255, blue: 0xD3 / 255)
@@ -118,5 +121,82 @@ struct AccountDot: View {
     var size: CGFloat = 7
     var body: some View {
         Circle().fill(account.colour).frame(width: size, height: size).accessibilityLabel(account.label)
+    }
+}
+
+/// On the Mac, sheets have no title bar, so they looked bare. This gives each one the same header as the
+/// Settings pages: a large coloured icon, its name and a line on what it's for. On iPhone and iPad the
+/// navigation title already does this job, so nothing changes there.
+struct SheetHeader: ViewModifier {
+    let title: String
+    let icon: String
+    let tint: Color
+    let blurb: String
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint.opacity(0.14)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.title2.weight(.semibold))
+                    Text(blurb).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 2)
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+extension View {
+    func sheetHeader(_ title: String, icon: String, tint: Color, blurb: String) -> some View {
+        modifier(SheetHeader(title: title, icon: icon, tint: tint, blurb: blurb))
+    }
+}
+
+/// Links to the JMAP Connect community on jmapconnect.app. Bug reports arrive with the app version, device and
+/// system already filled in, so people don't have to look them up.
+enum Community {
+    enum Kind: String { case bug, idea }
+
+    static let home = URL(string: "https://jmapconnect.app/community/")!
+
+    static func new(_ kind: Kind) -> URL {
+        let info = Bundle.main.infoDictionary
+        let app = "\(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
+        var c = URLComponents(string: "https://jmapconnect.app/community/new/")!
+        c.queryItems = [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "app", value: app),
+                        URLQueryItem(name: "device", value: device), URLQueryItem(name: "os", value: system)]
+        return c.url ?? home
+    }
+
+    private static var device: String {
+        var s = utsname()
+        uname(&s)
+        let id = withUnsafeBytes(of: &s.machine) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
+        #if os(macOS)
+        return "Mac (\(id))"
+        #else
+        return id   // such as iPhone17,1
+        #endif
+    }
+
+    private static var system: String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        #if os(macOS)
+        let name = "macOS"
+        #else
+        let name = UIDevice.current.userInterfaceIdiom == .pad ? "iPadOS" : "iOS"
+        #endif
+        return "\(name) \(v.majorVersion).\(v.minorVersion)" + (v.patchVersion > 0 ? ".\(v.patchVersion)" : "")
     }
 }
