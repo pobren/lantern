@@ -1,0 +1,152 @@
+# Takes the App Store screenshots from sample mail, so they never show anyone's real email.
+# It runs when a commit message contains [screens], or by hand from the Actions tab. It builds the app for the
+# iPhone and iPad simulators and for the Mac (no signing needed), opens each screen with -JCDemo -JCScreen,
+# captures it, adds a caption at Apple's sizes and commits the results to apps/screenshots/store/.
+name: Screenshots
+
+on:
+  push:
+    paths: ["apps/**", ".github/workflows/screenshots.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screens]')
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -n "$X" ] || { echo "No Xcode 26 or newer on this Mac"; exit 1; }
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+      - name: Make the Xcode project
+        run: |
+          if curl -fsSL -o /tmp/xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip && unzip -q /tmp/xcodegen.zip -d /tmp/xg; then
+            /tmp/xg/xcodegen/bin/xcodegen generate
+          else
+            brew install xcodegen && xcodegen generate
+          fi
+      - name: Build for the simulators and the Mac
+        run: |
+          set -o pipefail
+          xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM= > /tmp/ios.log 2>&1 || { grep -E "error:" /tmp/ios.log | sort -u | head -40; tail -n 20 /tmp/ios.log; exit 1; }
+          xcodebuild build -project Lantern.xcodeproj -scheme Lantern -configuration Debug \
+            -destination "generic/platform=macOS" -derivedDataPath build/mac \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO > /tmp/mac.log 2>&1 || { grep -E "error:" /tmp/mac.log | sort -u | head -40; tail -n 20 /tmp/mac.log; exit 1; }
+      - name: Shoot iPhone and iPad
+        run: |
+          APP=$(find build/ios -name "JMAP Connect.app" -path "*iphonesimulator*" | head -1)
+          [ -n "$APP" ] || { echo "No simulator app built"; exit 1; }
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')
+          TYPES=$(xcrun simctl list devicetypes -j)
+          pick() { echo "$TYPES" | python3 -c "import json,sys,re; t=[x for x in json.load(sys.stdin)['devicetypes'] if re.search(sys.argv[1], x['name'])]; print(t[-1]['identifier'] if t else '')" "$1"; }
+          IPHONE=$(pick 'iPhone 1[6-9] Pro Max')
+          IPAD=$(pick 'iPad Pro 13-inch')
+          echo "Runtime $RUNTIME, iPhone $IPHONE, iPad $IPAD"
+          shoot() {
+            local device=$1 type=$2; shift 2
+            local udid
+            udid=$(xcrun simctl create "Shots $device" "$type" "$RUNTIME")
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl status_bar "$udid" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+              --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+            # No "slide to type" tip over the keyboard.
+            xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+            xcrun simctl spawn "$udid" defaults write com.apple.Preferences DidShowContinuousPathIntroduction -bool true || true
+            xcrun simctl install "$udid" "$APP"
+            # A first launch to warm up, so the first shot isn't taken while the app is still starting.
+            xcrun simctl launch "$udid" dev.paulobrien.lantern -JCDemo -JCScreen email
+            sleep 15
+            mkdir -p "screenshots/raw/$device"
+            local n=0
+            for screen in "$@"; do
+              n=$((n + 1))
+              local mode=light arg=$screen
+              if [ "$screen" = dark ]; then mode=dark; arg=email; fi
+              xcrun simctl ui "$udid" appearance "$mode"
+              xcrun simctl terminate "$udid" dev.paulobrien.lantern 2>/dev/null || true
+              xcrun simctl launch "$udid" dev.paulobrien.lantern -JCDemo -JCScreen "$arg"
+              sleep 8
+              xcrun simctl io "$udid" screenshot "screenshots/raw/$device/$n-$screen.png"
+            done
+            xcrun simctl shutdown "$udid" || true
+          }
+          shoot iphone "$IPHONE" inbox email compose dark settings
+          shoot ipad "$IPAD" email compose folders dark settings
+      - name: Let screencapture see app windows (Screen Recording permission on this throwaway Mac)
+        continue-on-error: true
+        run: |
+          now=$(date +%s)
+          for db in "/Library/Application Support/com.apple.TCC/TCC.db" "$HOME/Library/Application Support/com.apple.TCC/TCC.db"; do
+            [ -f "$db" ] || continue
+            for client in /usr/sbin/screencapture /bin/bash /bin/zsh /bin/sh /usr/bin/env "$(command -v bash)"; do
+              sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$client',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" \
+                && echo "granted $client in $db" || echo "couldn't grant $client in $db"
+            done
+          done
+          for p in $(ps -axo comm | grep -iE "runner|provisioner" | sort -u); do
+            sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','$p',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$now,NULL,NULL,'UNUSED',$now);" && echo "granted $p" || true
+          done
+      - name: Shoot the Mac
+        run: |
+          APP=$(find build/mac -name "JMAP Connect.app" -path "*Debug/*" -not -path "*iphonesimulator*" | head -1)
+          [ -n "$APP" ] || { echo "No Mac app built"; exit 1; }
+          mkdir -p screenshots/raw/mac
+          n=0
+          for screen in email compose settings; do
+            n=$((n + 1))
+            arg=$screen; extra=()
+            if [ "$screen" = dark ]; then arg=email; extra=(-JCDark); fi
+            pkill -x "JMAP Connect" 2>/dev/null || true
+            sleep 1
+            : > /tmp/app.log
+            # Through Launch Services, like a double click, so the app becomes active and opens its window.
+            open -n --stdout /tmp/app.log --stderr /tmp/app.log -a "$PWD/$APP" --args -JCDemo -JCScreen "$arg" "${extra[@]}" -NSQuitAlwaysKeepsWindows NO
+            # The app draws its own window to a file and prints where (no Screen Recording permission needed).
+            shot=""
+            for i in $(seq 1 40); do
+              shot=$(grep -o 'JCSHOT .*' /tmp/app.log | tail -1 | cut -d' ' -f2-)
+              [ -n "$shot" ] && break
+              sleep 1
+            done
+            grep -E "JCDEBUG|JCSHOT" /tmp/app.log || true
+            if [ -n "$shot" ] && [ -f "$shot" ]; then
+              cp "$shot" "screenshots/raw/mac/$n-$screen.png"
+              echo "$screen: saved"
+            else
+              echo "::warning::The app didn't save a picture for $screen"
+              tail -n 30 /tmp/app.log
+              ps -axo pid,comm | grep -i "jmap" || true
+              /usr/bin/log show --last 2m --predicate 'process == "JMAP Connect"' --style compact 2>/dev/null | tail -n 25 || true
+            fi
+          done
+          pkill -x "JMAP Connect" 2>/dev/null || true
+      - name: Add captions at App Store sizes
+        run: |
+          python3 -m pip install --quiet pillow 2>/dev/null || python3 -m pip install --quiet --break-system-packages pillow
+          rm -rf screenshots/store
+          python3 screenshots/frame.py screenshots/raw screenshots/store
+      - name: Keep the raw shots as a download too
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: apps/screenshots
+      - name: Commit the screenshots to this branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898729+github-actions[bot]@users.noreply.github.com"
+          git add screenshots/raw screenshots/store
+          git commit -m "App Store screenshots from sample mail [skip ci]" || { echo "Nothing new"; exit 0; }
+          for i in 1 2 3; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && break; sleep 5; done
