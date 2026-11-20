@@ -522,7 +522,8 @@ final class JMAPClient: @unchecked Sendable {
 
     /// The email as JMAP wants it, ready to save in Drafts (and, when sending, to submit).
     private func message(from identity: Identity, as address: String?, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress], subject: String, text: String,
-                         inReplyTo: String?, references: [String], attachments: [Outgoing], drafts: String) -> [String: Any] {
+                         inReplyTo: String?, references: [String], attachments: [Outgoing], drafts: String,
+                         formatted: Bool = false) -> [String: Any] {
         // Apple Mail shows attachments straight after the last line of text, so end on a blank line
         // to give them a line of their own.
         var body = text
@@ -539,6 +540,11 @@ final class JMAPClient: @unchecked Sendable {
             "bodyValues": ["body": ["value": body]],
             "textBody": [["partId": "body", "type": "text/plain"]]
         ]
+        // Bold, lists and links: sent as HTML with a plain text copy (drafts keep the marks so they can be edited).
+        if formatted && Formatting.used(in: body) {
+            draft["bodyValues"] = ["body": ["value": Formatting.plain(body)], "html": ["value": Formatting.html(body)]]
+            draft["htmlBody"] = [["partId": "html", "type": "text/html"]]
+        }
         if !attachments.isEmpty {
             draft["attachments"] = attachments.map { ["blobId": $0.blobId, "type": $0.type, "name": $0.name, "disposition": "attachment"] }
         }
@@ -598,7 +604,7 @@ final class JMAPClient: @unchecked Sendable {
             submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(hold)]], "rcptTo": all]
         }
         let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
-                            inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
+                            inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts, formatted: true)
         var create: [String: Any] = ["accountId": acc, "create": ["draft": draft]]
         if let replacing { create["destroy"] = [replacing] }
         let r = try await call([
