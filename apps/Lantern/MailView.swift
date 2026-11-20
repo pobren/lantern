@@ -11,7 +11,9 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @State private var composing: ComposeDraft?
     @State private var settings = false
+    /// Contacts chosen in the sidebar: the middle and right columns show contacts instead of mail.
     @State private var contacts = false
+    @StateObject private var people = ContactsModel()
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
@@ -23,13 +25,30 @@ struct RootView: View {
 
     private var sidebar: some View {
         Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
-                contacts: { contacts = true }, column: $compact)
+                contacts: { showContacts() }, showingContacts: $contacts, column: $compact)
     }
-    private var middle: some View {
-        MessageList(compose: { composing = ComposeDraft.new(store: store) })
+    @ViewBuilder private var middle: some View {
+        if contacts {
+            ContactsList(model: people)
+        } else {
+            MessageList(compose: { composing = ComposeDraft.new(store: store) })
+        }
+    }
+    private func showContacts() {
+        contacts = true
+        compact = .content
     }
     @ViewBuilder private var detail: some View {
-        if let item = store.selectedItem {
+        if contacts {
+            ContactsDetail(model: people, compose: { address in
+                var d = ComposeDraft.new(store: store)
+                d.to = address
+                composing = d
+            }, open: { ref in
+                contacts = false
+                Task { await store.show(ref) }
+            })
+        } else if let item = store.selectedItem {
             ReadingPane(item: item, compose: { composing = $0 })
                 .id(item.id)
         } else {
@@ -93,17 +112,8 @@ struct RootView: View {
         }
         .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
         .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
-        .sheet(isPresented: $contacts) {
-            ContactsView(compose: { address in
-                var d = ComposeDraft.new(store: store)
-                d.to = address
-                // Let the contacts sheet finish closing before the new email opens.
-                Task { try? await Task.sleep(nanoseconds: 450_000_000); composing = d }
-            })
-            .environmentObject(store)
-        }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
-        .onReceive(NotificationCenter.default.publisher(for: .lanternContacts)) { _ in if store.hasAccounts { contacts = true } }
+        .onReceive(NotificationCenter.default.publisher(for: .lanternContacts)) { _ in if store.hasAccounts { showContacts() } }
         .onReceive(AlertRouter.shared.$pending) { ref in
             guard let ref else { return }
             AlertRouter.shared.pending = nil
@@ -147,6 +157,8 @@ struct Sidebar: View {
     let compose: () -> Void
     let settings: () -> Void
     var contacts: () -> Void = {}
+    /// Whether Contacts is showing; picking any folder goes back to mail.
+    var showingContacts: Binding<Bool>? = nil
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
     var column: Binding<NavigationSplitViewColumn>? = nil
@@ -165,6 +177,7 @@ struct Sidebar: View {
         Binding(get: { chosen }, set: { f in
             chosen = f
             if let f {
+                showingContacts?.wrappedValue = false
                 column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
@@ -187,12 +200,15 @@ struct Sidebar: View {
                 // Contacts sits with the Inbox as a place to go, like Fastmail's own sidebar (Paul: an icon by
                 // Settings looked like a profile button).
                 if store.accounts.contains(where: { $0.client.canContacts }) {
+                    let on = showingContacts?.wrappedValue == true
                     Button(action: contacts) {
                         Label("Contacts", systemImage: "person.2")
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // Highlighted like a chosen folder while Contacts is open.
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
                 }
             }
             ForEach(store.accounts) { s in
@@ -231,6 +247,8 @@ struct Sidebar: View {
         .onChange(of: store.folder) { _, f in if chosen != f && column?.wrappedValue != .sidebar { chosen = f } }
         // Back on the folders (iPhone): clear the highlight so tapping the same folder opens it again.
         .onChange(of: column?.wrappedValue) { _, c in if c == .sidebar { chosen = nil } }
+        // Contacts open: no folder is highlighted, so clicking any folder (Inbox too) goes back to mail.
+        .onChange(of: showingContacts?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())

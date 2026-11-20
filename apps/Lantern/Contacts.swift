@@ -205,116 +205,37 @@ extension JMAPClient {
 
 // MARK: The page
 
-struct ContactsView: View {
-    @EnvironmentObject var store: Store
-    @Environment(\.dismiss) private var dismiss
-    /// Starts a new email to an address (the page closes first).
-    let compose: (String) -> Void
+/// What the Contacts page knows, shared by its two columns in the main window: the list in the middle and the
+/// chosen contact on the right, just like a folder and its emails (Paul, 20 Nov 2026: not a pop-up).
+@MainActor
+final class ContactsModel: ObservableObject {
+    @Published var cards: [ContactCardData] = []
+    @Published var books: [String: [AddressBookInfo]] = [:]
+    @Published var loading = false
+    @Published var problem: String?
+    @Published var search = ""
+    @Published var chosen: ContactCardData.ID?
+    @Published var editing: ContactCardData?
+    private var loaded = false
 
-    @State private var cards: [ContactCardData] = []
-    @State private var books: [String: [AddressBookInfo]] = [:]
-    @State private var loading = true
-    @State private var problem: String?
-    @State private var search = ""
-    @State private var chosen: ContactCardData.ID?
-    @State private var editing: ContactCardData?
+    func accounts(_ store: Store) -> [AccountState] { store.accounts.filter { $0.client.canContacts } }
 
-    private var accounts: [AccountState] { store.accounts.filter { $0.client.canContacts } }
-
-    private var shown: [ContactCardData] {
+    var shown: [ContactCardData] {
         let words = search.trimmingCharacters(in: .whitespaces)
         return (words.isEmpty ? cards : cards.filter { $0.matches(words) }).sorted { $0.sortKey < $1.sortKey }
     }
 
-    var body: some View {
-        NavigationSplitView {
-            List(selection: $chosen) {
-                if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary) }
-                if !loading && cards.isEmpty && problem == nil {
-                    Text(accounts.isEmpty ? noAccess : "No contacts yet. Press + to add one.").foregroundStyle(.secondary)
-                }
-                let groups = Dictionary(grouping: shown, by: \.letter)
-                ForEach(groups.keys.sorted { $0 == "#" ? false : $1 == "#" ? true : $0 < $1 }, id: \.self) { letter in
-                    Section(letter) {
-                        ForEach(groups[letter] ?? []) { c in
-                            HStack(spacing: 10) {
-                                Avatar(address: c.avatar, size: 30)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(c.name).lineLimit(1)
-                                    if let first = c.emails.first?.value, first != c.name {
-                                        Text(first).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                    }
-                                }
-                            }
-                            .tag(c.id)
-                        }
-                    }
-                }
-            }
-            .overlay { if loading { ProgressView() } }
-            .searchable(text: $search, prompt: "Search contacts")
-            .navigationTitle("Contacts")
-            #if os(macOS)
-            .navigationSplitViewColumnWidth(min: 230, ideal: 260)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Label("Done", systemImage: "checkmark") }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { startNew() } label: { Label("New contact", systemImage: "plus") }
-                        .disabled(accounts.isEmpty)
-                }
-            }
-        } detail: {
-            if let id = chosen, let c = cards.first(where: { $0.id == id }) {
-                ContactDetail(card: c, bookName: bookName(c), compose: { address in dismiss(); compose(address) },
-                              edit: { editing = c }, open: { ref in dismiss(); Task { await store.show(ref) } })
-                    .id(c.id)
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "person.crop.circle").font(Look.size(34, weight: .light)).foregroundStyle(.tertiary)
-                    Text("No contact selected").foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .sheet(item: $editing) { c in
-            ContactEditor(card: c, books: books[c.account] ?? [], saved: { saved in
-                cards.removeAll { $0.id == saved.id || ($0.id.isEmpty) }
-                cards.append(saved)
-                chosen = saved.id
-                Task { await refreshContactsForCompose(saved.account) }
-            }, deleted: { gone in
-                cards.removeAll { $0.id == gone.id }
-                chosen = nil
-                Task { await refreshContactsForCompose(gone.account) }
-            })
-            .environmentObject(store)
-        }
-        .task { await load() }
-        #if os(macOS)
-        .frame(minWidth: 760, minHeight: 540)
-        #endif
-    }
+    var chosenCard: ContactCardData? { chosen.flatMap { id in cards.first { $0.id == id } } }
 
-    private var noAccess: String {
-        "Contacts need Contacts access. Sign in again with Fastmail, or make a new API token with Contacts ticked."
-    }
-
-    private func bookName(_ c: ContactCardData) -> String? {
-        let list = books[c.account] ?? []
-        guard list.count > 1 || store.accounts.count > 1 else { return nil }
-        let name = list.first { $0.id == c.book }?.name ?? "Contacts"
-        let account = store.state(id: c.account)?.account.label
-        return store.accounts.count > 1 && account != nil ? "\(name), \(account!)" : name
-    }
-
-    private func load() async {
+    /// Loads once each time the page is opened from the sidebar (again: `reload`).
+    func load(_ store: Store, again: Bool = false) async {
+        if loaded && !again { return }
+        loaded = true
         loading = true
+        problem = nil
         defer { loading = false }
         var all: [ContactCardData] = []
-        for s in accounts {
+        for s in accounts(store) {
             do {
                 all += try await s.client.cards(account: s.id)
                 books[s.id] = try await s.client.addressBooks()
@@ -328,18 +249,120 @@ struct ContactsView: View {
         #endif
     }
 
-    private func startNew() {
-        guard let s = accounts.first else { return }
+    func bookName(_ c: ContactCardData, store: Store) -> String? {
+        let list = books[c.account] ?? []
+        guard list.count > 1 || store.accounts.count > 1 else { return nil }
+        let name = list.first { $0.id == c.book }?.name ?? "Contacts"
+        let account = store.state(id: c.account)?.account.label
+        return store.accounts.count > 1 && account != nil ? "\(name), \(account!)" : name
+    }
+
+    func startNew(_ store: Store) {
+        guard let s = accounts(store).first else { return }
         let list = books[s.id] ?? []
         let book = (list.first { $0.isDefault } ?? list.first)?.id ?? ""
         editing = ContactCardData(id: "", account: s.id, book: book, emails: [ContactEntry(serverId: "", value: "", label: "")])
     }
 
+    func saved(_ card: ContactCardData, store: Store) {
+        cards.removeAll { $0.id == card.id || $0.id.isEmpty }
+        cards.append(card)
+        chosen = card.id
+        Task { await refreshForCompose(card.account, store: store) }
+    }
+
+    func deleted(_ card: ContactCardData, store: Store) {
+        cards.removeAll { $0.id == card.id }
+        chosen = nil
+        Task { await refreshForCompose(card.account, store: store) }
+    }
+
     /// Compose's address suggestions come from the same address book: load them again after a change.
-    private func refreshContactsForCompose(_ account: String) async {
+    private func refreshForCompose(_ account: String, store: Store) async {
         guard let s = store.state(id: account) else { return }
         s.contactsLoaded = false
         await s.loadContacts()
+    }
+}
+
+/// The middle column when Contacts is chosen in the sidebar: everyone, A to Z, with search and +.
+struct ContactsList: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject var model: ContactsModel
+
+    private var noAccess: String {
+        "Contacts need Contacts access. Sign in again with Fastmail, or make a new API token with Contacts ticked."
+    }
+
+    var body: some View {
+        List(selection: $model.chosen) {
+            if let problem = model.problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary) }
+            if !model.loading && model.cards.isEmpty && model.problem == nil {
+                Text(model.accounts(store).isEmpty ? noAccess : "No contacts yet. Press + to add one.").foregroundStyle(.secondary)
+            }
+            let groups = Dictionary(grouping: model.shown, by: \.letter)
+            ForEach(groups.keys.sorted { $0 == "#" ? false : $1 == "#" ? true : $0 < $1 }, id: \.self) { letter in
+                Section(letter) {
+                    ForEach(groups[letter] ?? []) { c in
+                        HStack(spacing: 10) {
+                            Avatar(address: c.avatar, size: 30)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(c.name).lineLimit(1)
+                                if let first = c.emails.first?.value, first != c.name {
+                                    Text(first).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                            }
+                        }
+                        .tag(c.id)
+                    }
+                }
+            }
+        }
+        .overlay { if model.loading { ProgressView() } }
+        .searchable(text: $model.search, prompt: "Search contacts")
+        .navigationTitle("Contacts")
+        #if os(macOS)
+        .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
+        #endif
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { model.startNew(store) } label: { Label("New contact", systemImage: "plus") }
+                    .disabled(model.accounts(store).isEmpty)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button { Task { await model.load(store, again: true) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+            }
+        }
+        .sheet(item: $model.editing) { c in
+            ContactEditor(card: c, books: model.books[c.account] ?? [],
+                          saved: { model.saved($0, store: store) }, deleted: { model.deleted($0, store: store) })
+                .environmentObject(store)
+        }
+        .task { await model.load(store) }
+    }
+}
+
+/// The right-hand column when Contacts is chosen: the picked contact.
+struct ContactsDetail: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject var model: ContactsModel
+    /// Starts a new email to an address.
+    let compose: (String) -> Void
+    /// Opens one of the recent emails (back in the mail view).
+    let open: (MessageRef) -> Void
+
+    var body: some View {
+        if let c = model.chosenCard {
+            ContactDetail(card: c, bookName: model.bookName(c, store: store), compose: compose,
+                          edit: { model.editing = c }, open: open)
+                .id(c.id)
+        } else {
+            VStack(spacing: 10) {
+                Image(systemName: "person.crop.circle").font(Look.size(34, weight: .light)).foregroundStyle(.tertiary)
+                Text("No contact selected").foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }
 
