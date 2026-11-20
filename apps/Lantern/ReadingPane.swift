@@ -351,14 +351,15 @@ struct ReadingPane: View {
                       systemImage: item.email.isMuted ? "bell" : "bell.slash")
             }
             .help(item.email.isMuted ? "Let replies to this conversation into the inbox again" : "Replies to this conversation skip the inbox (⇧⌘M)")
-            Menu {
+            // Folder accounts move mail with the folder button; the Labels menu only shows for label accounts.
+            if store.usesLabels(item.account) { Menu {
                 ForEach(store.labels(for: item)) { entry in
                     let on = item.email.mailboxIds[entry.box.id] == true
                     Button { Task { await store.setLabel(item, entry.box, on: !on) } } label: {
                         Label(String(repeating: "  ", count: entry.depth) + entry.box.name, systemImage: on ? "checkmark" : "tag")
                     }
                 }
-            } label: { Label("Labels", systemImage: "tag") }
+            } label: { Label("Labels", systemImage: "tag") } }
             #if os(iOS)
             spamButton
             #endif
