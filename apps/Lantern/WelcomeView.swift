@@ -314,6 +314,7 @@ struct OtherAccountView: View {
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(Store.labelsKey) private var showLabels = false
     @State private var adding: ServerKind?
     @State private var addingOther = false
     @State private var masking: AccountState?
@@ -511,6 +512,11 @@ struct SettingsView: View {
             UndoSendSetting()
         } footer: {
             Text("After you press Send, there's an Undo button for this long. Your mail server holds the email meanwhile, so it still goes if you close the app.")
+        }
+        Section {
+            Toggle(isOn: $showLabels) { Label("I use labels, not folders", systemImage: "tag") }
+        } footer: {
+            Text("Fastmail uses folders unless you switch to labels in its settings. Turn this on if you use labels, and the More menu gets a Labels list for adding and removing them.")
         }
         let several = store.accounts.filter { $0.identities.count > 1 }
         if !several.isEmpty {

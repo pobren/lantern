@@ -780,17 +780,10 @@ final class Store: ObservableObject {
     }
 
     /// The labels an email can take: every folder except Bin, Spam, Drafts and Sent.
-    /// Whether an account files mail with labels (an email can sit in several mailboxes) rather than folders.
-    /// Fastmail uses folders unless you switch to labels in its settings, and JMAP doesn't say which, so: labels once any
-    /// email we've seen is in two mailboxes at once, remembered per account (Paul uses folders, 20 Nov 2026).
-    func usesLabels(_ account: Account) -> Bool {
-        let key = "usesLabels." + account.id
-        if UserDefaults.standard.bool(forKey: key) { return true }
-        let seen = (state(for: account)?.inbox ?? []) + list.filter { $0.account.id == account.id }.map(\.email)
-        guard seen.contains(where: { $0.mailboxIds.values.filter { $0 }.count > 1 }) else { return false }
-        UserDefaults.standard.set(true, forKey: key)
-        return true
-    }
+    /// Settings key: show the Labels menu. Off by default, because Fastmail uses folders unless you switch to labels
+    /// in its own settings, and JMAP doesn't tell apps which (Paul uses folders, 20 Nov 2026).
+    static let labelsKey = "showLabels"
+    var showsLabels: Bool { UserDefaults.standard.bool(forKey: Self.labelsKey) }
 
     func labels(for item: Item) -> [FolderEntry] {
         guard let s = state(for: item.account) else { return [] }

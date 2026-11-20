@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 struct ReadingPane: View {
     @EnvironmentObject var store: Store
     @AppStorage("remoteImages") private var remoteImages = true
+    @AppStorage(Store.labelsKey) private var showLabels = false
     let item: Item
     let compose: (ComposeDraft) -> Void
 
@@ -351,8 +352,8 @@ struct ReadingPane: View {
                       systemImage: item.email.isMuted ? "bell" : "bell.slash")
             }
             .help(item.email.isMuted ? "Let replies to this conversation into the inbox again" : "Replies to this conversation skip the inbox (⇧⌘M)")
-            // Folder accounts move mail with the folder button; the Labels menu only shows for label accounts.
-            if store.usesLabels(item.account) { Menu {
+            // Folders (Fastmail's default) move mail with the folder button; Labels only when turned on in Settings.
+            if showLabels { Menu {
                 ForEach(store.labels(for: item)) { entry in
                     let on = item.email.mailboxIds[entry.box.id] == true
                     Button { Task { await store.setLabel(item, entry.box, on: !on) } } label: {
