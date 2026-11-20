@@ -184,6 +184,16 @@ struct Sidebar: View {
                         return true
                     } isTargeted: { inboxTargeted = $0 }
                     .tag(Folder.allInboxes)
+                // Contacts sits with the Inbox as a place to go, like Fastmail's own sidebar (Paul: an icon by
+                // Settings looked like a profile button).
+                if store.accounts.contains(where: { $0.client.canContacts }) {
+                    Button(action: contacts) {
+                        Label("Contacts", systemImage: "person.2")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             ForEach(store.accounts) { s in
                 Section {
@@ -234,10 +244,7 @@ struct Sidebar: View {
                     Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
                         .buttonStyle(.borderless)
                     Spacer()
-                    if store.accounts.contains(where: { $0.client.canContacts }) {
-                        Button(action: contacts) { Label("Contacts", systemImage: "person.crop.circle") }
-                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Contacts")
-                    }
+
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
             }
@@ -248,9 +255,7 @@ struct Sidebar: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: settings) { Image(systemName: "gearshape") }.accessibilityLabel("Settings")
             }
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: contacts) { Image(systemName: "person.crop.circle") }.accessibilityLabel("Contacts")
-            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: compose) { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
             }
