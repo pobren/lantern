@@ -448,11 +448,7 @@ struct EmailFile: FileDocument {
 
     init(data: Data) { self.data = data }
     init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let file = FileWrapper(regularFileWithContents: data)
-        file.preferredFilename = "Email.eml"
-        return file
-    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 
     /// The subject, made safe for a file name.
     static func name(for e: Email) -> String {
