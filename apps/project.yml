@@ -36,9 +36,9 @@ targets:
       path: Lantern/Info.plist
       properties:
         JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
-        # Sign in with Fastmail: the OAuth client id (see oauth/README.md). The GitHub copy is for TestFlight testing
-        # until https://jmapconnect.app/oauth/client.json is live; empty means the live one. Clear before release.
-        JCOAuthClient: https://raw.githubusercontent.com/pobren/lantern/claude/project-thread-tq3zod/oauth/client-test.json
+        # Sign in with Fastmail: the OAuth client id (see oauth/README.md). Empty means the live one,
+        # https://jmapconnect.app/oauth/client.json (live 20 Nov 2026, pob #582).
+        JCOAuthClient: ""
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
         CFBundleName: JMAP Connect    # the name in the Mac menu bar and Finder
@@ -82,7 +82,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
         # Must match the app's, so the extension can refresh a Fastmail sign in too.
-        JCOAuthClient: https://raw.githubusercontent.com/pobren/lantern/claude/project-thread-tq3zod/oauth/client-test.json
+        JCOAuthClient: ""
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
