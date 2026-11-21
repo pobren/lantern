@@ -209,6 +209,9 @@ struct ReadingPane: View {
         .fileExporter(isPresented: Binding(get: { saving != nil }, set: { if !$0 { saving = nil } }),
                       document: saving, contentType: .emailMessage, defaultFilename: EmailFile.name(for: shown)) { _ in saving = nil }
         .toolbar { tools }
+        #if os(macOS)
+        .touchBar { touchBarButtons }
+        #endif
         .focusedSceneValue(\.messageActions, actions)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -311,6 +314,23 @@ struct ReadingPane: View {
         ToolbarItem(placement: .topBarTrailing) { more }
         #endif
     }
+
+    #if os(macOS)
+    /// The Touch Bar on MacBook Pros that have one: the everyday actions for the open email.
+    @ViewBuilder private var touchBarButtons: some View {
+        Button { reply(all: false) } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
+        Button { reply(all: true) } label: { Label("Reply all", systemImage: "arrowshape.turn.up.left.2") }
+        Button { forward() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
+        Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
+        Button { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+        Button { Task { await store.flag(item) } } label: {
+            Label(item.email.isFlagged ? "Unstar" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
+        }
+        Button { Task { await store.markSpam(item, !store.inSpam(item)) } } label: {
+            Label(store.inSpam(item) ? "Not spam" : "Spam", systemImage: store.inSpam(item) ? "tray.and.arrow.up" : "xmark.bin")
+        }
+    }
+    #endif
 
     private var spamButton: some View {
         let spam = store.inSpam(item)
