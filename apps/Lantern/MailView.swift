@@ -533,6 +533,7 @@ struct MessageList: View {
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
         .toolbar {
+            ToolbarItem { CatchUpButton() }
             ToolbarItem { SelectButton() }
             ToolbarItem { ListFilterMenu() }
             ToolbarItem {
@@ -549,6 +550,7 @@ struct MessageList: View {
             ToolbarItem(placement: .bottomBar) { ListFilterMenu() }
             ToolbarItem(placement: .topBarTrailing) { PinSearchButton() }
             ToolbarItem(placement: .topBarTrailing) { SelectButton() }
+            ToolbarItem(placement: .topBarTrailing) { CatchUpButton() }
             ToolbarItem(placement: .bottomBar) { Spacer() }
             ToolbarItem(placement: .bottomBar) {
                 Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }

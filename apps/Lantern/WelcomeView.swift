@@ -566,6 +566,7 @@ struct SettingsView: View {
         } footer: {
             Text("Adds Newsletters to the sidebar: every mailing list that's emailed you lately, how often it sends and how much you read, with Unsubscribe and Archive all.")
         }
+        PrivateAISetting()
     }
 
     @ViewBuilder private var fastmailTools: some View {

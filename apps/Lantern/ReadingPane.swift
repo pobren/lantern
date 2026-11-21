@@ -9,6 +9,7 @@ struct ReadingPane: View {
     @EnvironmentObject var store: Store
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Trackers.key) private var blockTrackers = true
+    @AppStorage(PrivateAI.key) private var aiOn = false
     /// The email with its trackers taken out, worked out once each time the email or the setting changes.
     @State private var cleaned: (html: String, blocked: Int)?
     private var blocked: Int { cleaned?.blocked ?? 0 }
@@ -136,6 +137,11 @@ struct ReadingPane: View {
                          : unsub.web != nil ? "The sender's unsubscribe page opens in your browser."
                          : "An email asking to unsubscribe opens, ready to send.")
                 }
+            }
+
+            if aiOn && PrivateAI.available {
+                AIEmailTools(email: shown, account: item.account, compose: compose)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
             }
 
             if blockTrackers && blocked > 0 {
