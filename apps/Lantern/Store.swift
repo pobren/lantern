@@ -122,7 +122,7 @@ final class Store: ObservableObject {
     @Published var search = ""
     /// Where a search looks: every folder (apart from Bin and Spam) in every account, or just the folder on screen.
     @Published var searchScope: SearchScope = .allMail
-    private var listLimit = 100
+    var listLimit = 100
     @Published var mayHaveMore = false
 
     // The reading pane.
