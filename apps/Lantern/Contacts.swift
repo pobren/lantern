@@ -304,15 +304,22 @@ struct ContactsList: View {
             ForEach(groups.keys.sorted { $0 == "#" ? false : $1 == "#" ? true : $0 < $1 }, id: \.self) { letter in
                 Section(letter) {
                     ForEach(groups[letter] ?? []) { c in
-                        HStack(spacing: 10) {
-                            Avatar(address: c.avatar, size: 30)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(c.name).lineLimit(1)
+                        // Rows the size of the email list's, not a squeezed address book (Paul, 21 Nov 2026).
+                        HStack(spacing: 12) {
+                            Avatar(address: c.avatar, size: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(c.name).font(Look.size(15, weight: .semibold)).lineLimit(1)
+                                let work = [c.jobTitle, c.company].filter { !$0.isEmpty }.joined(separator: ", ")
                                 if let first = c.emails.first?.value, first != c.name {
-                                    Text(first).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(first).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1)
+                                } else if !work.isEmpty {
+                                    Text(work).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1)
+                                } else if let phone = c.phones.first?.value {
+                                    Text(phone).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1)
                                 }
                             }
                         }
+                        .padding(.vertical, 6)
                         .tag(c.id)
                     }
                 }
@@ -379,87 +386,61 @@ private struct ContactDetail: View {
     @State private var loadingRecent = true
 
     var body: some View {
-        List {
-            Section {
-                HStack(spacing: 14) {
-                    Avatar(address: card.avatar, size: 56)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(card.name).font(Look.size(22, weight: .semibold)).textSelection(.enabled)
-                        let work = [card.jobTitle, card.company].filter { !$0.isEmpty }.joined(separator: ", ")
-                        if !work.isEmpty { Text(work).foregroundStyle(.secondary) }
-                        if let bookName { Label(bookName, systemImage: "person.2").font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
-                .padding(.vertical, 4)
-                HStack(spacing: 10) {
-                    if let first = card.emails.first {
-                        Button { compose(first.value) } label: { Label("Email", systemImage: "envelope.fill") }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    if let phone = card.phones.first, let url = tel(phone.value) {
-                        Button { openURL(url) } label: { Label("Call", systemImage: "phone.fill") }
-                            .buttonStyle(.bordered)
-                    }
-                }
-            }
-            if !card.emails.isEmpty {
-                Section("Email") {
-                    ForEach(card.emails) { e in
-                        Button { compose(e.value) } label: { entry(e, icon: "envelope") }.buttonStyle(.plain)
-                    }
-                }
-            }
-            if !card.phones.isEmpty {
-                Section("Phone") {
-                    ForEach(card.phones) { p in
-                        Button { if let url = tel(p.value) { openURL(url) } } label: { entry(p, icon: "phone") }.buttonStyle(.plain)
-                    }
-                }
-            }
-            if !card.addresses.isEmpty {
-                Section("Address") {
-                    ForEach(card.addresses, id: \.self) { a in
-                        Button {
-                            var c = URLComponents(string: "https://maps.apple.com/")!
-                            c.queryItems = [URLQueryItem(name: "q", value: a)]
-                            if let url = c.url { openURL(url) }
-                        } label: { Label(a, systemImage: "map").fixedSize(horizontal: false, vertical: true) }.buttonStyle(.plain)
-                    }
-                }
-            }
-            Section {
-                if card.note.isEmpty {
-                    Button(action: edit) { Label("Add a private note", systemImage: "note.text.badge.plus") }.buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(card.note).textSelection(.enabled)
-                }
-            } header: { Text("Note") } footer: { Text("Only you see this. It's saved with the contact in your address book.") }
-            if !card.emails.isEmpty {
-                Section("Recent emails") {
-                    if loadingRecent { ProgressView().frame(maxWidth: .infinity) }
-                    else if recent.isEmpty { Text("No emails yet.").foregroundStyle(.secondary) }
-                    ForEach(recent) { e in
-                        Button { open(MessageRef(account: card.account, email: e.id)) } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text(e.subject?.isEmpty == false ? e.subject! : "(no subject)").lineLimit(1)
-                                    Spacer()
-                                    Text(e.date, format: .dateTime.day().month(.abbreviated).year()).font(.caption).foregroundStyle(.secondary)
-                                }
-                                if let p = e.preview, !p.isEmpty { Text(p).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                            }
-                            .contentShape(Rectangle())
+        ScrollView {
+            VStack(spacing: 18) {
+                header
+                actions
+                if !card.emails.isEmpty {
+                    box("Email") {
+                        ForEach(card.emails) { e in
+                            Button { compose(e.value) } label: { entry(e) }.buttonStyle(.plain)
+                            if e.id != card.emails.last?.id { Divider() }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+                if !card.phones.isEmpty {
+                    box("Phone") {
+                        ForEach(card.phones) { p in
+                            Button { if let url = tel(p.value) { openURL(url) } } label: { entry(p) }.buttonStyle(.plain)
+                            if p.id != card.phones.last?.id { Divider() }
+                        }
+                    }
+                }
+                if !card.addresses.isEmpty {
+                    box("Address") {
+                        ForEach(card.addresses, id: \.self) { a in
+                            Button { maps(a) } label: {
+                                Text(a).font(Look.size(15)).foregroundStyle(Look.accent)
+                                    .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            if a != card.addresses.last { Divider() }
+                        }
+                    }
+                }
+                box("Note", footer: "Only you see this. It's saved with the contact in your address book.") {
+                    if card.note.isEmpty {
+                        Button(action: edit) {
+                            Label("Add a private note", systemImage: "note.text.badge.plus").font(Look.size(15))
+                                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                    } else {
+                        Text(card.note).font(Look.size(15)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                if !card.emails.isEmpty { recentBox }
             }
+            .padding(.horizontal, 24).padding(.vertical, 28)
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity)
         }
+        .background(Look.paper)
         .navigationTitle(card.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: edit) { Label("Edit", systemImage: "pencil") }
+                Button(action: edit) { Label("Edit", systemImage: "pencil") }.help("Edit contact")
             }
         }
         .task(id: card.emails.map(\.value).joined()) {
@@ -471,12 +452,112 @@ private struct ContactDetail: View {
         }
     }
 
-    private func entry(_ e: ContactEntry, icon: String) -> some View {
-        HStack {
-            Label(e.value, systemImage: icon).lineLimit(1)
-            Spacer()
-            if !e.label.isEmpty { Text(e.label).font(.caption).foregroundStyle(.secondary) }
+    /// Big picture, name, job and address book, centred, like Apple's Contacts.
+    private var header: some View {
+        VStack(spacing: 6) {
+            Avatar(address: card.avatar, size: 96)
+                .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+                .padding(.bottom, 4)
+            Text(card.name).font(Look.size(26, weight: .bold)).multilineTextAlignment(.center).textSelection(.enabled)
+            let work = [card.jobTitle, card.company].filter { !$0.isEmpty }.joined(separator: ", ")
+            if !work.isEmpty { Text(work).font(Look.size(15)).foregroundStyle(.secondary) }
+            if let bookName { Label(bookName, systemImage: "person.2").font(.caption).foregroundStyle(.secondary) }
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Round buttons under the name: email, call, message and map, greyed when there's nothing to use.
+    private var actions: some View {
+        let email: String? = card.emails.first?.value
+        let call: URL? = card.phones.first.flatMap { tel($0.value) }
+        let text: URL? = card.phones.first.flatMap { sms($0.value) }
+        let place: String? = card.addresses.first
+        var mail: (() -> Void)? = nil
+        var phone: (() -> Void)? = nil
+        var message: (() -> Void)? = nil
+        var map: (() -> Void)? = nil
+        if let email { mail = { compose(email) } }
+        if let call { phone = { openURL(call) } }
+        if let text { message = { openURL(text) } }
+        if let place { map = { maps(place) } }
+        return HStack(spacing: 12) {
+            action("Email", "envelope.fill", mail)
+            action("Call", "phone.fill", phone)
+            action("Message", "message.fill", message)
+            action("Map", "map.fill", map)
+        }
+        .frame(maxWidth: 420)
+    }
+
+    private func action(_ title: String, _ icon: String, _ run: (() -> Void)?) -> some View {
+        Button { run?() } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 17, weight: .medium))
+                Text(title).font(Look.size(12, weight: .medium))
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 10)
+            .foregroundStyle(run == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Look.accent))
+            .background(RoundedRectangle(cornerRadius: 12).fill(Look.ground))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .disabled(run == nil)
+    }
+
+    /// A rounded box with a small heading, like a section of Apple's Contacts card.
+    private func box<Content: View>(_ title: String, footer: String? = nil, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(Look.size(13, weight: .semibold)).foregroundStyle(.secondary).padding(.leading, 4)
+            VStack(alignment: .leading, spacing: 10) { content() }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Look.ground))
+            if let footer { Text(footer).font(.caption).foregroundStyle(.secondary).padding(.leading, 4) }
+        }
+    }
+
+    private var recentBox: some View {
+        box("Recent emails") {
+            if loadingRecent { ProgressView().frame(maxWidth: .infinity) }
+            else if recent.isEmpty { Text("No emails yet.").foregroundStyle(.secondary) }
+            ForEach(recent) { e in
+                Button { open(MessageRef(account: card.account, email: e.id)) } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(e.subject?.isEmpty == false ? e.subject! : "(no subject)")
+                                .font(Look.size(15, weight: e.isUnread ? .semibold : .medium)).lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text(When.short(e.date)).font(Look.size(12.5)).foregroundStyle(.secondary)
+                        }
+                        if let p = e.preview, !p.isEmpty {
+                            Text(p).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if e.id != recent.last?.id { Divider() }
+            }
+        }
+    }
+
+    private func maps(_ a: String) {
+        var c = URLComponents(string: "https://maps.apple.com/")!
+        c.queryItems = [URLQueryItem(name: "q", value: a)]
+        if let url = c.url { openURL(url) }
+    }
+
+    private func sms(_ number: String) -> URL? {
+        URL(string: "sms:" + number.filter { "+0123456789".contains($0) })
+    }
+
+    /// The label small on top ("mobile", "work"), the number or address under it in the accent colour.
+    private func entry(_ e: ContactEntry) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !e.label.isEmpty { Text(e.label).font(Look.size(12)).foregroundStyle(.secondary) }
+            Text(e.value).font(Look.size(15)).foregroundStyle(Look.accent).lineLimit(1).textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 
