@@ -561,7 +561,7 @@ struct Row: View {
         let e = item.email
         HStack(alignment: .top, spacing: 11) {
             Avatar(address: e.sender, size: 40)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if e.isUnread { Circle().fill(Look.accent).frame(width: 7, height: 7).accessibilityLabel("Unread") }
                     Text(e.sender.display)
@@ -600,7 +600,12 @@ struct Row: View {
                 }
             }
         }
-        .padding(.vertical, 5)
+        // A little more room between emails, like Apple Mail (Paul, 21 Nov 2026).
+        #if os(macOS)
+        .padding(.vertical, 9)
+        #else
+        .padding(.vertical, 7)
+        #endif
         .contentShape(Rectangle())
     }
 }
