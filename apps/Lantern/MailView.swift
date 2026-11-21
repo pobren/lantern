@@ -14,6 +14,9 @@ struct RootView: View {
     /// Contacts chosen in the sidebar: the middle and right columns show contacts instead of mail.
     @State private var contacts = false
     @StateObject private var people = ContactsModel()
+    /// Newsletters chosen in the sidebar: the middle and right columns show the newsletter manager.
+    @State private var newsletters = false
+    @StateObject private var lists = NewslettersModel()
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
@@ -25,21 +28,31 @@ struct RootView: View {
 
     private var sidebar: some View {
         Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
-                contacts: { showContacts() }, showingContacts: $contacts, column: $compact)
+                contacts: { showContacts() }, showingContacts: $contacts,
+                newsletters: { newsletters = true; contacts = false; compact = .content }, showingNewsletters: $newsletters,
+                column: $compact)
     }
     @ViewBuilder private var middle: some View {
-        if contacts {
+        if newsletters {
+            NewslettersList(model: lists)
+        } else if contacts {
             ContactsList(model: people)
         } else {
             MessageList(compose: { composing = ComposeDraft.new(store: store) })
         }
     }
     private func showContacts() {
+        newsletters = false
         contacts = true
         compact = .content
     }
     @ViewBuilder private var detail: some View {
-        if contacts {
+        if newsletters {
+            NewsletterDetail(model: lists, open: { ref in
+                newsletters = false
+                Task { await store.show(ref) }
+            })
+        } else if contacts {
             ContactsDetail(model: people, compose: { address in
                 var d = ComposeDraft.new(store: store)
                 d.to = address
@@ -172,6 +185,10 @@ struct Sidebar: View {
     var contacts: () -> Void = {}
     /// Whether Contacts is showing; picking any folder goes back to mail.
     var showingContacts: Binding<Bool>? = nil
+    var newsletters: () -> Void = {}
+    /// Whether the newsletter manager is showing; picking any folder goes back to mail.
+    var showingNewsletters: Binding<Bool>? = nil
+    @AppStorage(NewslettersModel.key) private var newsletterManager = true
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
     var column: Binding<NavigationSplitViewColumn>? = nil
@@ -191,6 +208,7 @@ struct Sidebar: View {
             chosen = f
             if let f {
                 showingContacts?.wrappedValue = false
+                showingNewsletters?.wrappedValue = false
                 column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
@@ -223,9 +241,20 @@ struct Sidebar: View {
                     // Highlighted like a chosen folder while Contacts is open.
                     .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
                 }
+                if newsletterManager {
+                    let on = showingNewsletters?.wrappedValue == true
+                    Button(action: newsletters) {
+                        Label("Newsletters", systemImage: "newspaper")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
+                }
             }
             SmartFolderRows(opened: {
                 showingContacts?.wrappedValue = false
+                showingNewsletters?.wrappedValue = false
                 column?.wrappedValue = .content
                 chosen = nil
             })
@@ -267,6 +296,7 @@ struct Sidebar: View {
         .onChange(of: column?.wrappedValue) { _, c in if c == .sidebar { chosen = nil } }
         // Contacts open: no folder is highlighted, so clicking any folder (Inbox too) goes back to mail.
         .onChange(of: showingContacts?.wrappedValue) { _, on in if on == true { chosen = nil } }
+        .onChange(of: showingNewsletters?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())

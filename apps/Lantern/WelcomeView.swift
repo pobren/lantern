@@ -335,6 +335,7 @@ struct SettingsView: View {
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
     @AppStorage(Trackers.key) private var blockTrackers = true
+    @AppStorage(NewslettersModel.key) private var newsletterManager = true
     @AppStorage(Notifier.enabledKey) private var notify = true
     @AppStorage(Notifier.badgeKey) private var badge = true
     #if os(iOS)
@@ -559,6 +560,11 @@ struct SettingsView: View {
             Toggle(isOn: $blockTrackers) { Label("Block trackers", systemImage: "eye.trianglebadge.exclamationmark") }
         } footer: {
             Text("Takes out the hidden pictures that tell senders when and where you opened their email, and says how many were blocked. Done on this device.")
+        }
+        Section {
+            Toggle(isOn: $newsletterManager) { Label("Newsletter manager", systemImage: "newspaper") }
+        } footer: {
+            Text("Adds Newsletters to the sidebar: every mailing list that's emailed you lately, how often it sends and how much you read, with Unsubscribe and Archive all.")
         }
     }
 
