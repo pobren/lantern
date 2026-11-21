@@ -125,6 +125,11 @@ struct RootView: View {
         .overlay(alignment: .bottom) {
             UndoMoveBar()
         }
+        // A Focus changed which accounts show: redraw and reload the list.
+        .onReceive(NotificationCenter.default.publisher(for: FocusAccounts.changed)) { _ in
+            store.objectWillChange.send()
+            Task { await store.reloadList() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: AddContactRequest.note)) { note in
             guard let r = note.userInfo?["request"] as? AddContactRequest else { return }
             showContacts()
@@ -224,7 +229,7 @@ struct Sidebar: View {
                 column?.wrappedValue = .content
                 chosen = nil
             })
-            ForEach(store.accounts) { s in
+            ForEach(store.shownAccounts) { s in
                 Section {
                     ForEach(s.tree) { entry in
                         if !(store.accounts.count == 1 && entry.box.role == "inbox") && !store.isHidden(entry, in: s) {

@@ -458,7 +458,7 @@ final class Store: ObservableObject {
         var reached = false
         let query = SearchQuery(words)
         if !words.isEmpty && scope == .allMail {
-            for s in accounts {
+            for s in shownAccounts {
                 let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
                 let base: [String: Any] = skip.isEmpty ? [:] : ["inMailboxOtherThan": skip]
                 let filter = narrowed(query.filter(adding: base))
@@ -471,10 +471,10 @@ final class Store: ObservableObject {
             switch wanted {
             case .allInboxes:
                 if words.isEmpty && listLimit <= 100 && only == .all {
-                    items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
+                    items = shownAccounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
                     reached = !offline
                 } else {
-                    for s in accounts {
+                    for s in shownAccounts {
                         guard let inbox = s.box("inbox") else { continue }
                         let filter = narrowed(words.isEmpty ? ["inMailbox": inbox.id] : query.filter(adding: ["inMailbox": inbox.id]))
                         do {
@@ -562,7 +562,7 @@ final class Store: ObservableObject {
 
     /// Unread across every inbox, for the sidebar and the Dock.
     var unreadInboxes: Int {
-        accounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
+        shownAccounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
     }
 
     /// The folder an item is being looked at in, so archive and move know where to take it from.

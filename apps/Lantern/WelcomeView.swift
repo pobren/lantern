@@ -334,6 +334,7 @@ struct SettingsView: View {
     }
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
+    @AppStorage(Trackers.key) private var blockTrackers = true
     @AppStorage(Notifier.enabledKey) private var notify = true
     @AppStorage(Notifier.badgeKey) private var badge = true
     #if os(iOS)
@@ -553,6 +554,11 @@ struct SettingsView: View {
         }
         Section {
             Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
+        }
+        Section {
+            Toggle(isOn: $blockTrackers) { Label("Block trackers", systemImage: "eye.trianglebadge.exclamationmark") }
+        } footer: {
+            Text("Takes out the hidden pictures that tell senders when and where you opened their email, and says how many were blocked. Done on this device.")
         }
     }
 
