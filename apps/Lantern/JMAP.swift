@@ -145,10 +145,15 @@ final class JMAPClient: @unchecked Sendable {
 
     var accountId: String? { session?.primaryAccounts[Self.mail] }
 
-    private func request(_ url: URL, method: String = "GET", body: Data? = nil, contentType: String = "application/json") -> URLRequest {
+    /// Signed in with Fastmail (OAuth) rather than an API token or app password.
+    var usesOAuth: Bool { FastmailOAuth.isOAuth(token) }
+
+    private func request(_ url: URL, method: String = "GET", body: Data? = nil, contentType: String = "application/json",
+                         fresh: Bool = false) async throws -> URLRequest {
         var r = URLRequest(url: url)
         r.httpMethod = method
-        r.setValue(JMAPAuth.header(token), forHTTPHeaderField: "Authorization")
+        // A Fastmail sign in gets a new access token first when its current one is about to run out.
+        r.setValue(try await FastmailOAuth.header(token, force: fresh), forHTTPHeaderField: "Authorization")
         if let body {
             r.httpBody = body
             r.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -159,8 +164,15 @@ final class JMAPClient: @unchecked Sendable {
     @discardableResult
     func connect() async throws -> JMAPSession {
         // /.well-known/jmap usually redirects to the real session address; keep signing in across that hop.
-        let (data, response) = try await http.data(for: request(sessionURL), delegate: KeepSignIn(from: sessionURL, header: JMAPAuth.header(token)))
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        var first = try await request(sessionURL)
+        var (data, response) = try await http.data(for: first, delegate: KeepSignIn(from: sessionURL, header: first.value(forHTTPHeaderField: "Authorization") ?? ""))
+        var code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 && usesOAuth {
+            // The access token ended early (or was revoked): get a new one and try once more.
+            first = try await request(sessionURL, fresh: true)
+            (data, response) = try await http.data(for: first, delegate: KeepSignIn(from: sessionURL, header: first.value(forHTTPHeaderField: "Authorization") ?? ""))
+            code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        }
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard var s = try? JSONDecoder().decode(JMAPSession.self, from: data) else { throw JMAPError.badServer }
@@ -185,8 +197,12 @@ final class JMAPClient: @unchecked Sendable {
         if session == nil { try await connect() }
         guard let s = session, let url = URL(string: s.apiUrl) else { throw JMAPError.badServer }
         let body = try JSONSerialization.data(withJSONObject: ["using": using, "methodCalls": calls])
-        let (data, response) = try await http.data(for: request(url, method: "POST", body: body))
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        var (data, response) = try await http.data(for: request(url, method: "POST", body: body))
+        var code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 && usesOAuth {
+            (data, response) = try await http.data(for: request(url, method: "POST", body: body, fresh: true))
+            code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        }
         if code == 401 || code == 403 { throw JMAPError.signIn }
         guard code == 200 else { throw JMAPError.http(code) }
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -437,7 +453,8 @@ final class JMAPClient: @unchecked Sendable {
             .replacingOccurrences(of: "{type}", with: enc(type))
             .replacingOccurrences(of: "{name}", with: "file")
         guard let url = URL(string: address) else { throw JMAPError.badServer }
-        let (data, response) = try await http.data(for: request(url))
+        var (data, response) = try await http.data(for: request(url))
+        if (response as? HTTPURLResponse)?.statusCode == 401 && usesOAuth { (data, response) = try await http.data(for: request(url, fresh: true)) }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw JMAPError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
         return data
     }
@@ -448,7 +465,7 @@ final class JMAPClient: @unchecked Sendable {
         guard let s = session, let acc = accountId else { throw JMAPError.missing("an account") }
         let enc = acc.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? acc
         guard let url = URL(string: s.uploadUrl.replacingOccurrences(of: "{accountId}", with: enc)) else { throw JMAPError.badServer }
-        var r = request(url, method: "POST", body: data, contentType: type)
+        var r = try await request(url, method: "POST", body: data, contentType: type)
         r.timeoutInterval = 300
         let (out, response) = try await http.data(for: r)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -505,7 +522,8 @@ final class JMAPClient: @unchecked Sendable {
 
     /// The email as JMAP wants it, ready to save in Drafts (and, when sending, to submit).
     private func message(from identity: Identity, as address: String?, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress], subject: String, text: String,
-                         inReplyTo: String?, references: [String], attachments: [Outgoing], drafts: String) -> [String: Any] {
+                         inReplyTo: String?, references: [String], attachments: [Outgoing], drafts: String,
+                         formatted: Bool = false) -> [String: Any] {
         // Apple Mail shows attachments straight after the last line of text, so end on a blank line
         // to give them a line of their own.
         var body = text
@@ -522,6 +540,11 @@ final class JMAPClient: @unchecked Sendable {
             "bodyValues": ["body": ["value": body]],
             "textBody": [["partId": "body", "type": "text/plain"]]
         ]
+        // Bold, lists and links: sent as HTML with a plain text copy (drafts keep the marks so they can be edited).
+        if formatted && Formatting.used(in: body) {
+            draft["bodyValues"] = ["body": ["value": Formatting.plain(body)], "html": ["value": Formatting.html(body)]]
+            draft["htmlBody"] = [["partId": "html", "type": "text/html"]]
+        }
         if !attachments.isEmpty {
             draft["attachments"] = attachments.map { ["blobId": $0.blobId, "type": $0.type, "name": $0.name, "disposition": "attachment"] }
         }
@@ -555,23 +578,33 @@ final class JMAPClient: @unchecked Sendable {
 
     /// Sends a plain text email: saves it as a draft, submits it, then files it in Sent. When the email started
     /// life as a saved draft, that copy is removed.
+    /// `holdFor` (seconds) is Undo send: the server holds the email that long, filed in Sent, so it can still be
+    /// called back (cancelScheduled). Only used when the server can hold mail (maxDelayedSend).
+    @discardableResult
     func send(from identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               inReplyTo: String?, references: [String] = [], attachments: [Outgoing] = [],
-              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil) async throws {
+              drafts: String, sent: String, scheduled: String? = nil, replacing: String? = nil, sendAt: Date? = nil,
+              holdFor: Int = 0) async throws -> SentEmail? {
         guard let acc = accountId else { throw JMAPError.missing("an account") }
         var submission: [String: Any] = ["identityId": identity.id, "emailId": "#draft"]
         // Sent mail is filed in Sent. Mail held to send later waits in Scheduled (when the account has one, as
         // Fastmail does), and moves on to Sent once it has gone (releaseScheduled).
         var filed = sent
+        var hold: Date?
         if let sendAt, sendAt > Date().addingTimeInterval(30) {
             if let scheduled { filed = scheduled }
+            hold = sendAt
+        } else if sendAt == nil, holdFor > 0, maxDelayedSend >= holdFor {
+            hold = Date().addingTimeInterval(TimeInterval(holdFor))
+        }
+        if let hold {
             // Send later (RFC 4865 FUTURERELEASE through JMAP): the server holds the email until then.
             let from = address ?? identity.email
             let all = (to + cc + bcc).map { ["email": $0.email] }
-            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(sendAt)]], "rcptTo": all]
+            submission["envelope"] = ["mailFrom": ["email": from, "parameters": ["HOLDUNTIL": Self.utc(hold)]], "rcptTo": all]
         }
         let draft = message(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
-                            inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts)
+                            inReplyTo: inReplyTo, references: references, attachments: attachments, drafts: drafts, formatted: true)
         var create: [String: Any] = ["accountId": acc, "create": ["draft": draft]]
         if let replacing { create["destroy"] = [replacing] }
         let r = try await call([
@@ -587,6 +620,9 @@ final class JMAPClient: @unchecked Sendable {
         if let failed = r["s"]?["notCreated"] as? [String: Any], let first = failed.values.first as? [String: Any] {
             throw JMAPError.method(first["type"] as? String ?? "notSent", first["description"] as? String)
         }
+        guard let emailId = ((r["c"]?["created"] as? [String: Any])?["draft"] as? [String: Any])?["id"] as? String,
+              let submissionId = ((r["s"]?["created"] as? [String: Any])?["send"] as? [String: Any])?["id"] as? String else { return nil }
+        return SentEmail(emailId: emailId, submissionId: submissionId, heldUntil: hold, filedIn: filed)
     }
 
     /// Opens the server's push channel. Each time mail changes, `changed` runs; the stream ends when the task is cancelled.
@@ -596,11 +632,12 @@ final class JMAPClient: @unchecked Sendable {
             .replacingOccurrences(of: "{closeafter}", with: "no")
             .replacingOccurrences(of: "{ping}", with: "60")
         guard let url = URL(string: address) else { return }
-        var r = request(url)
-        r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        r.timeoutInterval = 600
         while !Task.isCancelled {
             do {
+                // Made afresh each time round, so a Fastmail sign in reconnects with a current access token.
+                var r = try await request(url)
+                r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                r.timeoutInterval = 600
                 let (bytes, _) = try await http.bytes(for: r)
                 for try await line in bytes.lines {
                     if Task.isCancelled { return }

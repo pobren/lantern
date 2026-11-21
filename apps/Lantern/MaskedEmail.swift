@@ -97,6 +97,8 @@ struct MaskedEmailView: View {
             }
             .overlay { if loading { ProgressView() } }
             .searchable(text: $filter, prompt: "Search masked addresses")
+            .sheetHeader("Masked Email", icon: "theatermasks.fill", tint: .indigo,
+                         blurb: "A private address for each website, delivered to your inbox. Turn any of them off when the spam starts.")
             .navigationTitle("Masked Email")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -201,6 +203,8 @@ struct NewMaskedView: View {
                 if let problem { Text(problem).foregroundStyle(.red).font(.callout) }
             }
             .formStyle(.grouped)
+            .sheetHeader("New masked address", icon: "wand.and.stars", tint: .indigo,
+                         blurb: "Fastmail makes the address, and we copy it for you.")
             .navigationTitle("New masked address")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

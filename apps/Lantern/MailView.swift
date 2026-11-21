@@ -11,6 +11,12 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @State private var composing: ComposeDraft?
     @State private var settings = false
+    /// Contacts chosen in the sidebar: the middle and right columns show contacts instead of mail.
+    @State private var contacts = false
+    @StateObject private var people = ContactsModel()
+    /// Newsletters chosen in the sidebar: the middle and right columns show the newsletter manager.
+    @State private var newsletters = false
+    @StateObject private var lists = NewslettersModel()
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
@@ -21,13 +27,41 @@ struct RootView: View {
     }()
 
     private var sidebar: some View {
-        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true }, column: $compact)
+        Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
+                contacts: { showContacts() }, showingContacts: $contacts,
+                newsletters: { newsletters = true; contacts = false; compact = .content }, showingNewsletters: $newsletters,
+                column: $compact)
     }
-    private var middle: some View {
-        MessageList(compose: { composing = ComposeDraft.new(store: store) })
+    @ViewBuilder private var middle: some View {
+        if newsletters {
+            NewslettersList(model: lists)
+        } else if contacts {
+            ContactsList(model: people)
+        } else {
+            MessageList(compose: { composing = ComposeDraft.new(store: store) })
+        }
+    }
+    private func showContacts() {
+        newsletters = false
+        contacts = true
+        compact = .content
     }
     @ViewBuilder private var detail: some View {
-        if let item = store.selectedItem {
+        if newsletters {
+            NewsletterDetail(model: lists, open: { ref in
+                newsletters = false
+                Task { await store.show(ref) }
+            })
+        } else if contacts {
+            ContactsDetail(model: people, compose: { address in
+                var d = ComposeDraft.new(store: store)
+                d.to = address
+                composing = d
+            }, open: { ref in
+                contacts = false
+                Task { await store.show(ref) }
+            })
+        } else if let item = store.selectedItem {
             ReadingPane(item: item, compose: { composing = $0 })
                 .id(item.id)
         } else {
@@ -92,10 +126,27 @@ struct RootView: View {
         .sheet(item: $composing) { draft in ComposeView(draft: draft).environmentObject(store) }
         .sheet(isPresented: $settings) { SettingsView().environmentObject(store) }
         .onReceive(NotificationCenter.default.publisher(for: .lanternCompose)) { _ in composing = ComposeDraft.new(store: store) }
+        .onReceive(NotificationCenter.default.publisher(for: .lanternContacts)) { _ in if store.hasAccounts { showContacts() } }
         .onReceive(AlertRouter.shared.$pending) { ref in
             guard let ref else { return }
             AlertRouter.shared.pending = nil
             Task { await store.show(ref) }
+        }
+        .overlay(alignment: .bottom) {
+            UndoSendBar(reopen: { d in composing = d })
+        }
+        .overlay(alignment: .bottom) {
+            UndoMoveBar()
+        }
+        // A Focus changed which accounts show: redraw and reload the list.
+        .onReceive(NotificationCenter.default.publisher(for: FocusAccounts.changed)) { _ in
+            store.objectWillChange.send()
+            Task { await store.reloadList() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AddContactRequest.note)) { note in
+            guard let r = note.userInfo?["request"] as? AddContactRequest else { return }
+            showContacts()
+            Task { await people.add(r, store: store) }
         }
         .overlay(alignment: .bottom) {
             if let problem = store.problem {
@@ -131,6 +182,13 @@ struct Sidebar: View {
     @EnvironmentObject var store: Store
     let compose: () -> Void
     let settings: () -> Void
+    var contacts: () -> Void = {}
+    /// Whether Contacts is showing; picking any folder goes back to mail.
+    var showingContacts: Binding<Bool>? = nil
+    var newsletters: () -> Void = {}
+    /// Whether the newsletter manager is showing; picking any folder goes back to mail.
+    var showingNewsletters: Binding<Bool>? = nil
+    @AppStorage(NewslettersModel.key) private var newsletterManager = true
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
     var column: Binding<NavigationSplitViewColumn>? = nil
@@ -149,6 +207,8 @@ struct Sidebar: View {
         Binding(get: { chosen }, set: { f in
             chosen = f
             if let f {
+                showingContacts?.wrappedValue = false
+                showingNewsletters?.wrappedValue = false
                 column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
@@ -168,8 +228,37 @@ struct Sidebar: View {
                         return true
                     } isTargeted: { inboxTargeted = $0 }
                     .tag(Folder.allInboxes)
+                // Contacts sits with the Inbox as a place to go, like Fastmail's own sidebar (Paul: an icon by
+                // Settings looked like a profile button).
+                if store.accounts.contains(where: { $0.client.canContacts }) {
+                    let on = showingContacts?.wrappedValue == true
+                    Button(action: contacts) {
+                        Label("Contacts", systemImage: "person.2")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // Highlighted like a chosen folder while Contacts is open.
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
+                }
+                if newsletterManager {
+                    let on = showingNewsletters?.wrappedValue == true
+                    Button(action: newsletters) {
+                        Label("Newsletters", systemImage: "newspaper")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
+                }
             }
-            ForEach(store.accounts) { s in
+            SmartFolderRows(opened: {
+                showingContacts?.wrappedValue = false
+                showingNewsletters?.wrappedValue = false
+                column?.wrappedValue = .content
+                chosen = nil
+            })
+            ForEach(store.shownAccounts) { s in
                 Section {
                     ForEach(s.tree) { entry in
                         if !(store.accounts.count == 1 && entry.box.role == "inbox") && !store.isHidden(entry, in: s) {
@@ -205,6 +294,9 @@ struct Sidebar: View {
         .onChange(of: store.folder) { _, f in if chosen != f && column?.wrappedValue != .sidebar { chosen = f } }
         // Back on the folders (iPhone): clear the highlight so tapping the same folder opens it again.
         .onChange(of: column?.wrappedValue) { _, c in if c == .sidebar { chosen = nil } }
+        // Contacts open: no folder is highlighted, so clicking any folder (Inbox too) goes back to mail.
+        .onChange(of: showingContacts?.wrappedValue) { _, on in if on == true { chosen = nil } }
+        .onChange(of: showingNewsletters?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())
@@ -218,6 +310,7 @@ struct Sidebar: View {
                     Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
                         .buttonStyle(.borderless)
                     Spacer()
+
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
             }
@@ -228,6 +321,7 @@ struct Sidebar: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: settings) { Image(systemName: "gearshape") }.accessibilityLabel("Settings")
             }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: compose) { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
             }
@@ -305,12 +399,38 @@ struct MessageList: View {
     @Environment(\.openWindow) private var openWindow
     #endif
     let compose: () -> Void
+    #if os(macOS)
+    @FocusState private var searchFocused: Bool
+    #endif
+
+    /// The search being shown, for each result's "why it matched" line (nil when not searching).
+    private var query: SearchQuery? {
+        let words = store.search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? nil : SearchQuery(words)
+    }
+
+    private func pick(_ s: SearchSuggestion) {
+        store.search = s.search
+        RecentSearches.add(s.search)
+        Task { await store.reloadList() }
+    }
 
     var body: some View {
-        List(selection: $store.selection) {
+        List(selection: store.selecting ? .constant(nil) : $store.selection) {
             ForEach(store.list) { item in
-                Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
-                    place: store.searchingAllMail ? store.place(of: item) : nil)
+                HStack(spacing: 10) {
+                    if store.selecting {
+                        Image(systemName: store.picked.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(store.picked.contains(item.id) ? Look.accent : Color.secondary)
+                            .accessibilityLabel(store.picked.contains(item.id) ? "Selected" : "Not selected")
+                    }
+                    Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
+                        place: store.searchingAllMail ? store.place(of: item) : nil, query: query)
+                }
+                    .contentShape(Rectangle())
+                    // A gesture alongside the list's own, so a normal click still opens the email when not selecting.
+                    .simultaneousGesture(TapGesture().onEnded { if store.selecting { store.togglePicked(item) } })
                     .tag(item.id)
                     .onDrag { NSItemProvider(object: item.id as NSString) }
                     #if os(iOS)
@@ -324,13 +444,14 @@ struct MessageList: View {
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+                            .tint(Look.softRed) // the app's blue accent was taking over (Paul, 20 Nov 2026)
                         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
                             .tint(.gray)
                     }
                     .onAppear { if item.id == store.list.last?.id { Task { await store.loadMore() } } }
             }
             if store.list.isEmpty && !store.listLoading {
-                Text(store.search.isEmpty ? "Nothing here" : "No emails match")
+                Text(store.search.isEmpty ? (store.listFilter == .all ? "Nothing here" : "No \(store.listFilter.title.lowercased()) emails here") : "No emails match")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
@@ -355,10 +476,12 @@ struct MessageList: View {
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search", text: $store.search)
+                    TextField("Search, or try from: to: subject: has:attachment", text: $store.search)
                         .textFieldStyle(.plain)
-                        .onSubmit { Task { await store.reloadList() } }
+                        .focused($searchFocused)
+                        .onSubmit { RecentSearches.add(store.search); Task { await store.reloadList() } }
                     if !store.search.isEmpty {
+                        PinSearchButton().buttonStyle(.plain).labelStyle(.iconOnly).foregroundStyle(.secondary)
                         Button { store.search = "" } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
                     }
@@ -366,6 +489,8 @@ struct MessageList: View {
                 .padding(.horizontal, 9).frame(height: 30)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Look.ground))
                 .padding(.horizontal, 12).padding(.vertical, 8)
+                // Suggestions while the search box is in use: people, an address, narrowing words, recent searches.
+                if searchFocused { SearchSuggestionsList(pick: pick) }
                 if !store.search.isEmpty {
                     Picker("Search in", selection: $store.searchScope) {
                         Text("All mail").tag(SearchScope.allMail)
@@ -380,26 +505,37 @@ struct MessageList: View {
         }
         #else
         .searchable(text: $store.search, prompt: "Search")
+        .searchSuggestions {
+            ForEach(store.searchSuggestions(for: store.search).prefix(8)) { s in
+                Button { pick(s) } label: { Label(s.title, systemImage: s.icon) }
+            }
+        }
         .searchScopes($store.searchScope) {
             Text("All mail").tag(SearchScope.allMail)
             Text(store.folderTitle).tag(SearchScope.thisFolder)
         }
-        .onSubmit(of: .search) { Task { await store.reloadList() } }
+        .onSubmit(of: .search) { RecentSearches.add(store.search); Task { await store.reloadList() } }
         #endif
         .onChange(of: store.searchScope) { _, _ in
             if !store.search.trimmingCharacters(in: .whitespaces).isEmpty { Task { await store.reloadList() } }
         }
+        .task { await store.prepareSearchSuggestions() }
         .onChange(of: store.search) { _, words in
             // Saved mail answers as you type; pressing Return asks the server too.
             Task { if words.isEmpty { await store.reloadList() } else { await store.searchSaved() } }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if store.offline || store.outbox > 0 { OfflineBar() }
+            if store.selecting { SelectionBar() }
+            else if store.offline || store.outbox > 0 { OfflineBar() }
         }
+        .onChange(of: store.folder) { _, _ in store.endSelecting() }
         .refreshable { await store.refresh() }
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
         .toolbar {
+            ToolbarItem { CatchUpButton() }
+            ToolbarItem { SelectButton() }
+            ToolbarItem { ListFilterMenu() }
             ToolbarItem {
                 Button { Task { await store.refresh() } } label: { Label("Check for new mail", systemImage: "arrow.clockwise") }
                     .help("Check for new mail")
@@ -411,6 +547,11 @@ struct MessageList: View {
         }
         #else
         .toolbar {
+            ToolbarItem(placement: .bottomBar) { ListFilterMenu() }
+            ToolbarItem(placement: .topBarTrailing) { PinSearchButton() }
+            ToolbarItem(placement: .topBarTrailing) { SelectButton() }
+            ToolbarItem(placement: .topBarTrailing) { CatchUpButton() }
+            ToolbarItem(placement: .bottomBar) { Spacer() }
             ToolbarItem(placement: .bottomBar) {
                 Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }
             }
@@ -428,6 +569,9 @@ struct MessageList: View {
         Divider()
         Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
         MoveMenu(item: item)
+        if let again = store.moveAgainTarget(for: item) {
+            Button { Task { await store.moveAgain(item) } } label: { Label("Move again to \(again.name)", systemImage: "folder.badge.plus") }
+        }
         Button(role: .destructive) { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
         if store.inSpam(item) {
             Button { Task { await store.markSpam(item, false) } } label: { Label("Not spam", systemImage: "tray.and.arrow.up") }
@@ -469,12 +613,14 @@ struct Row: View {
     let item: Item
     let showAccount: Bool
     var place: String? = nil
+    /// While searching: what was searched for, so the row can show why it matched.
+    var query: SearchQuery? = nil
 
     var body: some View {
         let e = item.email
         HStack(alignment: .top, spacing: 11) {
             Avatar(address: e.sender, size: 40)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if e.isUnread { Circle().fill(Look.accent).frame(width: 7, height: 7).accessibilityLabel("Unread") }
                     Text(e.sender.display)
@@ -482,18 +628,27 @@ struct Row: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     if e.isFlagged { Image(systemName: "star.fill").font(.caption2).foregroundStyle(Look.star).accessibilityLabel("Starred") }
+                    if e.isMuted { Image(systemName: "bell.slash.fill").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Muted") }
                     if e.hasAttachment == true { Image(systemName: "paperclip").font(.caption2).foregroundStyle(.secondary).accessibilityLabel("Attachment") }
                     Text(When.short(e.date))
                         .font(Look.size(13, weight: e.isUnread ? .semibold : .regular))
                         .foregroundStyle(e.isUnread ? Look.accent : .secondary)
                 }
-                Text(e.title)
+                Text.highlighting(e.title, query?.highlights ?? [])
                     .font(Look.size(14, weight: e.isUnread ? .medium : .regular))
                     .lineLimit(1)
-                Text(e.preview ?? "")
+                Text.highlighting(e.preview ?? "", query?.highlights ?? [])
                     .font(Look.size(13.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                if let query {
+                    let why = query.reasons(e)
+                    if !why.isEmpty {
+                        Label("Found in " + why.joined(separator: ", "), systemImage: "text.magnifyingglass")
+                            .font(.caption2).foregroundStyle(Look.accent)
+                            .lineLimit(1)
+                    }
+                }
                 if showAccount || place != nil {
                     HStack(spacing: 5) {
                         if showAccount { AccountDot(account: item.account, size: 6); Text(item.account.label) }
@@ -504,7 +659,12 @@ struct Row: View {
                 }
             }
         }
-        .padding(.vertical, 5)
+        // A little more room between emails, like Apple Mail (Paul, 21 Nov 2026).
+        #if os(macOS)
+        .padding(.vertical, 9)
+        #else
+        .padding(.vertical, 7)
+        #endif
         .contentShape(Rectangle())
     }
 }

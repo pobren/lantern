@@ -1,0 +1,13 @@
+{
+  "client_id": "https://raw.githubusercontent.com/pobren/lantern/claude/project-thread-tq3zod/oauth/client-test.json",
+  "client_name": "JMAP Connect",
+  "client_uri": "https://jmapconnect.app/",
+  "logo_uri": "https://jmapconnect.app/apple-touch-icon.png",
+  "policy_uri": "https://jmapconnect.app/privacy/",
+  "redirect_uris": ["app.jmapconnect:/oauth/fastmail"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "application_type": "native",
+  "scope": "urn:ietf:params:jmap:core urn:ietf:params:jmap:mail urn:ietf:params:jmap:submission urn:ietf:params:jmap:vacationresponse urn:ietf:params:jmap:contacts https://www.fastmail.com/dev/maskedemail"
+}

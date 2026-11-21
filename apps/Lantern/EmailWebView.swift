@@ -20,6 +20,10 @@ struct EmailWebView: PlatformViewRepresentable {
         let config = WKWebViewConfiguration()
         config.defaultWebpagePreferences.allowsContentJavaScript = false
         config.websiteDataStore = .nonPersistent()          // no cookies kept between emails
+        #if os(iOS)
+        // Dates, times, addresses and numbers are underlined, and a tap offers Add to Calendar, Maps or Call, as in Apple Mail.
+        config.dataDetectorTypes = [.calendarEvent, .phoneNumber, .address, .link, .flightNumber, .trackingNumber]
+        #endif
         let view = WKWebView(frame: .zero, configuration: config)
         view.navigationDelegate = context.coordinator
         #if os(macOS)
