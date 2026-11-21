@@ -229,21 +229,40 @@ final class ContactsModel: ObservableObject {
 
     /// Loads once each time the page is opened from the sidebar (again: `reload`).
     func load(_ store: Store, again: Bool = false) async {
-        if loaded && !again { return }
-        loaded = true
+        if (loaded || loading) && !again { return }
         loading = true
         problem = nil
         defer { loading = false }
-        var all: [ContactCardData] = []
-        for s in accounts(store) {
-            do {
-                all += try await s.client.cards(account: s.id)
-                books[s.id] = try await s.client.addressBooks()
-            } catch {
-                problem = error.localizedDescription
+        // Fetched outside the page's own task: when the page redraws (opening Contacts from the sidebar, or Add sender
+        // to Contacts) SwiftUI cancels that task, which stopped the load half way with a "cancelled" error and left the
+        // page empty (Paul, 21 Nov 2026). Tried twice before saying anything went wrong.
+        let ready = accounts(store)
+        let result = await Task { @MainActor () -> (cards: [ContactCardData], books: [String: [AddressBookInfo]], problem: String?) in
+            var all: [ContactCardData] = []
+            var found: [String: [AddressBookInfo]] = [:]
+            var problem: String?
+            for s in ready {
+                for attempt in 0..<2 {
+                    do {
+                        let cards = try await s.client.cards(account: s.id)
+                        found[s.id] = try await s.client.addressBooks()
+                        all += cards
+                        break
+                    } catch {
+                        if attempt == 0 { try? await Task.sleep(nanoseconds: 500_000_000); continue }
+                        let ns = error as NSError
+                        if !(ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled) && !(error is CancellationError) {
+                            problem = error.localizedDescription
+                        }
+                    }
+                }
             }
-        }
-        cards = all
+            return (all, found, problem)
+        }.value
+        cards = result.cards
+        books.merge(result.books) { _, new in new }
+        problem = result.problem
+        loaded = result.problem == nil
         #if os(macOS)
         if chosen == nil { chosen = shown.first?.id }
         #endif
