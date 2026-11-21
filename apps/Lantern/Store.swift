@@ -354,6 +354,7 @@ final class Store: ObservableObject {
             for state in accounts { group.addTask { await self.load(state) } }
         }
         await reloadList()
+        saveWidget()
     }
 
     /// Folders, addresses and the inbox for one account.

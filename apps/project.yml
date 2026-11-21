@@ -26,6 +26,9 @@ targets:
       # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
       - target: Notify
         destinationFilters: [iOS]
+      # Home Screen and Lock Screen widgets (iPhone and iPad).
+      - target: Widget
+        destinationFilters: [iOS]
       # Apple Watch app (1.2), carried inside the iPhone app the way Xcode does it.
       - target: Watch
         destinationFilters: [iOS]
@@ -93,6 +96,29 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
         SKIP_INSTALL: YES
+  Widget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+      - path: Shared/WidgetSnapshot.swift
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.widget
+        PRODUCT_NAME: MailWidget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: Widget/Widget.entitlements
+        SKIP_INSTALL: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
   Watch:
     type: application
     platform: watchOS
