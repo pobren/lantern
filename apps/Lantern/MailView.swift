@@ -219,6 +219,11 @@ struct Sidebar: View {
                     .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
                 }
             }
+            SmartFolderRows(opened: {
+                showingContacts?.wrappedValue = false
+                column?.wrappedValue = .content
+                chosen = nil
+            })
             ForEach(store.accounts) { s in
                 Section {
                     ForEach(s.tree) { entry in
@@ -376,10 +381,21 @@ struct MessageList: View {
     }
 
     var body: some View {
-        List(selection: $store.selection) {
+        List(selection: store.selecting ? .constant(nil) : $store.selection) {
             ForEach(store.list) { item in
-                Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
-                    place: store.searchingAllMail ? store.place(of: item) : nil, query: query)
+                HStack(spacing: 10) {
+                    if store.selecting {
+                        Image(systemName: store.picked.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(store.picked.contains(item.id) ? Look.accent : Color.secondary)
+                            .accessibilityLabel(store.picked.contains(item.id) ? "Selected" : "Not selected")
+                    }
+                    Row(item: item, showAccount: store.accounts.count > 1 && (store.folder == .allInboxes || store.searchingAllMail),
+                        place: store.searchingAllMail ? store.place(of: item) : nil, query: query)
+                }
+                    .contentShape(Rectangle())
+                    // A gesture alongside the list's own, so a normal click still opens the email when not selecting.
+                    .simultaneousGesture(TapGesture().onEnded { if store.selecting { store.togglePicked(item) } })
                     .tag(item.id)
                     .onDrag { NSItemProvider(object: item.id as NSString) }
                     #if os(iOS)
@@ -430,6 +446,7 @@ struct MessageList: View {
                         .focused($searchFocused)
                         .onSubmit { RecentSearches.add(store.search); Task { await store.reloadList() } }
                     if !store.search.isEmpty {
+                        PinSearchButton().buttonStyle(.plain).labelStyle(.iconOnly).foregroundStyle(.secondary)
                         Button { store.search = "" } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
                     }
@@ -473,12 +490,15 @@ struct MessageList: View {
             Task { if words.isEmpty { await store.reloadList() } else { await store.searchSaved() } }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if store.offline || store.outbox > 0 { OfflineBar() }
+            if store.selecting { SelectionBar() }
+            else if store.offline || store.outbox > 0 { OfflineBar() }
         }
+        .onChange(of: store.folder) { _, _ in store.endSelecting() }
         .refreshable { await store.refresh() }
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
         .toolbar {
+            ToolbarItem { SelectButton() }
             ToolbarItem { ListFilterMenu() }
             ToolbarItem {
                 Button { Task { await store.refresh() } } label: { Label("Check for new mail", systemImage: "arrow.clockwise") }
@@ -492,6 +512,8 @@ struct MessageList: View {
         #else
         .toolbar {
             ToolbarItem(placement: .bottomBar) { ListFilterMenu() }
+            ToolbarItem(placement: .topBarTrailing) { PinSearchButton() }
+            ToolbarItem(placement: .topBarTrailing) { SelectButton() }
             ToolbarItem(placement: .bottomBar) { Spacer() }
             ToolbarItem(placement: .bottomBar) {
                 Button(action: compose) { Label("New message", systemImage: "square.and.pencil") }

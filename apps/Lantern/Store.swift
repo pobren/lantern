@@ -145,6 +145,11 @@ final class Store: ObservableObject {
     @Published var lastMove: (account: String, box: String)?
     /// Show only unread, starred or with attachments in the list (Apple Mail's filter button).
     @Published var listFilter: ListFilter = .all
+    /// The smart folder open in the list, if any (its name shows as the list's title).
+    @Published var smartFolder: SmartFolder?
+    /// Select several emails: whether the list shows tick circles, and which are ticked.
+    @Published var selecting = false
+    @Published var picked: Set<Item.ID> = []
     var syncs: [String: Task<Void, Never>] = [:]
     var resync: Set<String> = []
     var flushing = false
@@ -405,6 +410,11 @@ final class Store: ObservableObject {
     // MARK: The list
 
     func open(_ f: Folder) async {
+        // Leaving a smart folder: its search goes too.
+        if let smart = smartFolder {
+            smartFolder = nil
+            if search.trimmingCharacters(in: .whitespaces) == smart.search { search = "" }
+        }
         guard f != folder || list.isEmpty else { return }
         folder = f
         selection = nil
@@ -539,7 +549,10 @@ final class Store: ObservableObject {
     }
 
     /// The middle column's title: the folder, or "All mail" while searching everywhere.
-    var listTitle: String { searchingAllMail ? "All mail" : folderTitle }
+    var listTitle: String {
+        if let f = smartFolder, f.search == search.trimmingCharacters(in: .whitespaces) { return f.name }
+        return searchingAllMail ? "All mail" : folderTitle
+    }
 
     /// The folder an email lives in, shown on search results from every folder.
     func place(of item: Item) -> String? {

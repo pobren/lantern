@@ -8,6 +8,11 @@ import UniformTypeIdentifiers
 struct ReadingPane: View {
     @EnvironmentObject var store: Store
     @AppStorage("remoteImages") private var remoteImages = true
+    @AppStorage(Trackers.key) private var blockTrackers = true
+    /// The email with its trackers taken out, worked out once each time the email or the setting changes.
+    @State private var cleaned: (html: String, blocked: Int)?
+    private var blocked: Int { cleaned?.blocked ?? 0 }
+    private var shownHTML: String { cleaned?.html ?? page?.html ?? "" }
     @AppStorage(Store.labelsKey) private var showLabels = false
     let item: Item
     let compose: (ComposeDraft) -> Void
@@ -133,7 +138,13 @@ struct ReadingPane: View {
                 }
             }
 
-            if !remoteImages && !showImagesOnce && (page?.html.contains("http") ?? false) {
+            if blockTrackers && blocked > 0 {
+                TrackersBlocked(count: blocked)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            }
+
+            if !remoteImages && !showImagesOnce && (page != nil && shownHTML.contains("http")) {
                 HStack(spacing: 10) {
                     Image(systemName: "eye.slash")
                     Text("Pictures from the web are hidden.").font(.callout)
@@ -156,7 +167,7 @@ struct ReadingPane: View {
                 if let page {
                     // A white margin around every email, like Apple Mail, even when the email's own styles
                     // take its edges away.
-                    EmailWebView(html: page.html, remoteImages: remoteImages || showImagesOnce)
+                    EmailWebView(html: cleaned?.html ?? page.html, remoteImages: remoteImages || showImagesOnce)
                         #if os(macOS)
                         .padding(.horizontal, 24).padding(.top, 10)
                         #else
@@ -185,6 +196,8 @@ struct ReadingPane: View {
             found = FoundItem.find(in: String((html.map(EmailText.plain) ?? "").prefix(20_000)))
         }
         #endif
+        .onChange(of: page?.html, initial: true) { _, html in cleaned = html.map(Trackers.clean) }
+        .onChange(of: blockTrackers) { _, _ in cleaned = page.map { Trackers.clean($0.html) } }
         .background(Look.paper)
         .quickLookPreview($preview)
         .fileExporter(isPresented: Binding(get: { saving != nil }, set: { if !$0 { saving = nil } }),
@@ -405,7 +418,7 @@ struct ReadingPane: View {
     }
 
     private func printEmail() {
-        EmailPrinter.print(shown, html: page?.html ?? EmailWebView.plain(shown.preview ?? ""), remoteImages: remoteImages || showImagesOnce)
+        EmailPrinter.print(shown, html: page.map { _ in shownHTML } ?? EmailWebView.plain(shown.preview ?? ""), remoteImages: remoteImages || showImagesOnce)
     }
 
     /// Saves the email exactly as it arrived, as an .eml file any mail app can open.

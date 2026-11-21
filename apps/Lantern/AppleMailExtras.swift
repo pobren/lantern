@@ -87,12 +87,28 @@ final class UndoMove: ObservableObject {
         let account: Account
         /// Each email's mailboxes (and spam marks) as they were before.
         let patches: [String: [String: Any]]
+        /// Several emails selected at once can come from other accounts too: their patches, by account id.
+        var more: [String: [String: [String: Any]]] = [:]
     }
 
     @Published var last: Done?
     @Published var working = false
 
-    func offer(_ d: Done) { last = d }
+    /// While several emails are being moved at once, their undo patches are gathered into one Undo.
+    var collecting = false
+    var collected: [String: [String: Any]] = [:]
+    var collectedAccount: Account?
+    var extraAccounts: [String: [String: [String: Any]]] = [:]
+
+    func offer(_ d: Done) {
+        guard collecting else { last = d; return }
+        if collectedAccount == nil || collectedAccount?.id == d.account.id {
+            collectedAccount = d.account
+            collected.merge(d.patches) { a, _ in a }
+        } else {
+            extraAccounts[d.account.id, default: [:]].merge(d.patches) { a, _ in a }
+        }
+    }
 }
 
 extension Store {
@@ -103,6 +119,7 @@ extension Store {
         undo.working = true
         defer { undo.working = false; if undo.last?.id == d.id { undo.last = nil } }
         await apply(d.patches, in: s)
+        for (id, patches) in d.more { if let other = state(id: id) { await apply(patches, in: other) } }
         await refresh()
     }
 
