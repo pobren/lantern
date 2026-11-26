@@ -107,9 +107,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 // It didn't go: say so, and keep what they wrote so it isn't lost.
                 let c = UNMutableNotificationContent()
                 c.title = "Your reply didn't send"
-                c.body = problem + "
-
-" + typed.userText
+                c.body = problem + "\n\n" + typed.userText
                 c.userInfo = ["account": account, "email": email]
                 try? await center.add(UNNotificationRequest(identifier: "reply-failed-" + email, content: c, trigger: nil))
             }
