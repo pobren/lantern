@@ -185,12 +185,18 @@ final class InstantAlerts: ObservableObject {
         throw Failure.noCode
     }
 
+    /// Stops alerts for an account that's being removed (before a Fastmail sign in is ended, so the token still works).
+    func forget(_ accountId: String) async {
+        if let r = PushRecords.read(accountId) { await turnOff(r) }
+    }
+
     /// Stops alerts for one account: Fastmail stops posting, the relay forgets the device, and the record goes.
     private func turnOff(_ r: PushRecord) async {
         if let url = URL(string: r.apiURL) {
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
-            req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
+            // A Fastmail sign in (OAuth) gets a fresh access token first; API tokens are used as they are.
+            req.setValue((try? await FastmailOAuth.header(r.token)) ?? JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject: [
                 "using": [JMAPClient.core], "methodCalls": [["PushSubscription/set", ["destroy": [r.subscriptionId]], "d"]],
@@ -280,7 +286,8 @@ enum AlertActions {
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.timeoutInterval = 20
-            req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
+            // A Fastmail sign in (OAuth) gets a fresh access token first; API tokens are used as they are.
+            req.setValue((try? await FastmailOAuth.header(r.token)) ?? JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject: [
                 "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"], "methodCalls": calls,

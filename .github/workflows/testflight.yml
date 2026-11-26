@@ -109,7 +109,8 @@ jobs:
         run: |
           T=$(ruby /tmp/jwt.rb ~/private_keys/AuthKey_${ASC_KEY_ID}.p8)
           for pair in "dev.paulobrien.lantern:Lantern" "dev.paulobrien.lantern.notify:Lantern Notify" \
-                      "dev.paulobrien.lantern.watchkitapp:Lantern Watch" "dev.paulobrien.lantern.watchkitapp.widget:Lantern Watch Widget"; do
+                      "dev.paulobrien.lantern.watchkitapp:Lantern Watch" "dev.paulobrien.lantern.watchkitapp.widget:Lantern Watch Widget" \
+                      "dev.paulobrien.lantern.widget:Lantern Widget"; do
             id=${pair%%:*}; name=${pair#*:}
             body=$(printf '{"data":{"type":"bundleIds","attributes":{"identifier":"%s","name":"%s","platform":"UNIVERSAL"}}}' "$id" "$name")
             code=$(curl -gsS -o /tmp/b.json -w "%{http_code}" -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" \

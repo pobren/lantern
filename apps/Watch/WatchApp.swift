@@ -63,6 +63,9 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
                 let got = try await c.inbox()
                 all += got.emails
                 count += got.unread
+            } catch WatchError.signIn {
+                // A Fastmail sign in's access token only lasts a while: ask the iPhone for a current one.
+                if WCSession.default.isReachable { askPhone(fresh: true) } else { problem = WatchError.signIn.localizedDescription }
             } catch {
                 problem = error.localizedDescription
             }
@@ -137,10 +140,16 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         Task { await refresh() }
     }
 
-    func askPhone() {
+    private var askedFresh = Date.distantPast
+
+    func askPhone(fresh: Bool = false) {
         let s = WCSession.default
         guard s.activationState == .activated else { return }
-        if !s.receivedApplicationContext.isEmpty { take(s.receivedApplicationContext); return }
+        if fresh {
+            // Once a minute at most, so a server that keeps refusing doesn't loop.
+            guard Date().timeIntervalSince(askedFresh) > 60 else { return }
+            askedFresh = Date()
+        } else if !s.receivedApplicationContext.isEmpty { take(s.receivedApplicationContext); return }
         guard s.isReachable else { return }
         s.sendMessage(["want": "accounts"], replyHandler: { reply in
             Task { @MainActor in self.take(reply) }

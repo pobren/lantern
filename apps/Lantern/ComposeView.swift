@@ -676,6 +676,14 @@ struct ComposeView: View {
         }
     }
 
+    /// What's written now, to open again if the email is called back with Undo send.
+    private var written: ComposeDraft {
+        var d = draft
+        d.attachments = files
+        d.sendAt = nil
+        return d
+    }
+
     private func send() async {
         guard let account = draft.account, let s = store.state(for: account),
               let identity = s.identities.first(where: { $0.id == draft.identityId }) else { return }
@@ -684,7 +692,8 @@ struct ComposeView: View {
             let address = identity.isWildcard ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
             try await store.send(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
                                  cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text,
-                                 threading: draft.threading, attachments: files, replacing: draft.draftId, sendAt: sendAt)
+                                 threading: draft.threading, attachments: files, replacing: draft.draftId, sendAt: sendAt,
+                                 undoDraft: written)
             dismiss()
         } catch {
             problem = error.localizedDescription
@@ -715,10 +724,92 @@ private struct TopCursorEditor: View {
     @State private var selection: TextSelection?
     @State private var placed = false
 
+    @State private var linking = false
+    @State private var linkAddress = "https://"
+
     var body: some View {
-        TextEditor(text: $text, selection: $selection)
-            .onAppear { place(focused) }
-            .onChange(of: focused) { _, f in place(f) }
+        VStack(alignment: .leading, spacing: 4) {
+            formatBar
+            TextEditor(text: $text, selection: $selection)
+                .onAppear { place(focused) }
+                .onChange(of: focused) { _, f in place(f) }
+        }
+        .alert("Add a link", isPresented: $linking) {
+            TextField("https://", text: $linkAddress)
+                #if os(iOS)
+                .keyboardType(.URL).textInputAutocapitalization(.never)
+                #endif
+            Button("Cancel", role: .cancel) {}
+            Button("Add") { link(linkAddress) }
+        } message: { Text("The selected words link to this address.") }
+    }
+
+    /// Bold, italic, underline, lists and a link (Paul, 20 Nov 2026). They wrap the selected words in simple marks,
+    /// and the email goes out formatted (Formatting.swift).
+    private var formatBar: some View {
+        HStack(spacing: 2) {
+            tool("Bold", "bold", key: "b") { wrap("**") }
+            tool("Italic", "italic", key: "i") { wrap("*") }
+            tool("Underline", "underline", key: "u") { wrap("__") }
+            Divider().frame(height: 16).padding(.horizontal, 4)
+            tool("Bulleted list", "list.bullet", key: nil) { lines { _ in "- " } }
+            tool("Numbered list", "list.number", key: nil) { lines { "\($0 + 1). " } }
+            tool("Link", "link", key: "k") { linkAddress = "https://"; linking = true }
+            Spacer()
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+    }
+
+    private func tool(_ name: String, _ icon: String, key: Character?, action: @escaping () -> Void) -> some View {
+        let button = Button(action: action) {
+            Label(name, systemImage: icon).labelStyle(.iconOnly).frame(width: 26, height: 24).contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(key.map { "\(name) (⌘\(String($0).uppercased()))" } ?? name)
+        return Group {
+            if let key { button.keyboardShortcut(KeyEquivalent(key), modifiers: .command) } else { button }
+        }
+    }
+
+    /// The selected range, or the cursor as an empty range.
+    private var picked: Range<String.Index> {
+        if case .selection(let r) = selection?.indices, r.lowerBound >= text.startIndex, r.upperBound <= text.endIndex { return r }
+        return text.endIndex..<text.endIndex
+    }
+
+    /// Puts a mark either side of the selection; with nothing selected, the cursor lands between the marks.
+    private func wrap(_ mark: String) {
+        let r = picked
+        let inner = String(text[r])
+        let start = text.distance(from: text.startIndex, to: r.lowerBound)
+        text.replaceSubrange(r, with: mark + inner + mark)
+        let from = text.index(text.startIndex, offsetBy: start + mark.count)
+        let to = text.index(from, offsetBy: inner.count)
+        selection = TextSelection(range: from..<to)
+    }
+
+    /// Starts each selected line (or the current line) with a bullet or number.
+    private func lines(_ prefix: (Int) -> String) {
+        let r = picked
+        let lineStart = text[..<r.lowerBound].lastIndex(of: "\n").map { text.index(after: $0) } ?? text.startIndex
+        let lineEnd = text[r.upperBound...].firstIndex(of: "\n") ?? text.endIndex
+        let chunk = text[lineStart..<lineEnd].components(separatedBy: "\n")
+        let done = chunk.enumerated().map { prefix($0.offset) + $0.element }.joined(separator: "\n")
+        let start = text.distance(from: text.startIndex, to: lineStart)
+        text.replaceSubrange(lineStart..<lineEnd, with: done)
+        selection = TextSelection(insertionPoint: text.index(text.startIndex, offsetBy: start + done.count))
+    }
+
+    private func link(_ address: String) {
+        let url = address.trimmingCharacters(in: .whitespaces)
+        guard url.count > 8 || url.hasPrefix("mailto:") else { return }
+        let r = picked
+        let words = r.isEmpty ? url : String(text[r])
+        let start = text.distance(from: text.startIndex, to: r.lowerBound)
+        let made = "[\(words)](\(url))"
+        text.replaceSubrange(r, with: made)
+        selection = TextSelection(insertionPoint: text.index(text.startIndex, offsetBy: start + made.count))
     }
 
     private func place(_ f: Bool) {

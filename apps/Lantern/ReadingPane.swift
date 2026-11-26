@@ -8,6 +8,13 @@ import UniformTypeIdentifiers
 struct ReadingPane: View {
     @EnvironmentObject var store: Store
     @AppStorage("remoteImages") private var remoteImages = true
+    @AppStorage(Trackers.key) private var blockTrackers = true
+    @AppStorage(PrivateAI.key) private var aiOn = false
+    /// The email with its trackers taken out, worked out once each time the email or the setting changes.
+    @State private var cleaned: (html: String, blocked: Int)?
+    private var blocked: Int { cleaned?.blocked ?? 0 }
+    private var shownHTML: String { cleaned?.html ?? page?.html ?? "" }
+    @AppStorage(Store.labelsKey) private var showLabels = false
     let item: Item
     let compose: (ComposeDraft) -> Void
 
@@ -18,6 +25,8 @@ struct ReadingPane: View {
     @State private var showImagesOnce = false
     @State private var preview: URL?
     @State private var saving: EmailFile?
+    /// Dates, addresses and numbers found in the email (shown above it on the Mac).
+    @State private var found: [FoundItem] = []
     @State private var failed = false
     @State private var unsub: Unsubscribe?
     @State private var askingUnsub = false
@@ -130,7 +139,18 @@ struct ReadingPane: View {
                 }
             }
 
-            if !remoteImages && !showImagesOnce && (page?.html.contains("http") ?? false) {
+            if aiOn && PrivateAI.available {
+                AIEmailTools(email: shown, account: item.account, compose: compose)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            }
+
+            if blockTrackers && blocked > 0 {
+                TrackersBlocked(count: blocked)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            }
+
+            if !remoteImages && !showImagesOnce && (page != nil && shownHTML.contains("http")) {
                 HStack(spacing: 10) {
                     Image(systemName: "eye.slash")
                     Text("Pictures from the web are hidden.").font(.callout)
@@ -142,12 +162,18 @@ struct ReadingPane: View {
                 .padding(.horizontal, 22).padding(.bottom, 8)
             }
 
+            #if os(macOS)
+            if !found.isEmpty {
+                FoundInEmail(items: found, subject: shown.title)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            }
+            #endif
             Divider()
             Group {
                 if let page {
                     // A white margin around every email, like Apple Mail, even when the email's own styles
                     // take its edges away.
-                    EmailWebView(html: page.html, remoteImages: remoteImages || showImagesOnce)
+                    EmailWebView(html: cleaned?.html ?? page.html, remoteImages: remoteImages || showImagesOnce)
                         #if os(macOS)
                         .padding(.horizontal, 24).padding(.top, 10)
                         #else
@@ -171,11 +197,21 @@ struct ReadingPane: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.white)
         }
+        #if os(macOS)
+        .onChange(of: page?.html, initial: true) { _, html in
+            found = FoundItem.find(in: String((html.map(EmailText.plain) ?? "").prefix(20_000)))
+        }
+        #endif
+        .onChange(of: page?.html, initial: true) { _, html in cleaned = html.map(Trackers.clean) }
+        .onChange(of: blockTrackers) { _, _ in cleaned = page.map { Trackers.clean($0.html) } }
         .background(Look.paper)
         .quickLookPreview($preview)
         .fileExporter(isPresented: Binding(get: { saving != nil }, set: { if !$0 { saving = nil } }),
                       document: saving, contentType: .emailMessage, defaultFilename: EmailFile.name(for: shown)) { _ in saving = nil }
         .toolbar { tools }
+        #if os(macOS)
+        .touchBar { touchBarButtons }
+        #endif
         .focusedSceneValue(\.messageActions, actions)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -279,6 +315,23 @@ struct ReadingPane: View {
         #endif
     }
 
+    #if os(macOS)
+    /// The Touch Bar on MacBook Pros that have one: the everyday actions for the open email.
+    @ViewBuilder private var touchBarButtons: some View {
+        Button { reply(all: false) } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
+        Button { reply(all: true) } label: { Label("Reply all", systemImage: "arrowshape.turn.up.left.2") }
+        Button { forward() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
+        Button { Task { await store.archive(item) } } label: { Label("Archive", systemImage: "archivebox") }
+        Button { Task { await store.delete(item) } } label: { Label("Delete", systemImage: "trash") }
+        Button { Task { await store.flag(item) } } label: {
+            Label(item.email.isFlagged ? "Unstar" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
+        }
+        Button { Task { await store.markSpam(item, !store.inSpam(item)) } } label: {
+            Label(store.inSpam(item) ? "Not spam" : "Spam", systemImage: store.inSpam(item) ? "tray.and.arrow.up" : "xmark.bin")
+        }
+    }
+    #endif
+
     private var spamButton: some View {
         let spam = store.inSpam(item)
         return Button { Task { await store.markSpam(item, !spam) } } label: {
@@ -301,6 +354,9 @@ struct ReadingPane: View {
             .help("Reply all (⇧⌘R)")
         Button { forward() } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
             .help("Forward (⇧⌘F)")
+        #if os(iOS)
+        Button { forwardAttached() } label: { Label("Forward as attachment", systemImage: "paperclip") }
+        #endif
     }
 
     /// Everything the Mac's Message menu can do to this email.
@@ -311,7 +367,12 @@ struct ReadingPane: View {
                        toggleUnread: { Task { await store.setUnread(item, !item.email.isUnread) } },
                        toggleStar: { Task { await store.flag(item) } },
                        editDraft: store.isEditableDraft(item, shown) ? { editDraft() } : nil,
-                       inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged)
+                       inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged,
+                       mute: { Task { await store.mute(item, !item.email.isMuted) } }, muted: item.email.isMuted,
+                       print: { printEmail() }, forwardAttached: { forwardAttached() },
+                       moveAgain: store.moveAgainTarget(for: item) == nil ? nil : { Task { await store.moveAgain(item) } },
+                       moveAgainName: store.moveAgainTarget(for: item)?.name,
+                       addSender: canAddSender ? { addSender() } : nil)
     }
 
     /// Paul: scheduled emails sit in Scheduled "so you can edit them". Stops the send, then opens it to change,
@@ -345,21 +406,45 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
-            Menu {
+            if let again = store.moveAgainTarget(for: item) {
+                Button { Task { await store.moveAgain(item) } } label: { Label("Move again to \(again.name)", systemImage: "folder.badge.plus") }
+                    .help("Move again (⌥⌘T)")
+            }
+            #if os(macOS)
+            Button { forwardAttached() } label: { Label("Forward as attachment", systemImage: "paperclip") }
+            #endif
+            if canAddSender {
+                Button { addSender() } label: { Label("Add sender to Contacts", systemImage: "person.crop.circle.badge.plus") }
+            }
+            Button { Task { await store.mute(item, !item.email.isMuted) } } label: {
+                Label(item.email.isMuted ? "Unmute conversation" : "Mute conversation",
+                      systemImage: item.email.isMuted ? "bell" : "bell.slash")
+            }
+            .help(item.email.isMuted ? "Let replies to this conversation into the inbox again" : "Replies to this conversation skip the inbox (⇧⌘M)")
+            // Folders (Fastmail's default) move mail with the folder button; Labels only when turned on in Settings.
+            if showLabels { Menu {
                 ForEach(store.labels(for: item)) { entry in
                     let on = item.email.mailboxIds[entry.box.id] == true
                     Button { Task { await store.setLabel(item, entry.box, on: !on) } } label: {
                         Label(String(repeating: "  ", count: entry.depth) + entry.box.name, systemImage: on ? "checkmark" : "tag")
                     }
                 }
-            } label: { Label("Labels", systemImage: "tag") }
+            } label: { Label("Labels", systemImage: "tag") } }
             #if os(iOS)
             spamButton
             #endif
             Divider()
+            ShareLink(item: EmailText.forSharing(shown, html: page?.html), subject: Text(shown.title)) {
+                Label("Share…", systemImage: "square.and.arrow.up")
+            }
+            Button { printEmail() } label: { Label("Print…", systemImage: "printer") }
             Button { save() } label: { Label("Save as…", systemImage: "square.and.arrow.down") }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
         } label: { Label("More", systemImage: "ellipsis.circle") }
+    }
+
+    private func printEmail() {
+        EmailPrinter.print(shown, html: page.map { _ in shownHTML } ?? EmailWebView.plain(shown.preview ?? ""), remoteImages: remoteImages || showImagesOnce)
     }
 
     /// Saves the email exactly as it arrived, as an .eml file any mail app can open.
@@ -374,6 +459,21 @@ struct ReadingPane: View {
             let text = await store.text(e, account: item.account)
             compose(ComposeDraft.reply(to: e, account: item.account, all: all, quoting: text, store: store))
         }
+    }
+
+    /// Contacts need an account with Contacts access, and a sender with an address.
+    private var canAddSender: Bool {
+        !shown.sender.email.isEmpty && (store.state(for: item.account)?.client.canContacts ?? false)
+    }
+
+    private func addSender() {
+        let who = shown.sender
+        AddContactRequest(name: who.name ?? "", email: who.email, account: item.account.id).post()
+    }
+
+    private func forwardAttached() {
+        let e = shown
+        Task { if let d = await ComposeDraft.forwardAsAttachment(e, account: item.account, store: store) { compose(d) } }
     }
 
     private func forward() {
@@ -446,7 +546,10 @@ struct EmailFile: FileDocument {
     static func name(for e: Email) -> String {
         let bad = CharacterSet(charactersIn: "/\\:?%*|\"<>")
         let clean = e.title.components(separatedBy: bad).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        return String((clean.isEmpty ? "Email" : clean).prefix(80))
+        // The .eml goes on the name itself: left to the save panel, the Mac saved it with no extension, so Finder
+        // couldn't tell it was an email (Paul, 20 Nov 2026). Long subjects are kept whole up to 200 characters.
+        let base = String((clean.isEmpty ? "Email" : clean).prefix(200)).trimmingCharacters(in: .whitespaces)
+        return base + ".eml"
     }
 }
 

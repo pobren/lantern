@@ -122,7 +122,7 @@ final class Store: ObservableObject {
     @Published var search = ""
     /// Where a search looks: every folder (apart from Bin and Spam) in every account, or just the folder on screen.
     @Published var searchScope: SearchScope = .allMail
-    private var listLimit = 100
+    var listLimit = 100
     @Published var mayHaveMore = false
 
     // The reading pane.
@@ -141,6 +141,15 @@ final class Store: ObservableObject {
     @Published var offline = false
     /// Emails written offline, waiting to send.
     @Published var outbox = 0
+    /// The folder last chosen from Move to, for Move again (⌥⌘T on the Mac, like Apple Mail).
+    @Published var lastMove: (account: String, box: String)?
+    /// Show only unread, starred or with attachments in the list (Apple Mail's filter button).
+    @Published var listFilter: ListFilter = .all
+    /// The smart folder open in the list, if any (its name shows as the list's title).
+    @Published var smartFolder: SmartFolder?
+    /// Select several emails: whether the list shows tick circles, and which are ticked.
+    @Published var selecting = false
+    @Published var picked: Set<Item.ID> = []
     var syncs: [String: Task<Void, Never>] = [:]
     var resync: Set<String> = []
     var flushing = false
@@ -175,6 +184,16 @@ final class Store: ObservableObject {
     func add(kind: ServerKind, address: String, token: String) async throws {
         try await add(kind: kind, sessions: [Self.sessionAddress(address.isEmpty ? kind.sessionURL : address)],
                       secret: token.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Adds a Fastmail account after "Sign in with Fastmail" (OAuth). `secret` is "oauth:<key id>" from FastmailOAuth.
+    func addSignedIn(secret: String) async throws {
+        do {
+            try await add(kind: .fastmail, sessions: [FastmailOAuth.sessionURL], secret: secret)
+        } catch {
+            await FastmailOAuth.signOut(secret)
+            throw error
+        }
     }
 
     /// Adds an account that signs in with an email address and app password (Stalwart, Thundermail, Mailbux, Cyrus
@@ -216,7 +235,8 @@ final class Store: ObservableObject {
             let account = Account(id: UUID().uuidString, kind: found.contains("/api/ext/jmap/") ? ServerKind.mailApp.id : kind.id, sessionURL: found,
                                   username: Self.accountName(server: s.username, typed: typedEmail))
             Keychain.save(account.id, secret)
-            SavedKeys.save(account.saved, token: secret)
+            // A Fastmail sign in belongs to this device only (Fastmail's rule), so it never goes to iCloud Keychain.
+            if !FastmailOAuth.isOAuth(secret) { SavedKeys.save(account.saved, token: secret) }
             let state = AccountState(account: account, client: client)
             accounts.append(state)
             save()
@@ -296,6 +316,15 @@ final class Store: ObservableObject {
         syncs[state.id] = nil
         let gone = state.id
         Task { await cache.clear(account: gone, keepPending: false); await countOutbox() }
+        if let secret = Keychain.read(state.id), FastmailOAuth.isOAuth(secret) {
+            // Instant alerts are stopped first, while the sign in still works; then Fastmail is told we're done.
+            Task {
+                #if os(iOS)
+                await InstantAlerts.shared.forget(gone)
+                #endif
+                await FastmailOAuth.signOut(secret)
+            }
+        }
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
         if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }
@@ -325,6 +354,7 @@ final class Store: ObservableObject {
             for state in accounts { group.addTask { await self.load(state) } }
         }
         await reloadList()
+        saveWidget()
     }
 
     /// Folders, addresses and the inbox for one account.
@@ -381,6 +411,11 @@ final class Store: ObservableObject {
     // MARK: The list
 
     func open(_ f: Folder) async {
+        // Leaving a smart folder: its search goes too.
+        if let smart = smartFolder {
+            smartFolder = nil
+            if search.trimmingCharacters(in: .whitespaces) == smart.search { search = "" }
+        }
         guard f != folder || list.isEmpty else { return }
         folder = f
         selection = nil
@@ -402,11 +437,17 @@ final class Store: ObservableObject {
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let wanted = folder
         let scope = searchScope
+        let only = listFilter
         func current() -> Bool {
-            wanted == folder && scope == searchScope && words == search.trimmingCharacters(in: .whitespacesAndNewlines)
+            wanted == folder && scope == searchScope && only == listFilter && words == search.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        /// The list filter (unread, starred, attachments) on top of the folder or search.
+        func narrowed(_ f: [String: Any]) -> [String: Any] {
+            guard let c = only.condition else { return f }
+            return ["operator": "AND", "conditions": [f, c]]
         }
         if list.isEmpty || offline {
-            let saved = await savedItems(words: words, folder: wanted, scope: scope, limit: listLimit)
+            let saved = await savedItems(words: words, folder: wanted, scope: scope, limit: listLimit).filter { only.matches($0.email) }
             if current() && (!saved.isEmpty || offline) {
                 list = saved
                 mayHaveMore = saved.count >= listLimit
@@ -416,11 +457,12 @@ final class Store: ObservableObject {
         defer { listLoading = false }
         var items: [Item] = []
         var reached = false
+        let query = SearchQuery(words)
         if !words.isEmpty && scope == .allMail {
-            for s in accounts {
-                var filter: [String: Any] = ["text": words]
+            for s in shownAccounts {
                 let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
-                if !skip.isEmpty { filter["inMailboxOtherThan"] = skip }
+                let base: [String: Any] = skip.isEmpty ? [:] : ["inMailboxOtherThan": skip]
+                let filter = narrowed(query.filter(adding: base))
                 do {
                     items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -429,14 +471,13 @@ final class Store: ObservableObject {
         } else {
             switch wanted {
             case .allInboxes:
-                if words.isEmpty && listLimit <= 100 {
-                    items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
+                if words.isEmpty && listLimit <= 100 && only == .all {
+                    items = shownAccounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
                     reached = !offline
                 } else {
-                    for s in accounts {
+                    for s in shownAccounts {
                         guard let inbox = s.box("inbox") else { continue }
-                        var filter: [String: Any] = ["inMailbox": inbox.id]
-                        if !words.isEmpty { filter["text"] = words }
+                        let filter = narrowed(words.isEmpty ? ["inMailbox": inbox.id] : query.filter(adding: ["inMailbox": inbox.id]))
                         do {
                             items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                             reached = true
@@ -445,8 +486,7 @@ final class Store: ObservableObject {
                 }
             case .mailbox(let accountId, let boxId):
                 guard let s = state(id: accountId) else { break }
-                var filter: [String: Any] = ["inMailbox": boxId]
-                if !words.isEmpty { filter["text"] = words }
+                let filter = narrowed(words.isEmpty ? ["inMailbox": boxId] : query.filter(adding: ["inMailbox": boxId]))
                 do {
                     items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
                     reached = true
@@ -456,7 +496,7 @@ final class Store: ObservableObject {
         guard current() else { return }  // the person moved on while this was loading
         guard reached else { return }     // offline: the saved list stays on screen
         backOnline()
-        list = items.sorted { $0.email.date > $1.email.date }
+        list = items.filter { only.matches($0.email) }.sorted { $0.email.date > $1.email.date }
         mayHaveMore = items.count >= listLimit
         await remember(items)
     }
@@ -465,7 +505,9 @@ final class Store: ObservableObject {
     func searchSaved() async {
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { return }
-        let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit)
+        // from:, to: and the like: saved mail can't answer those, so ask the server straight away.
+        if SearchQuery(words).narrowed { await reloadList(); return }
+        let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit).filter { listFilter.matches($0.email) }
         // Nothing saved yet (a new account, or sample mail): leave the list for the server's search.
         guard !found.isEmpty, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
         list = found
@@ -508,7 +550,10 @@ final class Store: ObservableObject {
     }
 
     /// The middle column's title: the folder, or "All mail" while searching everywhere.
-    var listTitle: String { searchingAllMail ? "All mail" : folderTitle }
+    var listTitle: String {
+        if let f = smartFolder, f.search == search.trimmingCharacters(in: .whitespaces) { return f.name }
+        return searchingAllMail ? "All mail" : folderTitle
+    }
 
     /// The folder an email lives in, shown on search results from every folder.
     func place(of item: Item) -> String? {
@@ -518,7 +563,7 @@ final class Store: ObservableObject {
 
     /// Unread across every inbox, for the sidebar and the Dock.
     var unreadInboxes: Int {
-        accounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
+        shownAccounts.reduce(0) { $0 + ($1.box("inbox")?.unreadEmails ?? 0) }
     }
 
     /// The folder an item is being looked at in, so archive and move know where to take it from.
@@ -661,6 +706,18 @@ final class Store: ObservableObject {
         await apply([item.email.id: ["keywords/$flagged": on ? true as Any : NSNull() as Any]], in: s)
     }
 
+    /// Mute (Paul, 20 Nov 2026, after Fastmail's): marks every email in the conversation $muted, the keyword
+    /// Fastmail uses, so later replies skip the inbox; muting also archives it. Unmute takes the mark off again.
+    func mute(_ item: Item, _ on: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        var thread = (try? await s.client.thread(item.email.threadId)) ?? []
+        if thread.isEmpty { thread = [item.email] }
+        let ids = Set(thread.map(\.id))
+        replace(account: item.account, ids: ids) { $0.with(keyword: "$muted", on: on) }
+        await apply(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$muted": on ? true as Any : NSNull() as Any] as [String: Any]) }), in: s)
+        if on, let inbox = s.box("inbox"), source(for: item, in: s)?.id == inbox.id { await archive(item) }
+    }
+
     func archive(_ item: Item) async {
         guard let s = state(for: item.account) else { return }
         guard let archive = s.box("archive") else { problem = "\(item.account.label) has no Archive folder."; return }
@@ -721,6 +778,28 @@ final class Store: ObservableObject {
             }
             patches[e.id] = patch.merging(extra) { a, _ in a }
         }
+        // Undo (⌘Z) puts every email back in the mailboxes it was in, with the spam marks as they were.
+        var restore: [String: [String: Any]] = [:]
+        for e in emails {
+            var back: [String: Any] = ["mailboxIds": e.mailboxIds.filter(\.value)]
+            for key in extra.keys where key.hasPrefix("keywords/") {
+                let name = String(key.dropFirst("keywords/".count))
+                back[key] = e.keywords?[name] == true ? true as Any : NSNull() as Any
+            }
+            restore[e.id] = back
+        }
+        let done: String
+        switch target.role {
+        case "trash": done = "Deleted"
+        case "archive": done = "Archived"
+        case "junk": done = "Marked as spam"
+        default: done = from.role == "junk" && target.role == "inbox" ? "Moved to Inbox" : "Moved to \(target.name)"
+        }
+        UndoMove.shared.offer(UndoMove.Done(title: done, account: item.account, patches: restore))
+        // Move again repeats a move you chose from Move to (not Archive, Delete or Spam).
+        if extra.isEmpty && !keepLabels && !exclusive && target.role != "archive" {
+            lastMove = (account: s.id, box: target.id)
+        }
         takeOut(item)
         if from.role == "inbox" || exclusive { s.inbox.removeAll { $0.threadId == item.email.threadId } }
         await apply(patches, in: s)
@@ -748,6 +827,11 @@ final class Store: ObservableObject {
     }
 
     /// The labels an email can take: every folder except Bin, Spam, Drafts and Sent.
+    /// Settings key: show the Labels menu. Off by default, because Fastmail uses folders unless you switch to labels
+    /// in its own settings, and JMAP doesn't tell apps which (Paul uses folders, 20 Nov 2026).
+    static let labelsKey = "showLabels"
+    var showsLabels: Bool { UserDefaults.standard.bool(forKey: Self.labelsKey) }
+
     func labels(for item: Item) -> [FolderEntry] {
         guard let s = state(for: item.account) else { return [] }
         return s.tree.filter { !["trash", "junk", "drafts", "sent"].contains($0.box.role ?? "") }
@@ -760,13 +844,17 @@ final class Store: ObservableObject {
 
     func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
               threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil,
-              sendAt: Date? = nil) async throws {
+              sendAt: Date? = nil, undoDraft: ComposeDraft? = nil) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
         do {
-            try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+            let hold = sendAt == nil && !isSample(s) ? UndoSend.seconds : 0
+            let sentEmail = try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
                                     inReplyTo: threading.inReplyTo, references: threading.references,
                                     attachments: attachments, drafts: drafts.id, sent: sent.id, scheduled: s.scheduledBox?.id,
-                                    replacing: replacing, sendAt: sendAt)
+                                    replacing: replacing, sendAt: sendAt, holdFor: hold)
+            if hold > 0, let sentEmail, sentEmail.heldUntil != nil, let draft = undoDraft {
+                offerUndo(sentEmail, account: account, draft: draft)
+            }
         } catch let error where Self.isOffline(error) && !isSample(s) && sendAt == nil {
             // No connection: it waits in the Outbox and sends itself when the connection is back.
             goOffline()

@@ -35,6 +35,9 @@ struct LanternApp: App {
                     .keyboardShortcut("n")
             }
             CommandMenu("Mailbox") {
+                Button("Contacts") { NotificationCenter.default.post(name: .lanternContacts, object: nil) }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                Divider()
                 Button("Check for new mail") { Task { await store.refresh() } }
                     .keyboardShortcut("r", modifiers: [.command, .shift, .option])
             }
@@ -93,4 +96,5 @@ struct LanternApp: App {
 
 extension Notification.Name {
     static let lanternCompose = Notification.Name("lanternCompose")
+    static let lanternContacts = Notification.Name("lanternContacts")
 }

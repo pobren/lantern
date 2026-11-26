@@ -17,6 +17,14 @@ struct MessageActions {
     var inSpam: Bool
     var unread: Bool
     var starred: Bool
+    var mute: (() -> Void)? = nil
+    var muted = false
+    var print: (() -> Void)? = nil
+    var forwardAttached: (() -> Void)? = nil
+    /// Repeats the last Move to, with the folder's name for the menu.
+    var moveAgain: (() -> Void)? = nil
+    var moveAgainName: String? = nil
+    var addSender: (() -> Void)? = nil
 }
 
 private struct MessageActionsKey: FocusedValueKey { typealias Value = MessageActions }
@@ -47,6 +55,7 @@ struct MessageCommands: Commands {
             Button("Reply") { a?.reply() }.keyboardShortcut("r", modifiers: .command)
             Button("Reply all") { a?.replyAll() }.keyboardShortcut("r", modifiers: [.command, .shift])
             Button("Forward") { a?.forward() }.keyboardShortcut("f", modifiers: [.command, .shift])
+            Button("Forward as attachment") { a?.forwardAttached?() }.disabled(a?.forwardAttached == nil)
             if let edit = a?.editDraft {
                 Button("Edit draft") { edit() }.keyboardShortcut("e", modifiers: .command)
             }
@@ -54,11 +63,21 @@ struct MessageCommands: Commands {
             Button("Archive") { a?.archive() }.keyboardShortcut("a", modifiers: [.command, .control])
             Button("Delete") { a?.delete() }.keyboardShortcut(.delete, modifiers: .command)
             Button(a?.inSpam == true ? "Not spam" : "Mark as spam") { a?.spam() }.keyboardShortcut("j", modifiers: [.command, .shift])
+            Button(a?.moveAgainName.map { "Move again to \($0)" } ?? "Move again") { a?.moveAgain?() }
+                .keyboardShortcut("t", modifiers: [.command, .option])
+                .disabled(a?.moveAgain == nil)
             Divider()
             Button(a?.unread == true ? "Mark as read" : "Mark as unread") { a?.toggleUnread() }.keyboardShortcut("u", modifiers: [.command, .shift])
             Button(a?.starred == true ? "Remove star" : "Star") { a?.toggleStar() }.keyboardShortcut("l", modifiers: [.command, .shift])
+            Button(a?.muted == true ? "Unmute conversation" : "Mute conversation") { a?.mute?() }.keyboardShortcut("m", modifiers: [.command, .shift])
+            Divider()
+            Button("Add sender to Contacts") { a?.addSender?() }.disabled(a?.addSender == nil)
             }
             .disabled(a == nil)
+        }
+        // File > Print prints the open email.
+        CommandGroup(replacing: .printItem) {
+            Button("Print…") { a?.print?() }.keyboardShortcut("p", modifiers: .command).disabled(a?.print == nil)
         }
     }
 }
@@ -71,6 +90,10 @@ struct HelpCommands: Commands {
             Button("JMAP Connect Help") { openURL(URL(string: "https://jmapconnect.app/help/")!) }
                 .keyboardShortcut("?", modifiers: .command)
             Button("Setting up with Fastmail") { openURL(URL(string: "https://jmapconnect.app/setup/")!) }
+            Divider()
+            Button("Report a problem") { openURL(Community.new(.bug)) }
+            Button("Suggest an idea") { openURL(Community.new(.idea)) }
+            Button("Ask the community") { openURL(Community.home) }
             Divider()
             Button("Contact") { openURL(URL(string: "https://paulobrien.dev/contact/")!) }
             Button("Privacy") { openURL(URL(string: "https://jmapconnect.app/privacy/")!) }

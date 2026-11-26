@@ -71,7 +71,8 @@ enum NewMail {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 20
-        req.setValue(JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
+        // A Fastmail sign in (OAuth) gets a fresh access token first; API tokens are used as they are.
+        req.setValue((try? await FastmailOAuth.header(r.token)) ?? JMAPAuth.header(r.token), forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let acct = r.mailAccountId
         req.httpBody = try JSONSerialization.data(withJSONObject: [

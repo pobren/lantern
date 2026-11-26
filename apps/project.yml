@@ -26,6 +26,9 @@ targets:
       # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
       - target: Notify
         destinationFilters: [iOS]
+      # Home Screen and Lock Screen widgets (iPhone and iPad).
+      - target: Widget
+        destinationFilters: [iOS]
       # Apple Watch app (1.2), carried inside the iPhone app the way Xcode does it.
       - target: Watch
         destinationFilters: [iOS]
@@ -36,6 +39,9 @@ targets:
       path: Lantern/Info.plist
       properties:
         JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        # Sign in with Fastmail: the OAuth client id (see oauth/README.md). Empty means the live one,
+        # https://jmapconnect.app/oauth/client.json (live 20 Nov 2026, pob #582).
+        JCOAuthClient: ""
         BGTaskSchedulerPermittedIdentifiers: [dev.paulobrien.lantern.refresh]
         UIBackgroundModes: [fetch]
         CFBundleName: JMAP Connect    # the name in the Mac menu bar and Finder
@@ -78,6 +84,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        # Must match the app's, so the extension can refresh a Fastmail sign in too.
+        JCOAuthClient: ""
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
@@ -88,6 +96,29 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_ENTITLEMENTS: Notify/Notify.entitlements
         SKIP_INSTALL: YES
+  Widget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+      - path: Shared/WidgetSnapshot.swift
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: JMAP Connect
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        JCKeychainGroup: $(AppIdentifierPrefix)dev.paulobrien.lantern.shared
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.paulobrien.lantern.widget
+        PRODUCT_NAME: MailWidget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: Widget/Widget.entitlements
+        SKIP_INSTALL: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
   Watch:
     type: application
     platform: watchOS

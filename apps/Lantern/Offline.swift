@@ -142,6 +142,7 @@ extension Store {
         }
         // Unread counts and folders come back from the server; the list itself was already changed on screen.
         if let boxes = try? await s.client.mailboxes() { s.mailboxes = boxes; objectWillChange.send() }
+        saveWidget()
     }
 
     /// Sends everything waiting, oldest first. Stops at the first sign the connection has gone again.

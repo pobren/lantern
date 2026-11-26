@@ -1,7 +1,8 @@
-// First run: add a Fastmail account with an API token, or (smaller, underneath) another JMAP provider with an email
+// First run: add a Fastmail account (Sign in with Fastmail, or an API token), or (smaller, underneath) another JMAP provider with an email
 // address and app password. Also Settings, on every device.
 
 import SwiftUI
+import AuthenticationServices
 
 struct WelcomeView: View {
     @EnvironmentObject var store: Store
@@ -71,33 +72,115 @@ struct WelcomeView: View {
 struct AddAccountView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuth
     let kind: ServerKind
     @State private var address = ""
     @State private var token = ""
     @State private var working = false
     @State private var problem: String?
+    /// Fastmail: the API token way, folded away under "Sign in with Fastmail" (Paul, 20 Nov 2026).
+    @State private var useToken = false
+    /// Fastmail's page opens as soon as this sheet does, so adding Fastmail is one click (Paul, 20 Nov 2026).
+    @State private var opened = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Add \(kind.name)").font(Look.size(20, weight: .semibold))
-            let saved = store.savedKeys(kind: kind)
-            if !saved.isEmpty {
-                // Keys this person used before, kept in their iCloud Keychain: no new key needed.
-                ForEach(saved) { k in
-                    Button {
-                        Task {
-                            working = true; problem = nil
-                            do { try await store.add(saved: k); dismiss() }
-                            catch { problem = signInProblem(error) }
-                            working = false
-                        }
-                    } label: {
-                        Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+            if kind.id == ServerKind.fastmail.id {
+                Text("Sign in on Fastmail's own page. JMAP Connect never sees your password.")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button { signInWithFastmail() } label: {
+                    Group {
+                        if working && !useToken { ProgressView().controlSize(.small) }
+                        else { Label("Sign in with Fastmail", systemImage: "person.badge.key.fill") }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(working)
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(working)
+                // API tokens used before, kept in iCloud Keychain: still one tap back in.
+                let saved = store.savedKeys(kind: kind)
+                if !saved.isEmpty { savedButtons(saved, prominent: false) }
+                if !useToken {
+                    if let problem { problemLabel(problem) }
+                    HStack {
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                        Spacer()
+                        Button { useToken = true; problem = nil } label: { Label("Use an API token instead", systemImage: "key") }
+                            .buttonStyle(.borderless).font(.callout)
+                    }
+                }
+            }
+            if kind.id != ServerKind.fastmail.id || useToken { tokenWay }
+        }
+        .padding(24)
+        .task {
+            guard kind.id == ServerKind.fastmail.id, !opened else { return }
+            opened = true
+            try? await Task.sleep(nanoseconds: 350_000_000) // let the sheet finish opening first
+            signInWithFastmail()
+        }
+        #if os(macOS)
+        .frame(width: 480)
+        #else
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.medium, .large])
+        #endif
+    }
+
+    private func problemLabel(_ text: String) -> some View {
+        Label(text, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Opens Fastmail's sign in page, then adds the account. A private browser session, so the system doesn't first ask
+    /// "JMAP Connect wants to use api.fastmail.com to sign in" (an extra click Paul found annoying, 20 Nov 2026); passwords
+    /// and passkeys still fill in from the Keychain.
+    private func signInWithFastmail() {
+        Task {
+            working = true; problem = nil
+            defer { working = false }
+            let request = FastmailOAuth.start()
+            do {
+                let back = try await webAuth.authenticate(using: request.url, callbackURLScheme: FastmailOAuth.callbackScheme,
+                                                          preferredBrowserSession: .ephemeral)
+                let secret = try await FastmailOAuth.finish(back, request: request)
+                try await store.addSignedIn(secret: secret)
+                dismiss()
+            } catch let e as ASWebAuthenticationSessionError where e.code == .canceledLogin {
+                // Closed the sign in window: nothing to say.
+            } catch FastmailOAuth.Failure.cancelled {
+            } catch {
+                problem = signInProblem(error)
+            }
+        }
+    }
+
+    /// Keys this person used before, kept in their iCloud Keychain: no new key needed.
+    @ViewBuilder private func savedButtons(_ saved: [SavedKeys.Saved], prominent: Bool) -> some View {
+        ForEach(saved) { k in
+            let button = Button {
+                Task {
+                    working = true; problem = nil
+                    do { try await store.add(saved: k); dismiss() }
+                    catch { problem = signInProblem(error) }
+                    working = false
+                }
+            } label: {
+                Label("Sign back in as \(k.username)", systemImage: "key.fill").frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .disabled(working)
+            if prominent { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
+        }
+    }
+
+    @ViewBuilder private var tokenWay: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if kind.id == ServerKind.fastmail.id { Divider() }
+            let saved = kind.id == ServerKind.fastmail.id ? [] : store.savedKeys(kind: kind)
+            if !saved.isEmpty {
+                savedButtons(saved, prominent: true)
                 Text("Or use a new key:").font(.callout).foregroundStyle(.secondary)
             }
             Text(kind.tokenHelp).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -111,7 +194,7 @@ struct AddAccountView: View {
                     #endif
             }
             SecureField("API token", text: $token).textFieldStyle(.roundedBorder)
-            if let problem { Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true) }
+            if let problem { problemLabel(problem) }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -130,13 +213,6 @@ struct AddAccountView: View {
                 .disabled(token.isEmpty || (kind.sessionURL.isEmpty && address.isEmpty) || working)
             }
         }
-        .padding(24)
-        #if os(macOS)
-        .frame(width: 480)
-        #else
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.medium, .large])
-        #endif
     }
 }
 
@@ -238,11 +314,15 @@ struct OtherAccountView: View {
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(Store.labelsKey) private var showLabels = false
     @State private var adding: ServerKind?
     @State private var addingOther = false
     @State private var masking: AccountState?
     @State private var away: AccountState?
     @State private var removing: AccountState?
+    #if os(macOS)
+    @State private var pane: MacPane? = .notifications
+    #endif
 
     private func remove(forgetKey: Bool) {
         guard let s = removing else { return }
@@ -254,6 +334,8 @@ struct SettingsView: View {
     }
     @AppStorage("remoteImages") private var remoteImages = true
     @AppStorage(Gravatar.key) private var gravatar = true
+    @AppStorage(Trackers.key) private var blockTrackers = true
+    @AppStorage(NewslettersModel.key) private var newsletterManager = true
     @AppStorage(Notifier.enabledKey) private var notify = true
     @AppStorage(Notifier.badgeKey) private var badge = true
     #if os(iOS)
@@ -273,6 +355,13 @@ struct SettingsView: View {
                 }
                 fastmailTools
                 Section("Accounts") { accounts }
+                Section {
+                    Link(destination: Community.new(.bug)) { Row(title: "Report a problem", icon: "ladybug.fill", tint: .pink, opens: true) }
+                    Link(destination: Community.new(.idea)) { Row(title: "Suggest an idea", icon: "lightbulb.fill", tint: .yellow, opens: true) }
+                    Link(destination: Community.home) { Row(title: "Ask the community", icon: "person.3.fill", tint: .blue, opens: true) }
+                } header: { Text("Help") } footer: {
+                    Text("Opens the JMAP Connect community, where people help each other and we answer.")
+                }
                 Section { about }
             }
             .navigationTitle("Settings")
@@ -288,19 +377,50 @@ struct SettingsView: View {
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
         .sheet(isPresented: $addingOther) { OtherAccountView().environmentObject(store) }
         #else
-        TabView {
-            Form { notifications; reading }.formStyle(.grouped)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            Form { sending; addresses }.formStyle(.grouped)
-                .tabItem { Label("Sending", systemImage: "paperplane") }
-            Form { OfflineSection() }.formStyle(.grouped)
-                .tabItem { Label("Offline", systemImage: "arrow.down.circle") }
-            Form { fastmailTools }.formStyle(.grouped)
-                .tabItem { Label(onlyFastmail ? "Fastmail" : "Extras", systemImage: "envelope.badge.shield.half.filled") }
-            Form { Section("Accounts") { accounts }; Section { about } }.formStyle(.grouped)
-                .tabItem { Label("Accounts", systemImage: "person.crop.circle") }
+        // Like System Settings on the Mac: a sidebar of coloured icons, and each page opens with a large icon,
+        // its name and a line on what it's for. (Paul: the old tabs looked plain and half done.)
+        NavigationSplitView {
+            List(selection: $pane) {
+                // Small, softer icons like System Settings, and short names so nothing is cut off.
+                // (Paul: the colours were too bold and the names were truncated.)
+                ForEach(MacPane.allCases.filter { $0 != .fastmail || hasFastmail }) { p in
+                    Label {
+                        Text(p == .fastmail && !onlyFastmail ? "Extras" : p.short)
+                    } icon: {
+                        Image(systemName: p.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(p.tint.opacity(0.85)))
+                    }
+                    .tag(p)
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            let p = pane ?? .notifications
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    Image(systemName: p.icon)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(p.tint)
+                        .frame(width: 44, height: 44)
+                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(p.tint.opacity(0.14)))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(p.title).font(.title2.weight(.semibold))
+                        Text(p.blurb).font(.callout).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 4)
+                Form { macPage(p) }
+                    .formStyle(.grouped)
+                    .scrollContentBackground(.hidden)
+            }
+            .navigationTitle(p.title)
         }
-        .frame(width: 560, height: 520)
+        .frame(width: 780, height: 560)
         .sheet(item: $masking) { s in MaskedEmailView(state: s) }
         .sheet(item: $away) { s in OutOfOfficeView(state: s) }
         .sheet(item: $adding) { k in AddAccountView(kind: k).environmentObject(store) }
@@ -309,6 +429,21 @@ struct SettingsView: View {
     }
 
     // MARK: Pages
+
+    #if os(macOS)
+    private var hasFastmail: Bool { store.accounts.contains { $0.account.kind == "fastmail" || $0.client.canVacation } }
+
+    @ViewBuilder private func macPage(_ p: MacPane) -> some View {
+        switch p {
+        case .notifications: notifications
+        case .sending: sending; addresses
+        case .reading: reading
+        case .offline: OfflineSection()
+        case .fastmail: fastmailTools
+        case .accounts: Section("Accounts") { accounts }; Section { about }
+        }
+    }
+    #endif
 
     #if os(iOS)
     private func page<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
@@ -330,6 +465,8 @@ struct SettingsView: View {
         let icon: String
         let tint: Color
         var detail: String? = nil
+        /// Shows a chevron: tapping the row opens something (Masked Email, Out of office).
+        var opens = false
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
@@ -340,7 +477,11 @@ struct SettingsView: View {
                 Text(title).foregroundStyle(.primary)
                 Spacer()
                 if let detail { Text(detail).foregroundStyle(.secondary) }
+                if opens {
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
             }
+            .contentShape(Rectangle())
         }
     }
 
@@ -369,6 +510,16 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var sending: some View {
+        Section {
+            UndoSendSetting()
+        } footer: {
+            Text("After you press Send, there's an Undo button for this long. Your mail server holds the email meanwhile, so it still goes if you close the app.")
+        }
+        Section {
+            Toggle(isOn: $showLabels) { Label("I use labels, not folders", systemImage: "tag") }
+        } footer: {
+            Text("Fastmail uses folders unless you switch to labels in its settings. Turn this on if you use labels, and the More menu gets a Labels list for adding and removing them.")
+        }
         let several = store.accounts.filter { $0.identities.count > 1 }
         if !several.isEmpty {
             Section {
@@ -405,6 +556,17 @@ struct SettingsView: View {
         Section {
             Toggle("Show senders' Gravatar pictures", isOn: $gravatar)
         }
+        Section {
+            Toggle(isOn: $blockTrackers) { Label("Block trackers", systemImage: "eye.trianglebadge.exclamationmark") }
+        } footer: {
+            Text("Takes out the hidden pictures that tell senders when and where you opened their email, and says how many were blocked. Done on this device.")
+        }
+        Section {
+            Toggle(isOn: $newsletterManager) { Label("Newsletter manager", systemImage: "newspaper") }
+        } footer: {
+            Text("Adds Newsletters to the sidebar: every mailing list that's emailed you lately, how often it sends and how much you read, with Unsubscribe and Archive all.")
+        }
+        PrivateAISetting()
     }
 
     @ViewBuilder private var fastmailTools: some View {
@@ -415,13 +577,15 @@ struct SettingsView: View {
                 // Separate ids for the two lists: with the same account id twice, the Mac drew Masked Email twice.
                 ForEach(fastmail, id: \.maskKey) { s in
                     Button { masking = s } label: {
-                        Row(title: store.accounts.count > 1 ? "Masked Email, \(s.account.label)" : "Masked Email", icon: "theatermasks.fill", tint: .indigo)
+                        Row(title: store.accounts.count > 1 ? "Masked Email, \(s.account.label)" : "Masked Email", icon: "theatermasks.fill", tint: .indigo, opens: true)
                     }
+                    .buttonStyle(.plain)
                 }
                 ForEach(canAway, id: \.awayKey) { s in
                     Button { away = s } label: {
-                        Row(title: store.accounts.count > 1 ? "Out of office, \(s.account.label)" : "Out of office", icon: "airplane.departure", tint: .orange)
+                        Row(title: store.accounts.count > 1 ? "Out of office, \(s.account.label)" : "Out of office", icon: "airplane.departure", tint: .orange, opens: true)
                     }
+                    .buttonStyle(.plain)
                 }
             } header: { Text(onlyFastmail ? "Fastmail" : "Extras") } footer: {
                 if fastmail.isEmpty {
@@ -622,3 +786,54 @@ func signInProblem(_ error: Error) -> String {
     }
     return error.localizedDescription
 }
+
+#if os(macOS)
+/// The pages of Settings on the Mac, each with its own icon and colour.
+enum MacPane: String, CaseIterable, Identifiable, Hashable {
+    case notifications, sending, reading, offline, fastmail, accounts
+    var id: String { rawValue }
+    /// The sidebar name: short enough never to be cut off.
+    var short: String { self == .sending ? "Sending" : title }
+
+    var title: String {
+        switch self {
+        case .notifications: return "Notifications"
+        case .sending: return "Sending and signatures"
+        case .reading: return "Reading"
+        case .offline: return "Offline"
+        case .fastmail: return "Fastmail"
+        case .accounts: return "Accounts"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .notifications: return "bell.badge.fill"
+        case .sending: return "paperplane.fill"
+        case .reading: return "eye.fill"
+        case .offline: return "arrow.down.circle.fill"
+        case .fastmail: return "theatermasks.fill"
+        case .accounts: return "person.crop.circle.fill"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .notifications: return .red
+        case .sending: return Look.accent
+        case .reading: return .teal
+        case .offline: return .green
+        case .fastmail: return .indigo
+        case .accounts: return .gray
+        }
+    }
+    var blurb: String {
+        switch self {
+        case .notifications: return "How JMAP Connect tells you about new mail."
+        case .sending: return "Who your emails come from, where replies go and your signatures."
+        case .reading: return "Pictures and sender photos in the emails you open."
+        case .offline: return "Mail kept on this Mac, so you can read and search without a connection."
+        case .fastmail: return "Masked Email and Out of office, saved in your Fastmail account."
+        case .accounts: return "The accounts on this Mac, and the app version."
+        }
+    }
+}
+#endif
