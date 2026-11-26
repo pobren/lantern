@@ -32,7 +32,7 @@ on:
 jobs:
   external:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 330
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -123,9 +123,16 @@ jobs:
           if code not in (204, 409): sys.exit("::error::Couldn't add the build to the group")
 
           # Apple's beta review (needed for external testers; quick once a version has passed before).
-          code, j = api("v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions",
-                        "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
-          print("Beta review:", code, detail(j) or j.get("data", {}).get("attributes", {}).get("betaReviewState", ""))
+          # Only one build of a version can be in review at a time, so wait (up to about 5 hours) for an earlier one.
+          for i in range(60):
+              code, j = api("v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions",
+                            "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
+              print("Beta review:", code, detail(j) or j.get("data", {}).get("attributes", {}).get("betaReviewState", ""), flush=True)
+              if code == 201 or "already" in detail(j).lower() and "this build" in detail(j).lower(): break
+              if "another build" not in detail(j).lower(): sys.exit("::error::Apple didn't take the build for beta review")
+              time.sleep(300)
+          else:
+              sys.exit("::error::An earlier build was still in beta review after 5 hours; run this again")
           code, j = api(f"v1/builds/{build['id']}/buildBetaDetail")
           print("External state:", j.get("data", {}).get("attributes", {}).get("externalBuildState"))
           PY
