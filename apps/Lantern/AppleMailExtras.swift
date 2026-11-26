@@ -71,7 +71,7 @@ struct ListFilterMenu: View {
             Label("Filter", systemImage: store.listFilter == .all
                   ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
         }
-        .help(store.listFilter == .all ? "Show only unread, starred or with attachments" : "Showing: \(store.listFilter.title)")
+        .help(store.listFilter == .all ? "Show only unread, starred or with attachments" : String(localized: "Showing: \(store.listFilter.title)"))
     }
 }
 

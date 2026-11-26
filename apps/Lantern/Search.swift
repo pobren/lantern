@@ -144,8 +144,8 @@ extension Store {
 
         // Typing an address: from or to it.
         if last.contains("@") {
-            out.append(SearchSuggestion(id: "from:" + lower, icon: "person.crop.circle", title: "From \(last)", search: with("from:" + last)))
-            out.append(SearchSuggestion(id: "to:" + lower, icon: "paperplane", title: "To \(last)", search: with("to:" + last)))
+            out.append(SearchSuggestion(id: "from:" + lower, icon: "person.crop.circle", title: String(localized: "From \(last)"), search: with("from:" + last)))
+            out.append(SearchSuggestion(id: "to:" + lower, icon: "paperplane", title: String(localized: "To \(last)"), search: with("to:" + last)))
         }
         // People in your contacts and inbox whose name or address starts with what's typed.
         if last.count >= 2 {
@@ -156,11 +156,11 @@ extension Store {
             }
             for c in people where seen.insert(c.id).inserted {
                 let name = c.name.isEmpty ? c.email : c.name
-                out.append(SearchSuggestion(id: "from:" + c.id, icon: "person.crop.circle", title: "From \(name)", search: with("from:" + c.email)))
-                out.append(SearchSuggestion(id: "to:" + c.id, icon: "paperplane", title: "To \(name)", search: with("to:" + c.email)))
+                out.append(SearchSuggestion(id: "from:" + c.id, icon: "person.crop.circle", title: String(localized: "From \(name)"), search: with("from:" + c.email)))
+                out.append(SearchSuggestion(id: "to:" + c.id, icon: "paperplane", title: String(localized: "To \(name)"), search: with("to:" + c.email)))
                 if seen.count >= 3 { break }
             }
-            out.append(SearchSuggestion(id: "subject:" + lower, icon: "textformat", title: "Subject contains \"\(last)\"", search: with("subject:" + quoted(last))))
+            out.append(SearchSuggestion(id: "subject:" + lower, icon: "textformat", title: String(localized: "Subject contains \"\(last)\""), search: with("subject:" + quoted(last))))
         }
         // The narrowing words, offered once.
         let query = SearchQuery(text)

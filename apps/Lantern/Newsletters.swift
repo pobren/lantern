@@ -20,10 +20,10 @@ struct Newsletter: Identifiable, Hashable {
     /// "About 3 a week", "About 2 a month", from the last 13 weeks.
     var rate: String {
         let perWeek = Double(count) / 13
-        if perWeek >= 6.5 { return "About \(Int((perWeek / 7).rounded())) a day" }
-        if perWeek >= 0.9 { return "About \(Int(perWeek.rounded())) a week" }
+        if perWeek >= 6.5 { return String(localized: "About \(Int((perWeek / 7).rounded())) a day") }
+        if perWeek >= 0.9 { return String(localized: "About \(Int(perWeek.rounded())) a week") }
         let perMonth = Int((Double(count) / 3).rounded())
-        return perMonth <= 1 ? "Now and then" : "About \(perMonth) a month"
+        return perMonth <= 1 ? "Now and then" : String(localized: "About \(perMonth) a month")
     }
 
     /// How much of it you read, for sorting the ones you never open to the top.

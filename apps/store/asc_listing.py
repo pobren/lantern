@@ -12,6 +12,13 @@ SHOTS = os.path.join(HERE, "..", "screenshots", "store")
 L = json.load(open(os.path.join(HERE, "listing.json")))
 BUNDLE = "dev.paulobrien.lantern"
 BUILD = os.environ.get("BUILD", "").strip() or str(L.get("build", "")).strip()
+# Other languages: store/translations/<App Store locale>.json with subtitle, promotionalText, description, keywords
+# and whatsNew. The name stays JMAP Connect everywhere. Screenshots are the English ones, which Apple shows for
+# any language without its own. A locale App Store Connect doesn't offer is reported and skipped.
+TR_DIR = os.path.join(HERE, "translations")
+TR = {f[:-5]: json.load(open(os.path.join(TR_DIR, f), encoding="utf-8"))
+      for f in sorted(os.listdir(TR_DIR)) if f.endswith(".json")} if os.path.isdir(TR_DIR) else {}
+skipped_locales = []
 problems = []
 
 
@@ -52,9 +59,18 @@ def app_info():
     call("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": {
         "primaryCategory": {"data": {"type": "appCategories", "id": L["primaryCategory"]}},
         "secondaryCategory": {"data": {"type": "appCategories", "id": L["secondaryCategory"]}}}}})
-    for loc in call("GET", f"/v1/appInfos/{info['id']}/appInfoLocalizations")["data"]:
-        call("PATCH", f"/v1/appInfoLocalizations/{loc['id']}", {"data": {"type": "appInfoLocalizations", "id": loc["id"], "attributes": {
-            "name": L["name"], "subtitle": L["subtitle"], "privacyPolicyUrl": L["privacyPolicyUrl"]}}})
+    have = {l["attributes"]["locale"]: l for l in call("GET", f"/v1/appInfos/{info['id']}/appInfoLocalizations?limit=200")["data"]}
+    for locale, t in [(LOCALE, L)] + list(TR.items()):
+        attrs = {"name": L["name"], "subtitle": t["subtitle"], "privacyPolicyUrl": L["privacyPolicyUrl"]}
+        try:
+            if locale in have:
+                call("PATCH", f"/v1/appInfoLocalizations/{have[locale]['id']}", {"data": {"type": "appInfoLocalizations", "id": have[locale]["id"], "attributes": attrs}})
+            else:
+                call("POST", "/v1/appInfoLocalizations", {"data": {"type": "appInfoLocalizations", "attributes": dict(attrs, locale=locale),
+                    "relationships": {"appInfo": {"data": {"type": "appInfos", "id": info["id"]}}}}}, quiet=True)
+        except RuntimeError as e:
+            if locale == LOCALE: raise
+            skipped_locales.append(f"{locale} (name and subtitle): {str(e)[:160]}")
     # Age rating: an email app with no content of its own (4+).
     try:
         age = call("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
@@ -189,16 +205,39 @@ def fill(platform):
     loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), locs[0] if locs else None)
     attrs = {"description": L["description"], "keywords": L["keywords"], "promotionalText": L["promotionalText"],
              "marketingUrl": L["marketingUrl"], "supportUrl": L["supportUrl"]}
+    if L.get("whatsNew") and L["version"] != "1.0":   # Apple refuses What's New on an app's first version
+        attrs["whatsNew"] = L["whatsNew"]
     if loc:
         call("PATCH", f"/v1/appStoreVersionLocalizations/{loc['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": attrs}})
     else:
         loc = call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations",
             "attributes": dict(attrs, locale=LOCALE), "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})["data"]
 
+    # The other languages' text (screenshots fall back to the English ones).
+    have = {l["attributes"]["locale"]: l for l in locs}
+    for locale, t in TR.items():
+        tattrs = {"description": t["description"], "keywords": t["keywords"], "promotionalText": t["promotionalText"],
+                  "marketingUrl": L["marketingUrl"], "supportUrl": L["supportUrl"]}
+        if t.get("whatsNew") and L["version"] != "1.0":
+            tattrs["whatsNew"] = t["whatsNew"]
+        try:
+            if locale in have:
+                call("PATCH", f"/v1/appStoreVersionLocalizations/{have[locale]['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": have[locale]["id"], "attributes": tattrs}})
+            else:
+                call("POST", "/v1/appStoreVersionLocalizations", {"data": {"type": "appStoreVersionLocalizations", "attributes": dict(tattrs, locale=locale),
+                    "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}}, quiet=True)
+        except RuntimeError as e:
+            skipped_locales.append(f"{locale} ({platform}): {str(e)[:160]}")
+    if TR:
+        print(f"   {len(TR)} other languages sent")
+
     # Screenshots: replace each set with the current files.
     sets = {s["attributes"]["screenshotDisplayType"]: s["id"] for s in call("GET", f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")["data"]}
     for display, prefix in L["screenshots"][platform].items():
         files = sorted(f for f in os.listdir(SHOTS) if f.startswith(prefix) and f.endswith(".png"))
+        if not files:   # e.g. the Watch, until its screenshots are in apps/screenshots/store
+            print(f"   {display}: no screenshots yet, left as it is")
+            continue
         if display in sets:
             for old in call("GET", f"/v1/appScreenshotSets/{sets[display]}/appScreenshots")["data"]:
                 call("DELETE", f"/v1/appScreenshots/{old['id']}")
@@ -240,6 +279,10 @@ step("iPhone and iPad version", lambda: fill("IOS"))
 step("Mac version", lambda: fill("MAC_OS"))
 
 print()
+if skipped_locales:
+    print("Languages App Store Connect didn't take (the English listing shows there):")
+    for p in skipped_locales:
+        print(" -", p)
 if problems:
     print("Still to sort out:")
     for p in problems:

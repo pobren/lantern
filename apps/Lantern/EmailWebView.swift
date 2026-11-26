@@ -57,7 +57,7 @@ struct EmailWebView: PlatformViewRepresentable {
     /// Plain text as email HTML, for when only the text could be fetched.
     static func plain(_ text: String) -> String {
         let safe = text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
-        return "<div class=\"lantern-text\">" + safe + "</div>"
+        return "<div class=\"lantern-text\" dir=\"auto\">" + safe + "</div>"
     }
 
     static func wrap(_ html: String, remoteImages: Bool) -> String {
@@ -75,7 +75,7 @@ struct EmailWebView: PlatformViewRepresentable {
           table { max-width: 100% !important; }
           .lantern-text { white-space: pre-wrap; }
           a { color: #2F5BD3; }
-          blockquote { margin: 0 0 0 10px; padding-left: 12px; border-left: 3px solid #E3E6EB; color: #5B6570; }
+          blockquote { margin: 0; margin-inline-start: 10px; padding-inline-start: 12px; border-inline-start: 3px solid #E3E6EB; color: #5B6570; }
         </style></head><body>\(html)</body></html>
         """
     }

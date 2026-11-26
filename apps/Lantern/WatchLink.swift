@@ -1,4 +1,4 @@
-// Apple Watch (1.2): the iPhone hands its Fastmail accounts to the Watch app, which then talks to Fastmail itself,
+// Apple Watch (1.2): the iPhone hands its accounts to the Watch app, which then talks to the mail server itself,
 // so the Watch works on its own Wi-Fi or mobile signal too. Nothing goes through any server of ours.
 // WatchConnectivity is encrypted end to end between the paired iPhone and Watch.
 
@@ -47,7 +47,29 @@ final class WatchLink: NSObject, WCSessionDelegate {
             }
             return ["id": s.account.id, "label": s.account.label, "session": s.account.sessionURL, "token": token]
         }
-        return ["accounts": real, "sample": all.contains { $0.account.kind == Demo.kind }, "v": 1]
+        return ["accounts": real, "sample": all.contains { $0.account.kind == Demo.kind }, "replies": QuickReplies.current, "v": 2]
+    }
+
+    /// Whether there's a paired Watch with JMAP Connect on it (Settings shows the Apple Watch page only then).
+    var watchReady: Bool {
+        guard WCSession.isSupported() else { return false }
+        let s = WCSession.default
+        return s.activationState == .activated && s.isPaired && s.isWatchAppInstalled
+    }
+
+    /// Hands the Watch a Fastmail sign in of its own. It goes once, queued until the Watch is in reach, and the
+    /// iPhone keeps no copy: Fastmail's refresh tokens work once, so only one device may hold each.
+    func sendGrant(account: String, _ t: OAuthTokens) -> Bool {
+        guard watchReady else { return false }
+        WCSession.default.transferUserInfo(["grant": ["id": account, "access": t.access, "refresh": t.refresh,
+                                                      "expires": t.expires.timeIntervalSince1970, "client": FastmailOAuth.clientId]])
+        return true
+    }
+
+    /// Tells the Watch to forget its own sign in for an account.
+    func forgetGrant(account: String) {
+        guard watchReady else { return }
+        WCSession.default.transferUserInfo(["forget": account])
     }
 
     func send() {
