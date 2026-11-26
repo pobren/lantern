@@ -189,6 +189,8 @@ def fill(platform):
     loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), locs[0] if locs else None)
     attrs = {"description": L["description"], "keywords": L["keywords"], "promotionalText": L["promotionalText"],
              "marketingUrl": L["marketingUrl"], "supportUrl": L["supportUrl"]}
+    if L.get("whatsNew") and L["version"] != "1.0":   # Apple refuses What's New on an app's first version
+        attrs["whatsNew"] = L["whatsNew"]
     if loc:
         call("PATCH", f"/v1/appStoreVersionLocalizations/{loc['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": attrs}})
     else:
@@ -199,6 +201,9 @@ def fill(platform):
     sets = {s["attributes"]["screenshotDisplayType"]: s["id"] for s in call("GET", f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")["data"]}
     for display, prefix in L["screenshots"][platform].items():
         files = sorted(f for f in os.listdir(SHOTS) if f.startswith(prefix) and f.endswith(".png"))
+        if not files:   # e.g. the Watch, until its screenshots are in apps/screenshots/store
+            print(f"   {display}: no screenshots yet, left as it is")
+            continue
         if display in sets:
             for old in call("GET", f"/v1/appScreenshotSets/{sets[display]}/appScreenshots")["data"]:
                 call("DELETE", f"/v1/appScreenshots/{old['id']}")

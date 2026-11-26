@@ -268,15 +268,41 @@ enum AlertActions {
     static let category = "newMail"
     static let archive = "archive"
     static let read = "read"
+    static let reply = "reply"
 
     static func register() {
+        // Reply first: on Apple Watch it offers dictation, scribble and suggested replies.
+        let replyButton = UNTextInputNotificationAction(identifier: reply, title: "Reply", options: [],
+                                                        icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
+                                                        textInputButtonTitle: "Send", textInputPlaceholder: "Your reply")
         let archiveButton = UNNotificationAction(identifier: archive, title: "Archive", options: [],
                                                  icon: UNNotificationActionIcon(systemImageName: "archivebox"))
         let readButton = UNNotificationAction(identifier: read, title: "Mark as read", options: [],
                                               icon: UNNotificationActionIcon(systemImageName: "envelope.open"))
         UNUserNotificationCenter.current().setNotificationCategories([
-            UNNotificationCategory(identifier: category, actions: [archiveButton, readButton], intentIdentifiers: []),
+            UNNotificationCategory(identifier: category, actions: [replyButton, archiveButton, readButton], intentIdentifiers: []),
         ])
+    }
+
+    /// Sends a reply typed on an alert (on the iPhone or the Watch), without opening the app. Returns why it didn't go.
+    static func send(reply text: String, account: String, email: String) async -> String? {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return nil }
+        let saved = UserDefaults.standard.data(forKey: "accounts").flatMap { try? JSONDecoder().decode([Account].self, from: $0) } ?? []
+        guard let a = saved.first(where: { $0.id == account }), let secret = Keychain.read(a.id) else {
+            return "Open JMAP Connect to reply."
+        }
+        let client = WatchJMAP(WatchAccount(id: a.id, label: a.label, session: a.sessionURL)) { force in
+            try await FastmailOAuth.header(secret, force: force)
+        }
+        do {
+            let e = try await client.email(email)
+            let pad = await MainActor.run { UIDevice.current.userInterfaceIdiom == .pad }
+            try await client.reply(to: e, text: words, from: pad ? "iPad" : "iPhone")
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     static func run(_ action: String, account: String, email: String) async {

@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.2",
   "copyright": "2026 Paul O'Brien",
   "primaryCategory": "PRODUCTIVITY",
   "secondaryCategory": "BUSINESS",
@@ -8,9 +8,9 @@
   "privacyPolicyUrl": "https://jmapconnect.app/privacy/",
   "marketingUrl": "https://jmapconnect.app/",
   "supportUrl": "https://jmapconnect.app/help/",
-  "promotionalText": "A fast, native email app for your Fastmail account on Mac, iPhone and iPad. No ads, no tracking, completely free.",
+  "promotionalText": "A fast, native email app for Fastmail and other JMAP mail on Mac, iPhone, iPad and Apple Watch. No ads, no tracking, completely free.",
   "keywords": "jmap,email,mail,inbox,email client,mail client,native,private,push,custom domain,catch all,aliases",
-  "description": "JMAP Connect is an independent, high speed email app built for Apple devices. It's written in SwiftUI, Apple's own toolkit, and talks to your Fastmail account over JMAP, the modern open email standard Fastmail runs on. The result is quick syncing, effortless navigation and a clean interface that feels right at home on your Mac, iPhone and iPad.\n\nFAST BY DESIGN\n• On Mac, Fastmail tells the app the moment a message arrives\n• Only what changed is fetched, so your inbox stays quick on patchy mobile data\n• Search runs on Fastmail's servers and looks through every folder, finding every email you've kept, even from years ago\n\nEVERYTHING YOU NEED, NOTHING YOU DON'T\n• A familiar three pane layout: folders, conversations and the open email\n• Every Fastmail account in one colour coded inbox\n• Reply, reply all and forward, with your Fastmail signatures added for you\n• Send from any of your addresses, including catch all addresses on your own domain\n• A default From address and Reply to address for each one\n• Drafts saved to your Fastmail Drafts folder\n• Mark as spam and Not spam, which teach Fastmail's spam filter\n• Works whether you use folders or labels in Fastmail\n• Attachments, photos and document previews\n• Drag emails into folders, create and rename folders, fold subfolders away\n• Alerts and an unread count on the app icon\n\nTRULY NATIVE\nOn Mac: a full Message menu and keyboard shortcuts, and any email opens in its own window. On iPhone: swipe to archive, delete or mark as read. On iPad: a three column layout with drag and drop.\n\nPRIVATE\n• Your device talks straight to Fastmail. There's no JMAP Connect server in the middle, so we never store, pass on or see your messages\n• You sign in with a Fastmail API token, never your password, and you can switch it off with one click\n• The token is kept in your device's Keychain\n• Block pictures from the web so marketing trackers can't tell when you open an email\n• No ads, no analytics, no tracking\n\nTRY IT FIRST\nNo account yet? Choose Try it with sample mail on the welcome screen to look around with made up emails.\n\nSET UP IN TWO MINUTES\nCreate an API token in Fastmail's settings, paste it in and your folders, signatures and inbox load straight away. Step by step guide at jmapconnect.app.\n\nWorks with every Fastmail plan, including your own domain.\n\nJMAP Connect is an independent app created by Paul O'Brien. It isn't made by, endorsed by or affiliated with Fastmail. Fastmail is a trademark of Fastmail Pty Ltd.",
+  "description": "JMAP Connect is an independent, high speed email app built for Apple devices. It's written in SwiftUI, Apple's own toolkit, and talks to your mail over JMAP, the modern open email standard Fastmail runs on. The result is quick syncing, effortless navigation and a clean interface that feels right at home on your Mac, iPhone, iPad and Apple Watch.\n\nFAST BY DESIGN\n• Instant alerts: your mail server tells the app the moment a message arrives\n• Only what changed is fetched, so your inbox stays quick on patchy mobile data\n• Your mail is kept on the device, so you can read and search it offline\n• Search looks through every folder, finding every email you've kept, even from years ago\n\nEVERYTHING YOU NEED, NOTHING YOU DON'T\n• A familiar three pane layout: folders, conversations and the open email\n• Every account in one colour coded inbox\n• Reply, reply all and forward, with your signatures added for you\n• Send from any of your addresses, including catch all addresses on your own domain\n• Undo send, Send later and Out of office\n• Contacts: browse, search and edit your address book\n• Newsletter manager with one tap unsubscribe\n• Smart folders, Mute conversation and Masked Email\n• Mark as spam and Not spam, which teach your server's spam filter\n• Home Screen and Lock Screen widgets\n\nAPPLE WATCH\n• Every inbox in one list on your wrist\n• Read an email, then star, archive or delete it\n• Reply by voice, or tap a quick reply you've chosen on your iPhone\n• Reply straight from an alert\n• Your unread count on the watch face\n• Works on its own over Wi-Fi or mobile signal, even when your iPhone is at home\n\nTRULY NATIVE\nOn Mac: a full Message menu and keyboard shortcuts, and any email opens in its own window. On iPhone: swipe to archive, delete or mark as read. On iPad: a three column layout with drag and drop.\n\nPRIVATE\n• Your device talks straight to your mail server. There's no JMAP Connect server in the middle, so we never store, pass on or see your messages\n• Sign in with Fastmail, or use an API token, never your password\n• Block trackers and pictures from the web so senders can't tell when you open an email\n• Private AI, off unless you turn it on, runs on your device with Apple Intelligence\n• No ads, no analytics, no tracking\n\nWORKS WITH\nFastmail, Mail App, Stalwart and other JMAP mail servers.\n\nTRY IT FIRST\nNo account yet? Choose Try it with sample mail on the welcome screen to look around with made up emails.\n\nJMAP Connect is an independent app created by Paul O'Brien. It isn't made by, endorsed by or affiliated with Fastmail. Fastmail is a trademark of Fastmail Pty Ltd.",
   "review": {
     "contactFirstName": "Paul",
     "contactLastName": "O'Brien",
@@ -21,11 +21,13 @@
   "screenshots": {
     "IOS": {
       "APP_IPHONE_67": "iphone-",
-      "APP_IPAD_PRO_3GEN_129": "ipad-"
+      "APP_IPAD_PRO_3GEN_129": "ipad-",
+      "APP_WATCH_ULTRA": "watch-"
     },
     "MAC_OS": {
       "APP_DESKTOP": "mac-"
     }
   },
-  "build": "136"
+  "build": "",
+  "whatsNew": "The biggest update yet, now with an Apple Watch app.\n\n• Apple Watch: your inbox, quick replies and an unread count on the watch face\n• Sign in with Fastmail, no API token needed\n• Instant alerts, with Reply, Archive and Mark as read on the alert\n• Offline mail and search\n• Undo send, Send later and Out of office\n• Contacts, Newsletter manager and one tap unsubscribe\n• Smart folders, Mute conversation, Masked Email and widgets\n• Mail App, Stalwart and other JMAP servers"
 }

@@ -352,6 +352,9 @@ struct SettingsView: View {
                     NavigationLink { page("Sending and signatures") { sending; addresses } } label: { Row(title: "Sending and signatures", icon: "paperplane.fill", tint: Look.accent) }
                     NavigationLink { page("Reading") { reading } } label: { Row(title: "Reading", icon: "eye.fill", tint: .teal) }
                     NavigationLink { page("Offline") { OfflineSection() } } label: { Row(title: "Offline", icon: "arrow.down.circle.fill", tint: .green) }
+                    if WatchLink.shared.watchReady {
+                        NavigationLink { WatchSettingsPage().environmentObject(store) } label: { Row(title: "Apple Watch", icon: "applewatch", tint: .orange) }
+                    }
                 }
                 fastmailTools
                 Section("Accounts") { accounts }

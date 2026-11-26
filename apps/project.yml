@@ -22,6 +22,8 @@ targets:
     sources:
       - path: Lantern
       - path: Shared
+      # The Watch's small JMAP client also sends replies typed on iPhone alerts.
+      - path: WatchShared/WatchMail.swift
     dependencies:
       # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
       - target: Notify
