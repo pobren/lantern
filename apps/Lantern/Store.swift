@@ -325,6 +325,7 @@ final class Store: ObservableObject {
                 await FastmailOAuth.signOut(secret)
             }
         }
+        CalendarModel.forget(accountId: state.id)
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
         if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }

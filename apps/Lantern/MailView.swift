@@ -17,6 +17,9 @@ struct RootView: View {
     /// Newsletters chosen in the sidebar: the middle and right columns show the newsletter manager.
     @State private var newsletters = false
     @StateObject private var lists = NewslettersModel()
+    /// Calendar chosen in the sidebar: the middle column shows the month and your calendars, the right the day or week.
+    @State private var calendar = false
+    @StateObject private var cal = CalendarModel()
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
@@ -29,11 +32,14 @@ struct RootView: View {
     private var sidebar: some View {
         Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
                 contacts: { showContacts() }, showingContacts: $contacts,
-                newsletters: { newsletters = true; contacts = false; compact = .content }, showingNewsletters: $newsletters,
+                newsletters: { newsletters = true; contacts = false; calendar = false; compact = .content }, showingNewsletters: $newsletters,
+                calendar: { calendar = true; contacts = false; newsletters = false; compact = .content }, showingCalendar: $calendar,
                 column: $compact)
     }
     @ViewBuilder private var middle: some View {
-        if newsletters {
+        if calendar {
+            CalendarSide(model: cal, openDay: { compact = .detail })
+        } else if newsletters {
             NewslettersList(model: lists)
         } else if contacts {
             ContactsList(model: people)
@@ -43,11 +49,14 @@ struct RootView: View {
     }
     private func showContacts() {
         newsletters = false
+        calendar = false
         contacts = true
         compact = .content
     }
     @ViewBuilder private var detail: some View {
-        if newsletters {
+        if calendar {
+            CalendarGrid(model: cal)
+        } else if newsletters {
             NewsletterDetail(model: lists, open: { ref in
                 newsletters = false
                 Task { await store.show(ref) }
@@ -188,6 +197,9 @@ struct Sidebar: View {
     var newsletters: () -> Void = {}
     /// Whether the newsletter manager is showing; picking any folder goes back to mail.
     var showingNewsletters: Binding<Bool>? = nil
+    var calendar: () -> Void = {}
+    /// Whether the calendar is showing; picking any folder goes back to mail.
+    var showingCalendar: Binding<Bool>? = nil
     @AppStorage(NewslettersModel.key) private var newsletterManager = true
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
@@ -209,6 +221,7 @@ struct Sidebar: View {
             if let f {
                 showingContacts?.wrappedValue = false
                 showingNewsletters?.wrappedValue = false
+                showingCalendar?.wrappedValue = false
                 column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
@@ -241,6 +254,16 @@ struct Sidebar: View {
                     // Highlighted like a chosen folder while Contacts is open.
                     .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
                 }
+                if store.accounts.contains(where: CalendarModel.supports) {
+                    let on = showingCalendar?.wrappedValue == true
+                    Button(action: calendar) {
+                        Label("Calendar", systemImage: "calendar")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
+                }
                 if newsletterManager {
                     let on = showingNewsletters?.wrappedValue == true
                     Button(action: newsletters) {
@@ -255,6 +278,7 @@ struct Sidebar: View {
             SmartFolderRows(opened: {
                 showingContacts?.wrappedValue = false
                 showingNewsletters?.wrappedValue = false
+                showingCalendar?.wrappedValue = false
                 column?.wrappedValue = .content
                 chosen = nil
             })
@@ -297,6 +321,7 @@ struct Sidebar: View {
         // Contacts open: no folder is highlighted, so clicking any folder (Inbox too) goes back to mail.
         .onChange(of: showingContacts?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: showingNewsletters?.wrappedValue) { _, on in if on == true { chosen = nil } }
+        .onChange(of: showingCalendar?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())

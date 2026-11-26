@@ -363,7 +363,6 @@ struct SettingsView: View {
                     Text("Opens the JMAP Connect community, where people help each other and we answer.")
                 }
                 Section { about }
-                CalendarTestSection() // test build only, remove before release
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
@@ -441,7 +440,7 @@ struct SettingsView: View {
         case .reading: reading
         case .offline: OfflineSection()
         case .fastmail: fastmailTools
-        case .accounts: Section("Accounts") { accounts }; Section { about }; CalendarTestSection() // test build only
+        case .accounts: Section("Accounts") { accounts }; Section { about }
         }
     }
     #endif

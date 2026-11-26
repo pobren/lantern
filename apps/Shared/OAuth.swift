@@ -26,6 +26,10 @@ enum FastmailOAuth {
     static let resource = "https://api.fastmail.com/jmap/session"
     static let revokeURL = URL(string: "https://api.fastmail.com/oauth/revoke")!
     static let sessionURL = "https://api.fastmail.com/jmap/session"
+    /// Fastmail's calendar server. Calendars aren't open over JMAP yet, so the calendar talks CalDAV, with an access
+    /// token for this resource from the same sign in (a refresh naming it, RFC 8707). Tested on Paul's account 26 Nov 2026.
+    static let caldav = "https://caldav.fastmail.com"
+    static let calendarsScope = "urn:ietf:params:oauth:scope:calendars"
 
     /// Our client id: the address of the metadata file on jmapconnect.app (paulobrien-site jmapconnect-site/public/oauth/).
     /// A build can point elsewhere with JCOAuthClient in Info.plist, for testing before the file is live.
@@ -38,13 +42,14 @@ enum FastmailOAuth {
     static let callbackScheme = "app.jmapconnect"
     static let redirectURI = "app.jmapconnect:/oauth/fastmail"
 
-    /// Mail and contacts. Apps that sign in without registering (as we do) use the general mail scopes from the
+    /// Mail, contacts and (from 1.3) calendars. Apps that sign in without registering (as we do) use the general mail scopes from the
     /// OAuth profile for open public clients, which Fastmail lists in its server metadata; the JMAP-only scopes are
     /// for registered apps (asking for them gave "this request is invalid", Paul's test 20 Nov 2026).
     /// Mail covers reading, sending and out of office. offline_access gives the refresh token.
     static let scopes = [
         "urn:ietf:params:oauth:scope:mail",
         "urn:ietf:params:oauth:scope:contacts",
+        "urn:ietf:params:oauth:scope:calendars",
         "offline_access",
     ]
 
@@ -92,7 +97,8 @@ enum FastmailOAuth {
 
     /// Checks what came back on our redirect address, then swaps the code for tokens and keeps them.
     /// Returns the secret to keep for the account ("oauth:<key id>").
-    static func finish(_ callback: URL, request: Request) async throws -> String {
+    /// With `into`, the tokens replace an existing sign in's (turning on calendar for someone who signed in before 1.3).
+    static func finish(_ callback: URL, request: Request, into existing: String? = nil) async throws -> String {
         guard callback.scheme == callbackScheme, callback.path == "/oauth/fastmail" else { throw Failure.mixUp }
         let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
@@ -104,7 +110,15 @@ enum FastmailOAuth {
             "client_id": clientId, "redirect_uri": redirectURI, "grant_type": "authorization_code",
             "code": code, "code_verifier": request.verifier, "resource": resource,
         ])
-        let key = UUID().uuidString
+        let key = existing.map(keyId) ?? UUID().uuidString
+        if existing != nil, let old = OAuthStore.read(key) {
+            // The old sign in is finished with: tell Fastmail, then keep the new one under the same key.
+            var r = URLRequest(url: revokeURL)
+            r.httpMethod = "POST"
+            r.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            r.httpBody = form(["client_id": clientId, "token": old.refresh, "token_type_hint": "refresh_token"])
+            _ = try? await URLSession.shared.data(for: r)
+        }
         OAuthStore.save(key, tokens)
         return prefix + key
     }
@@ -136,10 +150,47 @@ enum FastmailOAuth {
         if t.access != seen && t.expires.timeIntervalSinceNow > 30 { return t.access }
 
         do {
-            let fresh = try await post(["client_id": clientId, "grant_type": "refresh_token", "refresh_token": t.refresh, "resource": resource])
+            var fresh = try await post(["client_id": clientId, "grant_type": "refresh_token", "refresh_token": t.refresh, "resource": resource])
+            fresh.calendarAccess = t.calendarAccess
+            fresh.calendarExpires = t.calendarExpires
             OAuthStore.save(key, fresh)
             NotificationCenter.default.post(name: refreshed, object: key)
             return fresh.access
+        } catch TokenError.grant(let temporary, let description) where !temporary {
+            t.signedOut = true
+            t.problem = description
+            OAuthStore.save(key, t)
+            throw Failure.signedOut(description)
+        }
+    }
+
+    /// Whether a sign in includes calendars (sign ins from before 1.3 don't, and need approving once more).
+    static func allowsCalendars(_ secret: String) -> Bool {
+        guard isOAuth(secret), let t = OAuthStore.read(keyId(secret)) else { return false }
+        return !t.scope.isEmpty && t.allows(calendarsScope)
+    }
+
+    /// The Authorization header for Fastmail's calendar server. Same refresh token and lock as mail: the refresh names
+    /// the calendar server, and the new refresh token it gives replaces the old one for both.
+    static func calendarHeader(_ secret: String, force: Bool = false) async throws -> String {
+        guard isOAuth(secret) else { return JMAPAuth.header(secret) }
+        let key = keyId(secret)
+        guard var t = OAuthStore.read(key) else { throw Failure.signedOut(nil) }
+        if t.signedOut { throw Failure.signedOut(t.problem) }
+        if !force, let a = t.calendarAccess, let e = t.calendarExpires, e.timeIntervalSinceNow > 90 { return "Bearer " + a }
+        let seen = t.calendarAccess
+        guard await OAuthStore.lock(key) else { throw Failure.signedOut(nil) }
+        defer { OAuthStore.unlock(key) }
+        if let now = OAuthStore.read(key) { t = now }
+        if t.signedOut { throw Failure.signedOut(t.problem) }
+        if let a = t.calendarAccess, a != seen, let e = t.calendarExpires, e.timeIntervalSinceNow > 30 { return "Bearer " + a }
+        do {
+            let fresh = try await post(["client_id": clientId, "grant_type": "refresh_token", "refresh_token": t.refresh, "resource": caldav])
+            t.refresh = fresh.refresh
+            t.calendarAccess = fresh.access
+            t.calendarExpires = fresh.expires
+            OAuthStore.save(key, t)
+            return "Bearer " + fresh.access
         } catch TokenError.grant(let temporary, let description) where !temporary {
             t.signedOut = true
             t.problem = description
@@ -212,6 +263,9 @@ struct OAuthTokens: Codable {
     var scope: String
     var signedOut = false
     var problem: String?
+    /// A separate access token for the calendar server (CalDAV), from the same refresh token.
+    var calendarAccess: String?
+    var calendarExpires: Date?
 
     /// Whether this sign in includes a scope (Fastmail may give fewer than were asked for).
     func allows(_ scope: String) -> Bool { self.scope.isEmpty || self.scope.split(separator: " ").contains { $0 == scope } }
