@@ -13,6 +13,11 @@ struct CalendarSide: View {
     var openDay: () -> Void = {}
     @Environment(\.webAuthenticationSession) private var webAuth
     @State private var turningOn: String?
+    @State private var chosen: CalEvent?
+    @State private var drafting: DraftBox?
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
 
     var body: some View {
         List {
@@ -49,30 +54,28 @@ struct CalendarSide: View {
                     Text("Nothing on").foregroundStyle(.secondary)
                 } else {
                     ForEach(day) { e in
-                        Button { model.date = e.start; openDay() } label: { AgendaRow(event: e, model: model) }
+                        Button { chosen = e } label: { AgendaRow(event: e, model: model) }
                             .buttonStyle(.plain)
                     }
                 }
             } header: { Text(CalText.longDay.string(from: model.date)) }
-            if !model.shownCalendars.isEmpty {
-                Section("Calendars") {
-                    ForEach(model.shownCalendars) { c in
-                        Toggle(isOn: Binding(get: { !model.hidden.contains(c.id) }, set: { on in
-                            if on { model.hidden.remove(c.id) } else { model.hidden.insert(c.id) }
-                        })) {
-                            HStack(spacing: 8) {
-                                Circle().fill(model.colour(c)).frame(width: 10, height: 10)
-                                Text(c.name).lineLimit(1)
-                                if store.accounts.count > 1, let s = store.state(id: c.accountId) {
-                                    Text(s.account.label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                            }
-                        }
+        }
+        .navigationTitle("Calendar")
+        .sheet(item: $chosen) { e in EventDetail(event: e, model: model).environmentObject(store) }
+        .sheet(item: $drafting) { box in EventEditor(model: model, draft: box.draft).environmentObject(store) }
+        #if os(iOS)
+        // iPhone opens here first, so New event and the calendar switches are here too (the day and week have them on iPad and Mac).
+        .toolbar {
+            if sizeClass == .compact {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    CalendarsMenu(model: model)
+                    if !model.writableCalendars.isEmpty {
+                        Button { drafting = DraftBox(draft: model.newDraft()) } label: { Label("New event", systemImage: "plus") }
                     }
                 }
             }
         }
-        .navigationTitle("Calendar")
+        #endif
         .refreshable { await model.refresh(store) }
         .task { await model.start(store) }
         #if os(macOS)
@@ -172,8 +175,11 @@ struct CalendarGrid: View {
     @ObservedObject var model: CalendarModel
     @State private var chosen: CalEvent?
     @State private var drafting: DraftBox?
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
     private let hourHeight: CGFloat = 52
-    private let gutter: CGFloat = 46
+    private var gutter: CGFloat { compact ? 40 : 46 }
 
     var body: some View {
         let days = model.days
@@ -205,6 +211,17 @@ struct CalendarGrid: View {
         .task(id: model.range) { await model.ensure(model.range, store: store) }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if compact {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { model.date = Date() } label: { Label("Today", systemImage: "calendar.circle") }
+                    CalendarsMenu(model: model)
+                    if !model.writableCalendars.isEmpty {
+                        Button { drafting = DraftBox(draft: model.newDraft()) } label: { Label("New event", systemImage: "plus") }
+                    }
+                }
+            }
+        }
         #endif
         .navigationTitle(title)
     }
@@ -228,41 +245,70 @@ struct CalendarGrid: View {
         return min(8, timed.min() ?? 8)
     }
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            #if os(macOS)
-            Text(title).font(.title3.weight(.semibold)).lineLimit(1)
-            #endif
-            Spacer(minLength: 0)
-            if !model.writableCalendars.isEmpty {
-                Button { drafting = DraftBox(draft: model.newDraft()) } label: { Label("New event", systemImage: "plus") }
-                    .buttonStyle(.borderedProminent)
-                    .help("New event")
-            }
-            Button { model.date = Date() } label: { Label("Today", systemImage: "calendar.circle") }
-                .labelStyle(.titleAndIcon)
-                .buttonStyle(.bordered)
-            Button { model.move(-1) } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Previous day" : model.mode == .week ? "Previous week" : "Previous month")
-                .keyboardShortcut(.leftArrow, modifiers: .command)
-            Button { model.move(1) } label: { Image(systemName: "chevron.right") }
-                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Next day" : model.mode == .week ? "Next week" : "Next month")
-                .keyboardShortcut(.rightArrow, modifiers: .command)
-            Picker("Show", selection: $model.mode) {
-                Label("Day", systemImage: "calendar.day.timeline.left").tag(CalendarModel.Mode.day)
-                Label("Week", systemImage: "calendar.day.timeline.leading").tag(CalendarModel.Mode.week)
-                Label("Month", systemImage: "calendar").tag(CalendarModel.Mode.month)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            if model.loading { ProgressView().controlSize(.small) }
-            else {
-                Button { Task { await model.refresh(store) } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless).accessibilityLabel("Check for changes")
-            }
+    private var compact: Bool {
+        #if os(iOS)
+        return sizeClass == .compact
+        #else
+        return false
+        #endif
+    }
+
+    private var modePicker: some View {
+        Picker("Show", selection: $model.mode) {
+            Text("Day").tag(CalendarModel.Mode.day)
+            Text("Week").tag(CalendarModel.Mode.week)
+            Text("Month").tag(CalendarModel.Mode.month)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
+        .pickerStyle(.segmented)
+        .labelsHidden()
+    }
+
+    private var back: some View {
+        Button { model.move(-1) } label: { Image(systemName: "chevron.left").frame(minWidth: 22, minHeight: 22) }
+            .accessibilityLabel(model.mode == .day ? "Previous day" : model.mode == .week ? "Previous week" : "Previous month")
+            .keyboardShortcut(.leftArrow, modifiers: .command)
+    }
+    private var forward: some View {
+        Button { model.move(1) } label: { Image(systemName: "chevron.right").frame(minWidth: 22, minHeight: 22) }
+            .accessibilityLabel(model.mode == .day ? "Next day" : model.mode == .week ? "Next week" : "Next month")
+            .keyboardShortcut(.rightArrow, modifiers: .command)
+    }
+
+    @ViewBuilder private var header: some View {
+        if compact {
+            // iPhone: the arrows either side of Day, Week and Month; New event, Calendars and Today in the bar above.
+            HStack(spacing: 8) {
+                back.buttonStyle(.borderless)
+                modePicker
+                forward.buttonStyle(.borderless)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+        } else {
+            HStack(spacing: 10) {
+                #if os(macOS)
+                Text(title).font(.title3.weight(.semibold)).lineLimit(1)
+                #endif
+                Spacer(minLength: 0)
+                if !model.writableCalendars.isEmpty {
+                    Button { drafting = DraftBox(draft: model.newDraft()) } label: { Label("New event", systemImage: "plus") }
+                        .buttonStyle(.borderedProminent)
+                        .help("New event")
+                }
+                CalendarsMenu(model: model)
+                Button { model.date = Date() } label: { Label("Today", systemImage: "calendar.circle") }
+                    .labelStyle(.titleAndIcon)
+                    .buttonStyle(.bordered)
+                back.buttonStyle(.bordered)
+                forward.buttonStyle(.bordered)
+                modePicker.fixedSize()
+                if model.loading { ProgressView().controlSize(.small) }
+                else {
+                    Button { Task { await model.refresh(store) } } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.borderless).accessibilityLabel("Check for changes")
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+        }
     }
 
     private func dayHeadings(_ days: [Date]) -> some View {
@@ -271,8 +317,11 @@ struct CalendarGrid: View {
             ForEach(days, id: \.self) { d in
                 let today = Calendar.current.isDateInToday(d)
                 Button { model.date = d; model.mode = .day } label: {
-                    HStack(spacing: 4) {
-                        Text(CalText.weekday.string(from: d)).foregroundStyle(.secondary)
+                    // On iPhone the weekday sits above the number, so seven days fit across.
+                    let stack = compact ? AnyLayout(VStackLayout(spacing: 2)) : AnyLayout(HStackLayout(spacing: 4))
+                    stack {
+                        Text(compact ? String(CalText.weekday.string(from: d).prefix(1)) : CalText.weekday.string(from: d))
+                            .foregroundStyle(.secondary)
                         Text(CalText.dayNumber.string(from: d))
                             .fontWeight(today ? .bold : .regular)
                             .foregroundStyle(today ? Color.white : Color.primary)
@@ -818,5 +867,32 @@ struct EventEditor: View {
         } catch {
             problem = error.localizedDescription
         }
+    }
+}
+
+
+/// Which calendars show: a menu of switches, one per calendar.
+struct CalendarsMenu: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject var model: CalendarModel
+
+    var body: some View {
+        Menu {
+            ForEach(model.shownCalendars) { c in
+                Toggle(isOn: Binding(get: { !model.hidden.contains(c.id) }, set: { on in
+                    if on { model.hidden.remove(c.id) } else { model.hidden.insert(c.id) }
+                })) {
+                    if store.accounts.count > 1, let s = store.state(id: c.accountId) {
+                        Text("\(c.name) (\(s.account.label))")
+                    } else {
+                        Text(c.name)
+                    }
+                }
+            }
+        } label: {
+            Label("Calendars", systemImage: "checklist")
+        }
+        .help("Choose which calendars show")
+        .disabled(model.shownCalendars.isEmpty)
     }
 }
