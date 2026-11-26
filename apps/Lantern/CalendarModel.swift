@@ -624,6 +624,60 @@ final class CalendarModel: ObservableObject {
         try await reload(c, client: client)
     }
 
+    /// Moves an event by dragging it: the whole event, or for a repeating event just this one time.
+    func move(_ e: CalEvent, by delta: TimeInterval, store: Store) async throws {
+        guard abs(delta) >= 60, canEdit(e) else { return }
+        self.store = store
+        var d = draft(editing: e)
+        d.start = d.start.addingTimeInterval(delta)
+        d.end = d.end.addingTimeInterval(delta)
+        if !e.repeats { try await save(d, store: store); return }
+        try await change(e) { v in
+            guard let master = v.events.first(where: { $0.text("UID") == e.uid && $0.prop("RECURRENCE-ID") == nil }) else { return }
+            // This time may already have been moved once: change that copy.
+            let copy = v.events.first { c in
+                c.text("UID") == e.uid && c.prop("RECURRENCE-ID") != nil
+                    && (c.prop("DTSTART").flatMap { ICal.when($0)?.date } == e.start
+                        || c.prop("RECURRENCE-ID").flatMap { ICal.when($0)?.date } == e.start)
+            }
+            let target: ICalComponent
+            if let copy {
+                target = copy
+            } else {
+                // A copy of the event for just this time, marked with the time it replaces.
+                target = ICalComponent("VEVENT")
+                let skip: Set<String> = ["RRULE", "RDATE", "EXDATE", "DTSTART", "DTEND", "DURATION", "DTSTAMP", "LAST-MODIFIED", "SEQUENCE"]
+                target.properties = master.properties.filter { !skip.contains($0.name) }
+                target.children = master.children
+                let rid: String
+                if e.allDay {
+                    let f = DateFormatter()
+                    f.locale = Locale(identifier: "en_US_POSIX")
+                    f.dateFormat = "yyyyMMdd"
+                    rid = "RECURRENCE-ID;VALUE=DATE:\(f.string(from: e.start))"
+                } else {
+                    rid = "RECURRENCE-ID:\(ICal.stamp(e.start))"
+                }
+                if let p = Self.line(rid) { target.properties.append(p) }
+                v.children.append(target)
+            }
+            target.properties.removeAll { ["DTSTART", "DTEND", "DURATION", "DTSTAMP", "LAST-MODIFIED", "SEQUENCE"].contains($0.name) }
+            target.properties += Self.dateLines(d).compactMap(Self.line)
+            target.properties += ["DTSTAMP:\(ICal.stamp(Date()))", "LAST-MODIFIED:\(ICal.stamp(Date()))"].compactMap(Self.line)
+            let seq = Int(master.text("SEQUENCE") ?? "") ?? 0
+            if let p = Self.line("SEQUENCE:\(seq + 1)") { target.properties.append(p) }
+        }
+    }
+
+    /// A new event at a time you double clicked (or a whole day in the month).
+    func newDraft(at start: Date, allDay: Bool) -> Draft {
+        var d = newDraft()
+        d.allDay = allDay
+        d.start = start
+        d.end = allDay ? start : start.addingTimeInterval(3_600)
+        return d
+    }
+
     /// Deletes an event, or with `onlyThis` just this one time of a repeating event.
     func delete(_ e: CalEvent, onlyThis: Bool, store: Store) async throws {
         self.store = store

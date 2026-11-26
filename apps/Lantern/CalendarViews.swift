@@ -154,6 +154,8 @@ struct CalendarGrid: View {
     var folders: (() -> Void)? = nil
     @State private var chosen: CalEvent?
     @State private var drafting: DraftBox?
+    @State private var drag: EventDragState?
+    @State private var dayWidth: CGFloat = 0
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -168,7 +170,9 @@ struct CalendarGrid: View {
             Divider()
             CalendarBanner(model: model)
             if model.mode == .month {
-                MonthView(model: model, events: events, open: { chosen = $0 })
+                MonthView(model: model, events: events, drag: $drag, open: { chosen = $0 },
+                          newAt: { day in startNew(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day) },
+                          moved: { e, days, shown in moveEvent(e, days: days, quarters: 0, shown: shown) })
             } else if model.mode == .list {
                 ListView(model: model, days: days, events: events, open: { chosen = $0 })
             } else {
@@ -207,6 +211,25 @@ struct CalendarGrid: View {
         }
         #endif
         .navigationTitle(title)
+    }
+
+    /// Double click (or double tap) on an empty time: a new event there.
+    private func startNew(_ at: Date, allDay: Bool = false) {
+        guard !model.writableCalendars.isEmpty else { return }
+        drafting = DraftBox(draft: model.newDraft(at: at, allDay: allDay))
+    }
+
+    /// Saves a dragged event at its new day and time; it stays where it was dropped while it saves.
+    private func moveEvent(_ e: CalEvent, days: Int, quarters: Int, shown: CGSize) {
+        guard days != 0 || quarters != 0 else { drag = nil; return }
+        let cal = Calendar.current
+        let moved = (cal.date(byAdding: .day, value: days, to: e.start) ?? e.start).addingTimeInterval(TimeInterval(quarters * 900))
+        drag = EventDragState(id: e.id, offset: shown, saving: true)
+        Task {
+            do { try await model.move(e, by: moved.timeIntervalSince(e.start), store: store) }
+            catch { model.problem = "Couldn't move \(e.title): \(error.localizedDescription)" }
+            drag = nil
+        }
     }
 
     private var title: String {
@@ -347,6 +370,10 @@ struct CalendarGrid: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help(e.title)
+                                .modifier(EventDrag(id: e.id, drag: $drag, enabled: model.canEdit(e)) { t in
+                                    let d = dayWidth > 0 ? Int((t.width / dayWidth).rounded()) : 0
+                                    moveEvent(e, days: d, quarters: 0, shown: CGSize(width: CGFloat(d) * dayWidth, height: 0))
+                                })
                             }
                         }
                         .padding(.horizontal, 1)
@@ -379,7 +406,17 @@ struct CalendarGrid: View {
             GeometryReader { geo in
                 let width = max(0, (geo.size.width - gutter) / CGFloat(days.count))
                 ZStack(alignment: .topLeading) {
+                    // Double click an empty time for a new event there, on the half hour.
                     Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2, coordinateSpace: .local) { at in
+                            guard width > 0, !days.isEmpty else { return }
+                            let i = min(days.count - 1, max(0, Int((at.x - gutter) / width)))
+                            let half = min(47, max(0, Int(at.y / hourHeight * 2)))
+                            startNew(Calendar.current.date(byAdding: .minute, value: half * 30, to: days[i]) ?? days[i])
+                        }
+                        .onAppear { dayWidth = width }
+                        .onChange(of: width) { _, w in dayWidth = w }
                     // Lines between days.
                     ForEach(1..<max(1, days.count), id: \.self) { i in
                         Rectangle().fill(Look.line.opacity(0.4)).frame(width: 0.5, height: hourHeight * 24)
@@ -397,6 +434,13 @@ struct CalendarGrid: View {
                             }
                             .buttonStyle(.plain)
                             .help("\(p.event.title), \(p.event.timeText)")
+                            .modifier(EventDrag(id: p.event.id, drag: $drag, enabled: model.canEdit(p.event)) { t in
+                                // Snaps to whole days across and quarter hours down.
+                                let d = width > 0 ? Int((t.width / width).rounded()) : 0
+                                let q = Int((t.height / hourHeight * 4).rounded())
+                                moveEvent(p.event, days: d, quarters: q,
+                                          shown: CGSize(width: CGFloat(d) * width, height: CGFloat(q) * hourHeight / 4))
+                            })
                             .offset(x: gutter + CGFloat(i) * width + 2 + CGFloat(p.column) * colWidth, y: top + 1)
                         }
                         if Calendar.current.isDateInToday(days[i]) {
@@ -419,7 +463,6 @@ struct CalendarGrid: View {
     }
 }
 
-/// A month at a glance: six weeks, each day with as many events as fit and "n more" after.
 /// Above the calendar: approving calendar access for an account, or a problem reaching the server.
 private struct CalendarBanner: View {
     @EnvironmentObject var store: Store
@@ -544,10 +587,17 @@ private struct ListView: View {
     }
 }
 
+/// A month at a glance: six weeks, each day with as many events as fit and "n more" after.
 private struct MonthView: View {
     @ObservedObject var model: CalendarModel
     let events: [CalEvent]
+    @Binding var drag: EventDragState?
     let open: (CalEvent) -> Void
+    /// Double click on a day: a new event that day.
+    let newAt: (Date) -> Void
+    /// An event dragged some days along (or weeks down), with where it was dropped.
+    let moved: (CalEvent, Int, CGSize) -> Void
+    @State private var cellSize = CGSize.zero
 
     var body: some View {
         let days = model.days
@@ -564,6 +614,7 @@ private struct MonthView: View {
             GeometryReader { geo in
                 let rowHeight = geo.size.height / 6
                 let fits = max(0, Int((rowHeight - 30) / 20))
+                let size = CGSize(width: geo.size.width / 7, height: rowHeight)
                 VStack(spacing: 0) {
                     ForEach(0..<6, id: \.self) { row in
                         HStack(spacing: 0) {
@@ -573,15 +624,28 @@ private struct MonthView: View {
                                 let on = events.filter { $0.start < next && ($0.end > d || $0.start >= d) }
                                 cell(d, on, fits: fits)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(count: 2) { newAt(d) }
                                     .overlay(alignment: .trailing) { Rectangle().fill(Look.line.opacity(0.4)).frame(width: 0.5) }
+                                    .zIndex(holdsDrag(on) ? 1 : 0)
                             }
                         }
                         .frame(height: rowHeight)
+                        .zIndex(holdsDrag(events.filter { e in (0..<7).contains { c in
+                            let d = days[row * 7 + c]
+                            return e.start < d.addingTimeInterval(86_400) && e.end > d } }) ? 1 : 0)
                         .overlay(alignment: .bottom) { Rectangle().fill(Look.line.opacity(0.5)).frame(height: 0.5) }
                     }
                 }
+                .onAppear { cellSize = size }
+                .onChange(of: size) { _, v in cellSize = v }
             }
         }
+    }
+
+    private func holdsDrag(_ on: [CalEvent]) -> Bool {
+        guard let id = drag?.id else { return false }
+        return on.contains { $0.id == id }
     }
 
     @ViewBuilder private func cell(_ d: Date, _ on: [CalEvent], fits: Int) -> some View {
@@ -620,6 +684,12 @@ private struct MonthView: View {
                 }
                 .buttonStyle(.plain)
                 .help("\(e.title), \(e.timeText)")
+                .modifier(EventDrag(id: e.id, drag: $drag, enabled: model.canEdit(e)) { t in
+                    guard cellSize.width > 0, cellSize.height > 0 else { drag = nil; return }
+                    let across = Int((t.width / cellSize.width).rounded())
+                    let down = Int((t.height / cellSize.height).rounded())
+                    moved(e, across + down * 7, CGSize(width: CGFloat(across) * cellSize.width, height: CGFloat(down) * cellSize.height))
+                })
             }
             if on.count > shown.count {
                 Button { model.date = d; model.mode = .day } label: {
@@ -1008,4 +1078,50 @@ struct CalendarsMenu: View {
         .help("Choose which calendars show")
         .disabled(model.shownCalendars.isEmpty)
     }
+}
+
+// MARK: Dragging events
+
+struct EventDragState: Equatable {
+    let id: String
+    var offset: CGSize
+    var saving = false
+}
+
+/// Drags an event to another time or day: straight away with the mouse, after a short press on iPhone and iPad so
+/// scrolling still works. The view follows the finger; `ended` gets how far it went.
+struct EventDrag: ViewModifier {
+    let id: String
+    @Binding var drag: EventDragState?
+    let enabled: Bool
+    let ended: (CGSize) -> Void
+
+    func body(content: Content) -> some View {
+        let mine = drag?.id == id
+        content
+            .offset(mine ? drag?.offset ?? .zero : .zero)
+            .opacity(mine ? 0.8 : 1)
+            .shadow(color: .black.opacity(mine && drag?.saving == false ? 0.25 : 0), radius: 6, y: 2)
+            .zIndex(mine ? 10 : 0)
+            .gesture(gesture, including: enabled && drag?.saving != true ? .all : .subviews)
+    }
+
+    #if os(macOS)
+    private var gesture: some Gesture {
+        DragGesture(minimumDistance: 5)
+            .onChanged { v in drag = EventDragState(id: id, offset: v.translation) }
+            .onEnded { v in ended(v.translation) }
+    }
+    #else
+    private var gesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.35)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { v in
+                if case .second(true, let d) = v { drag = EventDragState(id: id, offset: d?.translation ?? .zero) }
+            }
+            .onEnded { v in
+                if case .second(true, let d?) = v { ended(d.translation) } else { drag = nil }
+            }
+    }
+    #endif
 }
