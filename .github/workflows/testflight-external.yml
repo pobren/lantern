@@ -8,7 +8,7 @@ name: TestFlight external testers
 
 on:
   push:
-    paths: [".github/testflight-external.txt"]
+    paths: [".github/testflight-external.txt", ".github/workflows/testflight-external.yml"]
   workflow_dispatch:
     inputs:
       build:
