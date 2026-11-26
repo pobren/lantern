@@ -342,6 +342,7 @@ struct Naming: Identifiable {
 /// One folder in the sidebar: its unread count, an arrow to fold its subfolders away, a menu to add or rename
 /// folders, and a place to drop conversations.
 struct FolderRow: View {
+    @Environment(\.layoutDirection) private var direction
     @EnvironmentObject var store: Store
     let entry: FolderEntry
     let state: AccountState
@@ -353,10 +354,11 @@ struct FolderRow: View {
         HStack(spacing: 2) {
             if entry.hasChildren {
                 Button { withAnimation(.snappy) { store.toggleCollapsed(box, in: state) } } label: {
-                    Image(systemName: "chevron.right")
+                    // Forward points left in Arabic, Hebrew, Persian and Urdu, so it turns the other way to point down.
+                    Image(systemName: "chevron.forward")
                         .font(Look.size(10, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : 90))
+                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : (direction == .rightToLeft ? -90 : 90)))
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
                 }

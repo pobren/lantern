@@ -349,7 +349,7 @@ final class JMAPClient: @unchecked Sendable {
             for part in htmlParts.isEmpty ? textParts : htmlParts {
                 guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
                 if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
-                else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+                else { html += "<div class=\"lantern-text\" dir=\"auto\">" + Self.escape(value) + "</div>" }
             }
             let text = textParts.compactMap { $0["partId"] as? String }.compactMap { values[$0]?["value"] as? String }
                 .joined(separator: "\n\n").replacingOccurrences(of: "\r\n", with: "\n")
@@ -416,7 +416,7 @@ final class JMAPClient: @unchecked Sendable {
         for part in parts {
             guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
             if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
-            else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+            else { html += "<div class=\"lantern-text\" dir=\"auto\">" + Self.escape(value) + "</div>" }
         }
         // Pictures inside the email, linked by cid:, become data: addresses.
         let files = (first["attachments"] as? [[String: Any]]) ?? []
