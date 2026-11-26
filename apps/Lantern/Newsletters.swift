@@ -159,6 +159,8 @@ struct NewslettersList: View {
                             }
                         }
                         .padding(.vertical, 6)
+                        // A fixed minimum keeps the Mac's table from measuring rows before their text is in.
+                        .frame(minHeight: 56, alignment: .leading)
                         .tag(n.id)
                     }
                 } header: {
@@ -166,6 +168,9 @@ struct NewslettersList: View {
                 }
             }
         }
+        // On the Mac the list is built once with no rows and then keeps squashed row heights when the
+        // newsletters arrive (Paul, 26 Nov), so it starts afresh each time the list of senders changes.
+        .id(model.all.map(\.id))
         .overlay { if model.loading && model.all.isEmpty { ProgressView() } }
         .navigationTitle("Newsletters")
         #if os(macOS)
