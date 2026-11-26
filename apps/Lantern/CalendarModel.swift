@@ -555,7 +555,7 @@ final class CalendarModel: ObservableObject {
     private weak var store: Store?
     private func account(_ id: String) -> AccountState? { store?.state(id: id) }
 
-    private func dateLines(_ d: Draft) -> [String] {
+    nonisolated private static func dateLines(_ d: Draft) -> [String] {
         if d.allDay {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
@@ -571,7 +571,7 @@ final class CalendarModel: ObservableObject {
         return ["DTSTART:\(ICal.stamp(d.start))", "DTEND:\(ICal.stamp(end))"]
     }
 
-    private func line(_ text: String) -> ICalProperty? { ICal.property(text) }
+    nonisolated private static func line(_ text: String) -> ICalProperty? { ICal.property(text) }
 
     func save(_ d: Draft, store: Store) async throws {
         self.store = store
@@ -582,7 +582,7 @@ final class CalendarModel: ObservableObject {
                 guard let master = v.events.first(where: { $0.text("UID") == e.uid && $0.prop("RECURRENCE-ID") == nil }) ?? v.events.first else { return }
                 func set(_ name: String, _ value: String) {
                     master.properties.removeAll { $0.name == name }
-                    if !value.isEmpty, let p = self.line("\(name):\(ICal.escape(value))") { master.properties.append(p) }
+                    if !value.isEmpty, let p = Self.line("\(name):\(ICal.escape(value))") { master.properties.append(p) }
                 }
                 set("SUMMARY", title)
                 set("LOCATION", d.location)
@@ -590,13 +590,13 @@ final class CalendarModel: ObservableObject {
                 // A repeating event keeps its times (changing the whole series's times needs more care than a form).
                 if !e.repeats {
                     master.properties.removeAll { ["DTSTART", "DTEND", "DURATION"].contains($0.name) }
-                    master.properties += self.dateLines(d).compactMap(self.line)
+                    master.properties += Self.dateLines(d).compactMap(Self.line)
                 }
                 master.properties.removeAll { $0.name == "DTSTAMP" || $0.name == "LAST-MODIFIED" }
-                master.properties += ["DTSTAMP:\(ICal.stamp(Date()))", "LAST-MODIFIED:\(ICal.stamp(Date()))"].compactMap(self.line)
+                master.properties += ["DTSTAMP:\(ICal.stamp(Date()))", "LAST-MODIFIED:\(ICal.stamp(Date()))"].compactMap(Self.line)
                 let seq = Int(master.text("SEQUENCE") ?? "") ?? 0
                 master.properties.removeAll { $0.name == "SEQUENCE" }
-                if let p = self.line("SEQUENCE:\(seq + 1)") { master.properties.append(p) }
+                if let p = Self.line("SEQUENCE:\(seq + 1)") { master.properties.append(p) }
             }
             return
         }
@@ -604,7 +604,7 @@ final class CalendarModel: ObservableObject {
         let uid = UUID().uuidString.lowercased()
         var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//JMAP Connect//EN", "BEGIN:VEVENT", "UID:\(uid)",
                      "DTSTAMP:\(ICal.stamp(Date()))", "CREATED:\(ICal.stamp(Date()))", "SUMMARY:\(ICal.escape(title))"]
-        lines += dateLines(d)
+        lines += Self.dateLines(d)
         if !d.location.isEmpty { lines.append("LOCATION:\(ICal.escape(d.location))") }
         if !d.notes.isEmpty { lines.append("DESCRIPTION:\(ICal.escape(d.notes))") }
         lines += ["END:VEVENT", "END:VCALENDAR"]
@@ -637,7 +637,7 @@ final class CalendarModel: ObservableObject {
                 } else {
                     when = "EXDATE:\(ICal.stamp(e.start))"
                 }
-                if let p = self.line(when) { master.properties.append(p) }
+                if let p = Self.line(when) { master.properties.append(p) }
                 // A moved copy of this one time goes too.
                 v.children.removeAll { c in
                     c.name == "VEVENT" && c.text("UID") == e.uid && c.prop("RECURRENCE-ID").flatMap { ICal.when($0)?.date } == e.start
