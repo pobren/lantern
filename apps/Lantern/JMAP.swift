@@ -16,9 +16,9 @@ enum JMAPError: LocalizedError {
         switch self {
         case .badServer: return "That doesn't look like a JMAP server address."
         case .signIn: return "The server didn't accept that sign in. Check the token or app password and try again."
-        case .http(let code): return "The server answered with an error (\(code)). Try again in a moment."
+        case .http(let code): return String(localized: "The server answered with an error (\(code)). Try again in a moment.")
         case .method(let type, let detail): return "The server couldn't do that (\(type)\(detail.map { ": \($0)" } ?? ""))."
-        case .missing(let what): return "The server left out \(what)."
+        case .missing(let what): return String(localized: "The server left out \(what).")
         case .notFound: return "Couldn't find a JMAP server for that email address. Enter the server's address instead."
         case .needServer: return "Enter your email address or the server's address."
         }
@@ -349,7 +349,7 @@ final class JMAPClient: @unchecked Sendable {
             for part in htmlParts.isEmpty ? textParts : htmlParts {
                 guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
                 if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
-                else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+                else { html += "<div class=\"lantern-text\" dir=\"auto\">" + Self.escape(value) + "</div>" }
             }
             let text = textParts.compactMap { $0["partId"] as? String }.compactMap { values[$0]?["value"] as? String }
                 .joined(separator: "\n\n").replacingOccurrences(of: "\r\n", with: "\n")
@@ -416,7 +416,7 @@ final class JMAPClient: @unchecked Sendable {
         for part in parts {
             guard let pid = part["partId"] as? String, let value = values[pid]?["value"] as? String else { continue }
             if (part["type"] as? String)?.lowercased() == "text/html" { html += value }
-            else { html += "<div class=\"lantern-text\">" + Self.escape(value) + "</div>" }
+            else { html += "<div class=\"lantern-text\" dir=\"auto\">" + Self.escape(value) + "</div>" }
         }
         // Pictures inside the email, linked by cid:, become data: addresses.
         let files = (first["attachments"] as? [[String: Any]]) ?? []

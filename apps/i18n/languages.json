@@ -1,0 +1,9 @@
+{
+ "ja": "Japanese", "zh-Hans": "Chinese (Simplified)", "zh-Hant": "Chinese (Traditional)", "fr": "French", "es": "Spanish",
+ "pt-BR": "Portuguese (Brazil)", "it": "Italian", "ro": "Romanian", "el": "Greek", "de": "German", "ko": "Korean",
+ "ar": "Arabic", "hi": "Hindi", "tr": "Turkish", "nl": "Dutch", "pl": "Polish", "th": "Thai", "ru": "Russian",
+ "uk": "Ukrainian", "vi": "Vietnamese", "id": "Indonesian", "sv": "Swedish", "af": "Afrikaans", "te": "Telugu",
+ "he": "Hebrew", "da": "Danish", "nb": "Norwegian Bokmål", "fi": "Finnish", "cs": "Czech", "hu": "Hungarian",
+ "bn": "Bengali", "ur": "Urdu", "sw": "Swahili", "fil": "Filipino", "fa": "Persian", "ca": "Catalan", "ms": "Malay",
+ "hr": "Croatian", "sr": "Serbian (Cyrillic)", "sk": "Slovak"
+}

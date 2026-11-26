@@ -162,10 +162,17 @@ struct Email: Codable, Identifiable, Hashable {
 }
 
 enum When {
+    /// In English, dates look as they always have ("Mon 12 Nov 2025 at 09:42"). In another language the same parts
+    /// come in that language's own order and words.
     private static func formatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_GB")
-        f.dateFormat = format
+        if (Bundle.main.preferredLocalizations.first ?? "en").hasPrefix("en") {
+            f.locale = Locale(identifier: "en_GB")
+            f.dateFormat = format
+        } else {
+            f.locale = .current
+            f.setLocalizedDateFormatFromTemplate(format.replacingOccurrences(of: "'at'", with: "").replacingOccurrences(of: " ", with: ""))
+        }
         return f
     }
     private static let time = formatter("HH:mm")
@@ -178,7 +185,7 @@ enum When {
     static func short(_ d: Date) -> String {
         let cal = Calendar.current
         if cal.isDateInToday(d) { return time.string(from: d) }
-        if cal.isDateInYesterday(d) { return "Yesterday" }
+        if cal.isDateInYesterday(d) { return String(localized: "Yesterday") }
         if let days = cal.dateComponents([.day], from: d, to: Date()).day, days < 7 { return day.string(from: d) }
         if cal.component(.year, from: d) == cal.component(.year, from: Date()) { return date.string(from: d) }
         return dateYear.string(from: d)

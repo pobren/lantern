@@ -17,7 +17,13 @@ struct RootView: View {
     /// Newsletters chosen in the sidebar: the middle and right columns show the newsletter manager.
     @State private var newsletters = false
     @StateObject private var lists = NewslettersModel()
+    /// Calendar chosen in the sidebar: the middle column shows the month and your calendars, the right the day or week.
+    @State private var calendar = false
+    @ObservedObject private var cal = CalendarModel.shared
     @State private var columns: NavigationSplitViewVisibility = .all
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
         case "folders": return .sidebar
@@ -29,11 +35,17 @@ struct RootView: View {
     private var sidebar: some View {
         Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
                 contacts: { showContacts() }, showingContacts: $contacts,
-                newsletters: { newsletters = true; contacts = false; compact = .content }, showingNewsletters: $newsletters,
+                newsletters: { newsletters = true; contacts = false; calendar = false; compact = .content }, showingNewsletters: $newsletters,
+                calendar: { openCalendar() }, showingCalendar: $calendar,
                 column: $compact)
     }
     @ViewBuilder private var middle: some View {
-        if newsletters {
+        if calendar && !regular {
+            // iPhone: the calendar itself, full screen, with Back to the folders.
+            CalendarGrid(model: cal)
+        } else if calendar {
+            CalendarSide(model: cal, openDay: { compact = .detail })
+        } else if newsletters {
             NewslettersList(model: lists)
         } else if contacts {
             ContactsList(model: people)
@@ -41,13 +53,29 @@ struct RootView: View {
             MessageList(compose: { composing = ComposeDraft.new(store: store) })
         }
     }
+    /// The calendar fills the window: on Mac and iPad the folders tuck away (the button at its top left brings them
+    /// back); on iPhone it opens straight on the calendar.
+    private func openCalendar() {
+        calendar = true; contacts = false; newsletters = false
+        if regular { columns = .detailOnly; compact = .detail } else { compact = .content }
+    }
+    private var regular: Bool {
+        #if os(iOS)
+        return sizeClass != .compact
+        #else
+        return true
+        #endif
+    }
     private func showContacts() {
         newsletters = false
+        calendar = false
         contacts = true
         compact = .content
     }
     @ViewBuilder private var detail: some View {
-        if newsletters {
+        if calendar {
+            CalendarGrid(model: cal, folders: regular ? { columns = .all } : nil)
+        } else if newsletters {
             NewsletterDetail(model: lists, open: { ref in
                 newsletters = false
                 Task { await store.show(ref) }
@@ -115,6 +143,8 @@ struct RootView: View {
                     // and tapping a folder always moves on to its conversations.
                     NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
                 }
+                // Leaving the calendar brings the mail columns back.
+                .onChange(of: calendar) { _, on in if !on && columns == .detailOnly { columns = .all } }
                 .task {
                     await store.start()
                     if Demo.launchedForScreens { await showScreen() }
@@ -188,6 +218,9 @@ struct Sidebar: View {
     var newsletters: () -> Void = {}
     /// Whether the newsletter manager is showing; picking any folder goes back to mail.
     var showingNewsletters: Binding<Bool>? = nil
+    var calendar: () -> Void = {}
+    /// Whether the calendar is showing; picking any folder goes back to mail.
+    var showingCalendar: Binding<Bool>? = nil
     @AppStorage(NewslettersModel.key) private var newsletterManager = true
     /// On iPhone, which screen is showing. The split view sets it to .sidebar when you go back to the folders;
     /// tapping a folder sets it to .content, even when that folder was already open.
@@ -209,6 +242,7 @@ struct Sidebar: View {
             if let f {
                 showingContacts?.wrappedValue = false
                 showingNewsletters?.wrappedValue = false
+                showingCalendar?.wrappedValue = false
                 column?.wrappedValue = .content
                 Task { await store.open(f) }
             }
@@ -241,6 +275,16 @@ struct Sidebar: View {
                     // Highlighted like a chosen folder while Contacts is open.
                     .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
                 }
+                if store.accounts.contains(where: CalendarModel.supports) {
+                    let on = showingCalendar?.wrappedValue == true
+                    Button(action: calendar) {
+                        Label("Calendar", systemImage: "calendar")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(on ? RoundedRectangle(cornerRadius: 6).fill(Look.accent.opacity(0.22)).padding(.horizontal, 10) : nil)
+                }
                 if newsletterManager {
                     let on = showingNewsletters?.wrappedValue == true
                     Button(action: newsletters) {
@@ -255,6 +299,7 @@ struct Sidebar: View {
             SmartFolderRows(opened: {
                 showingContacts?.wrappedValue = false
                 showingNewsletters?.wrappedValue = false
+                showingCalendar?.wrappedValue = false
                 column?.wrappedValue = .content
                 chosen = nil
             })
@@ -297,6 +342,7 @@ struct Sidebar: View {
         // Contacts open: no folder is highlighted, so clicking any folder (Inbox too) goes back to mail.
         .onChange(of: showingContacts?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: showingNewsletters?.wrappedValue) { _, on in if on == true { chosen = nil } }
+        .onChange(of: showingCalendar?.wrappedValue) { _, on in if on == true { chosen = nil } }
         .onChange(of: naming?.id) { _, _ in folderName = naming?.renaming == true ? (naming?.box?.name ?? "") : "" }
         .listStyle(.sidebar)
         .modifier(SolidForScreenshots())
@@ -336,12 +382,13 @@ struct Naming: Identifiable {
     let state: AccountState
     let box: Mailbox?
     let renaming: Bool
-    var title: String { renaming ? "Rename folder" : box.map { "New folder in \($0.name)" } ?? "New folder" }
+    var title: String { renaming ? "Rename folder" : box.map { String(localized: "New folder in \($0.name)") } ?? "New folder" }
 }
 
 /// One folder in the sidebar: its unread count, an arrow to fold its subfolders away, a menu to add or rename
 /// folders, and a place to drop conversations.
 struct FolderRow: View {
+    @Environment(\.layoutDirection) private var direction
     @EnvironmentObject var store: Store
     let entry: FolderEntry
     let state: AccountState
@@ -353,15 +400,16 @@ struct FolderRow: View {
         HStack(spacing: 2) {
             if entry.hasChildren {
                 Button { withAnimation(.snappy) { store.toggleCollapsed(box, in: state) } } label: {
-                    Image(systemName: "chevron.right")
+                    // Forward points left in Arabic, Hebrew, Persian and Urdu, so it turns the other way to point down.
+                    Image(systemName: "chevron.forward")
                         .font(Look.size(10, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : 90))
+                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : (direction == .rightToLeft ? -90 : 90)))
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(store.isCollapsed(box, in: state) ? "Show folders inside \(box.name)" : "Hide folders inside \(box.name)")
+                .accessibilityLabel(store.isCollapsed(box, in: state) ? String(localized: "Show folders inside \(box.name)") : String(localized: "Hide folders inside \(box.name)"))
             } else {
                 Color.clear.frame(width: 14, height: 14)
             }
@@ -596,7 +644,7 @@ private struct OfflineBar: View {
         let waiting = store.outbox == 1 ? "1 email waiting to send" : "\(store.outbox) emails waiting to send"
         HStack(spacing: 7) {
             Image(systemName: store.offline ? "wifi.slash" : "paperplane")
-            Text(store.offline ? (store.outbox > 0 ? "Offline. \(waiting)" : "Offline. Showing mail saved on this device")
+            Text(store.offline ? (store.outbox > 0 ? String(localized: "Offline. \(waiting)") : "Offline. Showing mail saved on this device")
                                : "Sending \(waiting.replacingOccurrences(of: " waiting to send", with: ""))")
                 .lineLimit(1)
             Spacer(minLength: 0)

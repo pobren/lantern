@@ -3,6 +3,8 @@
 name: Lantern
 options:
   bundleIdPrefix: dev.paulobrien
+  # 40 languages from Shared/Localizable.xcstrings (made by i18n/build_catalog.py); English is the source.
+  developmentLanguage: en
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
@@ -10,11 +12,12 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.2"   # send later, out of office, unsubscribe, contacts, Apple Watch (1.1 is build 149)
+    MARKETING_VERSION: "1.3"   # calendar (day and week, invitations); send later, out of office, unsubscribe, contacts, Apple Watch (1.1 is build 149)
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
 targets:
   Lantern:
     type: application
@@ -22,6 +25,8 @@ targets:
     sources:
       - path: Lantern
       - path: Shared
+      # The Watch's small JMAP client also sends replies typed on iPhone alerts.
+      - path: WatchShared/WatchMail.swift
     dependencies:
       # Instant alerts: shows the sender and subject (iPhone and iPad only; the Mac app hears about mail itself).
       - target: Notify
@@ -102,6 +107,8 @@ targets:
     sources:
       - path: Widget
       - path: Shared/WidgetSnapshot.swift
+      - path: Shared/Localise.swift
+      - path: Shared/Localizable.xcstrings
     info:
       path: Widget/Info.plist
       properties:
@@ -126,6 +133,8 @@ targets:
       - path: Watch
       - path: WatchShared
       - path: Shared/JMAPAuth.swift
+      - path: Shared/Localise.swift
+      - path: Shared/Localizable.xcstrings
     dependencies:
       - target: WatchWidget
     info:
@@ -152,6 +161,8 @@ targets:
       - path: WatchWidget
       - path: WatchShared
       - path: Shared/JMAPAuth.swift
+      - path: Shared/Localise.swift
+      - path: Shared/Localizable.xcstrings
     info:
       path: WatchWidget/Info.plist
       properties:

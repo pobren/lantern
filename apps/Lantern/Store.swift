@@ -325,6 +325,7 @@ final class Store: ObservableObject {
                 await FastmailOAuth.signOut(secret)
             }
         }
+        CalendarModel.forget(accountId: state.id)
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
         if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }
@@ -679,7 +680,7 @@ final class Store: ObservableObject {
             return url
         } catch {
             if Self.isOffline(error) { goOffline(); problem = "\(a.name) hasn't been opened before, so it needs a connection." }
-            else { problem = "Couldn't open \(a.name): \(error.localizedDescription)" }
+            else { problem = String(localized: "Couldn't open \(a.name): \(error.localizedDescription)") }
             return nil
         }
     }
@@ -743,7 +744,7 @@ final class Store: ObservableObject {
     /// keywords tell Fastmail's spam filter, so it learns from it, the same as doing it on the web.
     func markSpam(_ item: Item, _ spam: Bool) async {
         guard let s = state(for: item.account) else { return }
-        guard let target = s.box(spam ? "junk" : "inbox") else { problem = "\(item.account.label) has no \(spam ? "Spam" : "Inbox") folder."; return }
+        guard let target = s.box(spam ? "junk" : "inbox") else { problem = spam ? String(localized: "\(item.account.label) has no Spam folder.") : String(localized: "\(item.account.label) has no Inbox folder."); return }
         let keys: [String: Any] = spam ? ["keywords/$junk": true, "keywords/$notjunk": NSNull()] : ["keywords/$notjunk": true, "keywords/$junk": NSNull()]
         await move(item, to: target, also: keys)
     }
@@ -793,7 +794,7 @@ final class Store: ObservableObject {
         case "trash": done = "Deleted"
         case "archive": done = "Archived"
         case "junk": done = "Marked as spam"
-        default: done = from.role == "junk" && target.role == "inbox" ? "Moved to Inbox" : "Moved to \(target.name)"
+        default: done = from.role == "junk" && target.role == "inbox" ? "Moved to Inbox" : String(localized: "Moved to \(target.name)")
         }
         UndoMove.shared.offer(UndoMove.Done(title: done, account: item.account, patches: restore))
         // Move again repeats a move you chose from Move to (not Archive, Delete or Spam).
@@ -964,7 +965,7 @@ final class Store: ObservableObject {
             guard let blob else { throw JMAPError.missing("the original email") }
             return try await s.client.download(blobId: blob, type: "message/rfc822")
         } catch {
-            problem = "Couldn't save the email: \(error.localizedDescription)"
+            problem = String(localized: "Couldn't save the email: \(error.localizedDescription)")
             return nil
         }
     }
@@ -990,7 +991,7 @@ final class Store: ObservableObject {
             objectWillChange.send()
             return true
         } catch {
-            problem = "Couldn't save the reply to address: \(error.localizedDescription)"
+            problem = String(localized: "Couldn't save the reply to address: \(error.localizedDescription)")
             return false
         }
     }
@@ -1018,7 +1019,7 @@ final class Store: ObservableObject {
             s.identities = (try? await s.client.identities()) ?? s.identities
             objectWillChange.send()
         } catch {
-            problem = "Couldn't save the signature: \(error.localizedDescription)"
+            problem = String(localized: "Couldn't save the signature: \(error.localizedDescription)")
         }
     }
 

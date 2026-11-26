@@ -46,7 +46,12 @@ enum PrivateAI {
         throw JMAPError.missing("Apple Intelligence")
     }
 
-    private static let house = "Write in UK English. Be plain and brief. Never use dashes or bullet symbols other than '• '. Don't invent anything that isn't in the email."
+    /// The app's language, so summaries and drafts come in the language the person reads the app in.
+    private static var language: String {
+        let code = Bundle.main.preferredLocalizations.first ?? "en"
+        return code.hasPrefix("en") ? "UK English" : (Locale(identifier: "en").localizedString(forIdentifier: code) ?? "English")
+    }
+    private static var house: String { "Write in \(language). Be plain and brief. Never use dashes or bullet symbols other than '• '. Don't invent anything that isn't in the email." }
 
     static func summarise(_ e: Email, text: String) async throws -> String {
         try await ask(

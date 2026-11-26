@@ -152,7 +152,7 @@ struct FoundInEmail: View {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_GB")
             f.dateFormat = allDay ? "EEE d MMM" : "EEE d MMM, HH:mm"
-            return "Add \(f.string(from: d)) to Calendar"
+            return String(localized: "Add \(f.string(from: d)) to Calendar")
         case .address(let a): return a
         case .phone(let n): return n
         }
@@ -168,7 +168,7 @@ struct FoundInEmail: View {
 
     private func help(_ i: FoundItem) -> String {
         switch i.kind {
-        case .date: return "Opens Calendar with \"\(subject)\" ready to add"
+        case .date: return String(localized: "Opens Calendar with \"\(subject)\" ready to add")
         case .address: return "Open in Maps"
         case .phone: return "Call"
         }

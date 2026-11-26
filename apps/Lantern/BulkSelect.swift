@@ -23,15 +23,15 @@ extension Store {
     }
 
     func bulkArchive() async {
-        await bulkMove({ $0 == 1 ? "Archived 1 conversation" : "Archived \($0) conversations" }) { await self.archive($0) }
+        await bulkMove({ $0 == 1 ? String(localized: "Archived 1 conversation") : String(localized: "Archived \($0) conversations") }) { await self.archive($0) }
     }
 
     func bulkDelete() async {
-        await bulkMove({ $0 == 1 ? "Deleted 1 conversation" : "Deleted \($0) conversations" }) { await self.delete($0) }
+        await bulkMove({ $0 == 1 ? String(localized: "Deleted 1 conversation") : String(localized: "Deleted \($0) conversations") }) { await self.delete($0) }
     }
 
     func bulkMove(to target: Mailbox) async {
-        await bulkMove({ "Moved \($0) to \(target.name)" }) { item in
+        await bulkMove({ String(localized: "Moved \($0) to \(target.name)") }) { item in
             // Only conversations in the same account as the folder can go there.
             guard item.account.id == self.state(for: target)?.id else { return }
             await self.move(item, to: target)

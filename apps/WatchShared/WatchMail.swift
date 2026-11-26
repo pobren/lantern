@@ -1,5 +1,6 @@
 // JMAP Connect on Apple Watch: the accounts the iPhone handed over, and a small JMAP client for the inbox.
 // Used by the Watch app and its complication. The tokens sit in the Watch's own Keychain, shared by the two.
+// The iPhone app also uses WatchJMAP to send a reply typed on an alert, so this file builds for iOS and macOS too.
 
 import Foundation
 import Security
@@ -71,11 +72,61 @@ enum WatchAccounts {
         for a in given {
             guard let id = a["id"], let token = a["token"], let session = a["session"] else { continue }
             write("token." + id, Data(token.utf8))
-            list.append(WatchAccount(id: id, label: a["label"] ?? "Fastmail", session: session))
+            list.append(WatchAccount(id: id, label: a["label"] ?? "Mail", session: session))
         }
-        for old in all where !list.contains(where: { $0.id == old.id }) { delete("token." + old.id) }
+        for old in all where !list.contains(where: { $0.id == old.id }) {
+            delete("token." + old.id)
+            delete("grant." + old.id)
+        }
+        if let replies = context["replies"] as? [String], let data = try? JSONEncoder().encode(replies) { write("replies", data) }
         if let data = try? JSONEncoder().encode(list) { write("list", data) }
         if context["sample"] as? Bool == true { write("sample", Data("1".utf8)) } else { delete("sample") }
+    }
+
+    /// The short replies to offer under Reply, as set on the iPhone (Settings, Apple Watch).
+    static var replies: [String] {
+        guard let data = read("replies"), let list = try? JSONDecoder().decode([String].self, from: data), !list.isEmpty else {
+            return QuickReplies.defaults
+        }
+        return list
+    }
+
+    // MARK: The Watch's own Fastmail sign in
+
+    /// A Fastmail sign in made for the Watch alone (from the iPhone's Settings, Apple Watch). With it the Watch
+    /// refreshes its own access, so it keeps working away from the iPhone. Without it the Watch uses the short lived
+    /// access the iPhone hands over, which runs out after about an hour away from the iPhone.
+    static func grant(_ id: String) -> WatchGrant? { read("grant." + id).flatMap { try? JSONDecoder().decode(WatchGrant.self, from: $0) } }
+    static func saveGrant(_ id: String, _ g: WatchGrant) { if let data = try? JSONEncoder().encode(g) { write("grant." + id, data) } }
+    static func forgetGrant(_ id: String) { delete("grant." + id) }
+
+    /// Takes a sign in the iPhone sent with transferUserInfo, or a request to forget one.
+    static func takeGrant(_ info: [String: Any]) {
+        if let id = info["forget"] as? String { forgetGrant(id); return }
+        guard let g = info["grant"] as? [String: Any], let id = g["id"] as? String, let access = g["access"] as? String,
+              let refresh = g["refresh"] as? String, let client = g["client"] as? String,
+              let expires = g["expires"] as? Double else { return }
+        saveGrant(id, WatchGrant(access: access, refresh: refresh, expires: Date(timeIntervalSince1970: expires), client: client))
+    }
+
+    /// Only the Watch app refreshes a sign in. Fastmail's refresh tokens work once, so if the complication refreshed
+    /// at the same moment the Watch would be signed out. The complication uses whatever access is current.
+    static var canRefresh = false
+
+    /// The Authorization header for an account: the Watch's own sign in when it has one, else what the iPhone sent.
+    static func header(_ id: String, force: Bool = false) async throws -> String {
+        if let g = grant(id) {
+            if !force && g.expires.timeIntervalSinceNow > 90 { return "Bearer " + g.access }
+            if canRefresh {
+                do { return "Bearer " + (try await WatchRefresher.shared.refresh(id, g).access) }
+                catch WatchGrantError.ended { forgetGrant(id) }
+                catch { if g.expires.timeIntervalSinceNow > 0 { return "Bearer " + g.access } }
+            } else if g.expires.timeIntervalSinceNow > 0 {
+                return "Bearer " + g.access
+            }
+        }
+        guard let t = token(id) else { throw WatchError.signIn }
+        return JMAPAuth.header(t)
     }
 
     // Keychain, shared between the Watch app and its complication.
@@ -109,8 +160,8 @@ enum WatchError: LocalizedError {
     case signIn, server(Int), failed(String)
     var errorDescription: String? {
         switch self {
-        case .signIn: return "Your mail server didn't accept the sign in. Open JMAP Connect on your iPhone."
-        case .server(let c): return "Your mail server answered with an error (\(c))."
+        case .signIn: return "Your mail server didn't accept the sign in. Open JMAP Connect on your iPhone, or let the Watch sign in on its own in Settings, Apple Watch."
+        case .server(let c): return String(localized: "Your mail server answered with an error (\(c)).")
         case .failed(let why): return why
         }
     }
@@ -119,25 +170,32 @@ enum WatchError: LocalizedError {
 /// Just enough JMAP for the Watch: the inbox, one email's text, flags, archive and a short reply.
 final class WatchJMAP: @unchecked Sendable {
     let account: WatchAccount
-    private let token: String
+    /// Gives the Authorization header; true asks for a fresh one after the server refused the last.
+    private let auth: @Sendable (Bool) async throws -> String
     private var api: URL?
     private var accountId: String?
     private var boxes: [String: String] = [:]   // role -> mailbox id
     private let http: URLSession
 
-    init?(_ account: WatchAccount) {
-        guard let token = WatchAccounts.token(account.id) else { return nil }
+    /// On the Watch: the accounts the iPhone handed over.
+    convenience init?(_ account: WatchAccount) {
+        guard WatchAccounts.token(account.id) != nil || WatchAccounts.grant(account.id) != nil else { return nil }
+        let id = account.id
+        self.init(account, auth: { force in try await WatchAccounts.header(id, force: force) })
+    }
+
+    init(_ account: WatchAccount, auth: @escaping @Sendable (Bool) async throws -> String) {
         self.account = account
-        self.token = token
+        self.auth = auth
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 25
         c.waitsForConnectivity = false
         http = URLSession(configuration: c)
     }
 
-    private func request(_ url: URL, body: Data? = nil) -> URLRequest {
+    private func request(_ url: URL, body: Data? = nil, force: Bool = false) async throws -> URLRequest {
         var r = URLRequest(url: url)
-        r.setValue(JMAPAuth.header(token), forHTTPHeaderField: "Authorization")
+        r.setValue(try await auth(force), forHTTPHeaderField: "Authorization")
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body { r.httpMethod = "POST"; r.httpBody = body; r.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         return r
@@ -145,9 +203,8 @@ final class WatchJMAP: @unchecked Sendable {
 
     private func connect() async throws {
         guard let url = URL(string: account.session) else { throw WatchError.failed("Bad server address") }
-        let (data, res) = try await http.data(for: request(url))
+        let (data, res) = try await send(url)
         let code = (res as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 401 || code == 403 { throw WatchError.signIn }
         guard code == 200, let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let apiUrl = root["apiUrl"] as? String,
               let acc = (root["primaryAccounts"] as? [String: String])?["urn:ietf:params:jmap:mail"] else { throw WatchError.server(code) }
@@ -159,15 +216,24 @@ final class WatchJMAP: @unchecked Sendable {
         }
     }
 
+    /// Sends a request; if the server refuses the sign in, asks for fresh access once and tries again.
+    private func send(_ url: URL, body: Data? = nil) async throws -> (Data, URLResponse) {
+        var (data, res) = try await http.data(for: request(url, body: body))
+        if [401, 403].contains((res as? HTTPURLResponse)?.statusCode ?? 0) {
+            (data, res) = try await http.data(for: request(url, body: body, force: true))
+            if [401, 403].contains((res as? HTTPURLResponse)?.statusCode ?? 0) { throw WatchError.signIn }
+        }
+        return (data, res)
+    }
+
     private func call(_ calls: [[Any]], submission: Bool = false) async throws -> [String: [String: Any]] {
         if api == nil, accountId == nil { try await connect() }
         guard let api else { throw WatchError.failed("No server") }
         var using = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
         if submission { using.append("urn:ietf:params:jmap:submission") }
         let body = try JSONSerialization.data(withJSONObject: ["using": using, "methodCalls": calls])
-        let (data, res) = try await http.data(for: request(api, body: body))
+        let (data, res) = try await send(api, body: body)
         let code = (res as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 401 || code == 403 { throw WatchError.signIn }
         guard code == 200, let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let responses = root["methodResponses"] as? [[Any]] else { throw WatchError.server(code) }
         var out: [String: [String: Any]] = [:]
@@ -196,12 +262,25 @@ final class WatchJMAP: @unchecked Sendable {
                            "properties": WatchEmail.properties], "g"],
             ["Mailbox/get", ["accountId": acc, "ids": [inbox], "properties": ["unreadEmails"]], "m"],
         ])
-        let list = (r["g"]?["list"] as? [[String: Any]]) ?? []
+        // "account" is ours, not the server's; it goes in before decoding, since WatchEmail's decoder expects it.
+        let list = ((r["g"]?["list"] as? [[String: Any]]) ?? []).map { e -> [String: Any] in
+            var e = e
+            e["account"] = account.id
+            return e
+        }
         let data = try JSONSerialization.data(withJSONObject: list)
-        var emails = try JSONDecoder().decode([WatchEmail].self, from: data)
-        for i in emails.indices { emails[i].account = account.id }
+        let emails = try JSONDecoder().decode([WatchEmail].self, from: data)
         let unread = ((r["m"]?["list"] as? [[String: Any]])?.first?["unreadEmails"] as? Int) ?? emails.filter(\.unread).count
         return (emails, unread)
+    }
+
+    /// One email with what a reply needs (for a reply typed on an iPhone alert).
+    func email(_ id: String) async throws -> WatchEmail {
+        let acc = try await ready()
+        let r = try await call([["Email/get", ["accountId": acc, "ids": [id], "properties": WatchEmail.properties], "g"]])
+        guard var first = (r["g"]?["list"] as? [[String: Any]])?.first else { throw WatchError.failed("That email has gone") }
+        first["account"] = account.id
+        return try JSONDecoder().decode(WatchEmail.self, from: JSONSerialization.data(withJSONObject: first))
     }
 
     /// The inbox's unread count only, for the complication.
@@ -270,7 +349,7 @@ final class WatchJMAP: @unchecked Sendable {
     }
 
     /// A short plain text reply, from the address the email was sent to when that's one of yours.
-    func reply(to e: WatchEmail, text: String) async throws {
+    func reply(to e: WatchEmail, text: String, from device: String = "Apple Watch") async throws {
         let acc = try await ready()
         guard let drafts = boxes["drafts"], let sent = boxes["sent"] else { throw WatchError.failed("No Drafts or Sent folder") }
         let r = try await call([["Identity/get", ["accountId": acc], "i"]], submission: true)
@@ -284,7 +363,7 @@ final class WatchJMAP: @unchecked Sendable {
         var email: [String: Any] = [
             "mailboxIds": [drafts: true], "keywords": ["$draft": true, "$seen": true],
             "from": [["name": identity["name"] as? String ?? "", "email": from]], "to": to, "subject": subject,
-            "bodyValues": ["b": ["value": text + "\n\nSent from my Apple Watch"]],
+            "bodyValues": ["b": ["value": text + "\n\nSent from my \(device)"]],
             "textBody": [["partId": "b", "type": "text/plain"]],
         ]
         if let mid = e.messageId?.first {
@@ -327,4 +406,58 @@ enum WatchSample {
                  "Good news: your books left us this morning and should be with you by Friday.", 1440, seen: true),
         ]
     }
+}
+
+/// The Watch's own Fastmail sign in.
+struct WatchGrant: Codable {
+    var access: String
+    var refresh: String
+    var expires: Date
+    var client: String
+}
+
+enum WatchGrantError: Error { case ended, failed }
+
+/// Refreshes the Watch's own sign ins one at a time, so two screens asking at once never use a refresh token twice.
+actor WatchRefresher {
+    static let shared = WatchRefresher()
+    private var running: [String: Task<WatchGrant, Error>] = [:]
+
+    func refresh(_ id: String, _ g: WatchGrant) async throws -> WatchGrant {
+        if let t = running[id] { return try await t.value }
+        let t = Task { try await Self.post(g) }
+        running[id] = t
+        defer { running[id] = nil }
+        let fresh = try await t.value
+        WatchAccounts.saveGrant(id, fresh)
+        return fresh
+    }
+
+    private static func post(_ g: WatchGrant) async throws -> WatchGrant {
+        var r = URLRequest(url: URL(string: "https://api.fastmail.com/oauth/refresh")!)
+        r.httpMethod = "POST"
+        r.timeoutInterval = 25
+        r.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        r.setValue("application/json", forHTTPHeaderField: "Accept")
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let fields = ["client_id": g.client, "grant_type": "refresh_token", "refresh_token": g.refresh,
+                      "resource": "https://api.fastmail.com/jmap/session"]
+        r.httpBody = Data(fields.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0.value)" }
+            .joined(separator: "&").utf8)
+        let (data, res) = try await URLSession.shared.data(for: r)
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        guard (res as? HTTPURLResponse)?.statusCode == 200, let access = json["access_token"] as? String,
+              let refresh = json["refresh_token"] as? String else {
+            if json["error"] as? String == "invalid_grant", json["temporary"] as? Bool != true { throw WatchGrantError.ended }
+            throw WatchGrantError.failed
+        }
+        let life = (json["expires_in"] as? Double) ?? Double(json["expires_in"] as? Int ?? 3600)
+        return WatchGrant(access: access, refresh: refresh, expires: Date().addingTimeInterval(life), client: g.client)
+    }
+}
+
+/// Short replies to send with one tap, from the Watch and from alerts.
+enum QuickReplies {
+    static let defaults = [String(localized: "Thanks!"), String(localized: "Will do."), String(localized: "Sounds good."), String(localized: "On my way."), String(localized: "Can I get back to you later?"), String(localized: "Yes"), String(localized: "No")]
 }
