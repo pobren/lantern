@@ -514,8 +514,40 @@ final class CalendarModel: ObservableObject {
         var start = Date()
         var end = Date().addingTimeInterval(3_600)
         var calendarId = ""
+        /// People invited. The calendar server emails them the invitation (and any changes) when it's saved.
+        var guests: [Contact] = []
         /// The event being changed, or nil for a new one.
         var editing: CalEvent?
+    }
+
+    /// You, as the organiser of events in an account's calendar: your name and the address the server knows you by.
+    func organiser(_ accountId: String) -> Contact? {
+        guard let s = account(accountId) else { return nil }
+        let server = (homes[accountId]?.addresses ?? []).map(CalPerson.address).first { $0.contains("@") }
+        let fallback = s.account.username.contains("@") ? s.account.username : s.identities.first { !$0.email.contains("*") }?.email
+        guard let email = server ?? fallback else { return nil }
+        let name = s.identities.first { $0.email.lowercased() == email.lowercased() }?.name ?? s.identities.first?.name ?? ""
+        return Contact(name: name, email: email)
+    }
+
+    /// The organiser and guest lines for an event: you as the organiser (going), then each guest, keeping the answer
+    /// of anyone already invited.
+    nonisolated private static func peopleLines(me: Contact, guests: [Contact], keep: [ICalProperty]) -> [ICalProperty] {
+        func cn(_ name: String) -> String {
+            let n = name.replacingOccurrences(of: "\"", with: "").trimmingCharacters(in: .whitespaces)
+            return n.isEmpty ? "" : ";CN=\"\(n)\""
+        }
+        var out: [ICalProperty] = []
+        if let p = ICal.property("ORGANIZER\(cn(me.name)):mailto:\(me.email)") { out.append(p) }
+        if let p = ICal.property("ATTENDEE\(cn(me.name));ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:\(me.email)") { out.append(p) }
+        for g in guests where g.email.lowercased() != me.email.lowercased() {
+            if let old = keep.first(where: { CalPerson.address($0.raw).lowercased() == g.email.lowercased() }) {
+                out.append(old)
+            } else if let p = ICal.property("ATTENDEE\(cn(g.name));ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:\(g.email)") {
+                out.append(p)
+            }
+        }
+        return out
     }
 
     var writableCalendars: [CalendarInfo] { calendars.filter { $0.events && $0.writable } }
@@ -543,6 +575,9 @@ final class CalendarModel: ObservableObject {
         d.start = e.start
         d.end = e.allDay ? e.end.addingTimeInterval(-86_400) : e.end
         d.calendarId = e.calendar.id
+        let me = organiser(e.calendar.accountId)?.email.lowercased()
+        d.guests = e.attendees.filter { $0.email.lowercased() != me && $0.email.lowercased() != e.organizer?.email.lowercased() }
+            .map { Contact(name: $0.name, email: $0.email) }
         d.editing = e
         return d
     }
@@ -589,6 +624,16 @@ final class CalendarModel: ObservableObject {
                 set("SUMMARY", title)
                 set("LOCATION", d.location)
                 set("DESCRIPTION", d.notes)
+                // Guests: the server sends invitations to new ones, and tells anyone taken off.
+                let had = master.props("ATTENDEE")
+                if !d.guests.isEmpty || !had.isEmpty, let me = self.organiser(e.calendar.accountId) {
+                    let changed = Set(d.guests.map { $0.email.lowercased() })
+                        != Set(had.map { CalPerson.address($0.raw).lowercased() }.filter { $0 != me.email.lowercased() })
+                    if changed {
+                        master.properties.removeAll { $0.name == "ATTENDEE" || $0.name == "ORGANIZER" }
+                        if !d.guests.isEmpty { master.properties += Self.peopleLines(me: me, guests: d.guests, keep: had) }
+                    }
+                }
                 // A repeating event keeps its times (changing the whole series's times needs more care than a form).
                 if !e.repeats {
                     master.properties.removeAll { ["DTSTART", "DTEND", "DURATION"].contains($0.name) }
@@ -611,6 +656,9 @@ final class CalendarModel: ObservableObject {
         if !d.notes.isEmpty { lines.append("DESCRIPTION:\(ICal.escape(d.notes))") }
         lines += ["END:VEVENT", "END:VCALENDAR"]
         guard let v = ICal.parse(lines.joined(separator: "\r\n")) else { return }
+        if !d.guests.isEmpty, let me = organiser(c.accountId), let ev = v.events.first {
+            ev.properties += Self.peopleLines(me: me, guests: d.guests, keep: [])
+        }
         let text = ICal.serialize(v)
         let folder = c.href.hasSuffix("/") ? c.href : c.href + "/"
         let href = folder + uid + ".ics"

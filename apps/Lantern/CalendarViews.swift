@@ -976,8 +976,33 @@ struct EventEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var working = false
     @State private var problem: String?
+    @State private var guestText = ""
 
     private var repeats: Bool { draft.editing?.repeats == true }
+
+    /// People matching what's being typed, from your contacts.
+    private var guestMatches: [Contact] {
+        let typed = guestText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard typed.count >= 2 else { return [] }
+        let already = Set(draft.guests.map(\.id))
+        var seen = Set<String>()
+        return store.accounts.flatMap(\.contacts).filter { c in
+            !already.contains(c.id) && seen.insert(c.id).inserted
+                && (c.email.lowercased().hasPrefix(typed) || c.name.lowercased().hasPrefix(typed)
+                    || c.name.lowercased().split(separator: " ").contains { $0.hasPrefix(typed) })
+        }
+        .prefix(5).map { $0 }
+    }
+
+    /// Adds what's typed (one address or several, split by commas or spaces).
+    private func addTyped() {
+        for a in EmailAddress.parse(guestText.replacingOccurrences(of: ";", with: ",")) {
+            let email = a.email.trimmingCharacters(in: .whitespaces)
+            guard email.contains("@"), email.contains("."), !draft.guests.contains(where: { $0.id == email.lowercased() }) else { continue }
+            draft.guests.append(Contact(name: a.name ?? "", email: email))
+        }
+        guestText = ""
+    }
 
     var body: some View {
         NavigationStack {
@@ -998,6 +1023,59 @@ struct EventEditor: View {
                         .disabled(repeats)
                 } footer: {
                     if repeats { Text("This event repeats, so its times stay as they are. You can change its title, place and notes.") }
+                }
+                Section {
+                    ForEach(draft.guests) { g in
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(g.name.isEmpty ? g.email : g.name)
+                                if !g.name.isEmpty { Text(g.email).font(Look.size(13)).foregroundStyle(.secondary) }
+                            }
+                            Spacer()
+                            Button { draft.guests.removeAll { $0.id == g.id } } label: {
+                                Label("Remove \(g.name.isEmpty ? g.email : g.name)", systemImage: "xmark.circle.fill")
+                            }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack {
+                        Image(systemName: "person.badge.plus").foregroundStyle(.secondary)
+                        TextField("Add a guest by name or email", text: $guestText)
+                            .textContentType(.emailAddress)
+                            #if os(iOS)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                            .autocorrectionDisabled()
+                            .onSubmit { if let first = guestMatches.first, !guestText.contains("@") { pick(first) } else { addTyped() } }
+                        if guestText.contains("@") {
+                            Button { addTyped() } label: { Label("Add", systemImage: "plus.circle.fill") }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                    ForEach(guestMatches) { c in
+                        Button { pick(c) } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(Look.accent)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    if !c.name.isEmpty { Text(c.name) }
+                                    Text(c.email).font(Look.size(13)).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("Guests")
+                } footer: {
+                    if !draft.guests.isEmpty {
+                        Text(draft.editing == nil
+                             ? "When you save, each guest gets an email invitation they can accept or decline."
+                             : "New guests get an invitation, and everyone hears about changes to the time or place.")
+                    }
                 }
                 if draft.editing == nil && model.writableCalendars.count > 1 {
                     Section {
@@ -1040,7 +1118,13 @@ struct EventEditor: View {
         #endif
     }
 
+    private func pick(_ c: Contact) {
+        if !draft.guests.contains(where: { $0.id == c.id }) { draft.guests.append(c) }
+        guestText = ""
+    }
+
     private func save() async {
+        if !guestText.trimmingCharacters(in: .whitespaces).isEmpty { addTyped() }
         working = true; problem = nil
         defer { working = false }
         do {
