@@ -19,7 +19,7 @@ struct RootView: View {
     @StateObject private var lists = NewslettersModel()
     /// Calendar chosen in the sidebar: the middle column shows the month and your calendars, the right the day or week.
     @State private var calendar = false
-    @StateObject private var cal = CalendarModel()
+    @ObservedObject private var cal = CalendarModel.shared
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {

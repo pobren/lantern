@@ -159,6 +159,9 @@ enum CalExpand {
 
 @MainActor
 final class CalendarModel: ObservableObject {
+    /// One for the app, so an invitation in any window (a Mac email in its own window too) can reach the calendar.
+    static let shared = CalendarModel()
+
     enum Mode: String { case day, week }
 
     @Published var calendars: [CalendarInfo] = []
@@ -437,6 +440,7 @@ final class CalendarModel: ObservableObject {
             return
         }
         guard let client = Self.client(for: s) else { throw CalDAVError.http(401) }
+        if !calendars.contains(where: { $0.accountId == s.id }) { await start(store) }
         if homes[s.id] == nil { homes[s.id] = try await client.discover() }
         let mineNow = myAddresses(s)
         let own = calendars.filter { $0.accountId == s.id && $0.events && $0.writable }

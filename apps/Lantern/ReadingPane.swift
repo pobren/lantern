@@ -94,6 +94,10 @@ struct ReadingPane: View {
                 .padding(.bottom, 10)
             }
 
+            if let files = page?.attachments, InvitationCard.file(in: files) != nil {
+                InvitationCard(files: files, account: item.account)
+            }
+
             if cancelled {
                 Label("Not sent. It's back in Drafts.", systemImage: "checkmark.circle")
                     .font(.callout).foregroundStyle(.secondary)
