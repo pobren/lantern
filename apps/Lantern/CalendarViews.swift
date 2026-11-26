@@ -171,6 +171,7 @@ struct CalendarGrid: View {
     @EnvironmentObject var store: Store
     @ObservedObject var model: CalendarModel
     @State private var chosen: CalEvent?
+    @State private var drafting: DraftBox?
     private let hourHeight: CGFloat = 52
     private let gutter: CGFloat = 46
 
@@ -178,21 +179,29 @@ struct CalendarGrid: View {
         let days = model.days
         let events = model.events(in: model.range)
         VStack(spacing: 0) {
-            header
+            header.fixedSize(horizontal: false, vertical: true)
             Divider()
-            dayHeadings(days)
-            allDayRow(days, events.filter(\.allDay))
-            Divider()
-            ScrollViewReader { reader in
-                ScrollView {
-                    timed(days, events.filter { !$0.allDay })
-                        .frame(height: hourHeight * 24)
+            if model.mode == .month {
+                MonthView(model: model, events: events, open: { chosen = $0 })
+            } else {
+                dayHeadings(days).fixedSize(horizontal: false, vertical: true)
+                allDayRow(days, events.filter(\.allDay)).fixedSize(horizontal: false, vertical: true)
+                Divider()
+                ScrollViewReader { reader in
+                    ScrollView {
+                        timed(days, events.filter { !$0.allDay })
+                    }
+                    .frame(maxHeight: .infinity)
+                    // Opens on the working day (8am, or earlier if something starts before then).
+                    .onAppear { scroll(reader, events) }
+                    .onChange(of: model.range) { _, _ in scroll(reader, model.events(in: model.range)) }
                 }
-                .onAppear { reader.scrollTo("hour-\(max(0, firstHour(events) - 1))", anchor: .top) }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Look.paper)
         .sheet(item: $chosen) { e in EventDetail(event: e, model: model).environmentObject(store) }
+        .sheet(item: $drafting) { box in EventEditor(model: model, draft: box.draft).environmentObject(store) }
         .task(id: model.range) { await model.ensure(model.range, store: store) }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -201,7 +210,16 @@ struct CalendarGrid: View {
     }
 
     private var title: String {
-        model.mode == .day ? CalText.longDay.string(from: model.date) : CalText.month.string(from: model.days.first ?? model.date)
+        switch model.mode {
+        case .day: return CalText.longDay.string(from: model.date)
+        case .month: return CalText.month.string(from: model.date)
+        case .week: return CalText.month.string(from: model.days.first ?? model.date)
+        }
+    }
+
+    private func scroll(_ reader: ScrollViewProxy, _ events: [CalEvent]) {
+        let hour = max(0, firstHour(events) - 1)
+        DispatchQueue.main.async { reader.scrollTo("hour-\(hour)", anchor: .top) }
     }
 
     private func firstHour(_ events: [CalEvent]) -> Int {
@@ -216,18 +234,24 @@ struct CalendarGrid: View {
             Text(title).font(.title3.weight(.semibold)).lineLimit(1)
             #endif
             Spacer(minLength: 0)
+            if !model.writableCalendars.isEmpty {
+                Button { drafting = DraftBox(draft: model.newDraft()) } label: { Label("New event", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent)
+                    .help("New event")
+            }
             Button { model.date = Date() } label: { Label("Today", systemImage: "calendar.circle") }
                 .labelStyle(.titleAndIcon)
                 .buttonStyle(.bordered)
             Button { model.move(-1) } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Previous day" : "Previous week")
+                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Previous day" : model.mode == .week ? "Previous week" : "Previous month")
                 .keyboardShortcut(.leftArrow, modifiers: .command)
             Button { model.move(1) } label: { Image(systemName: "chevron.right") }
-                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Next day" : "Next week")
+                .buttonStyle(.bordered).accessibilityLabel(model.mode == .day ? "Next day" : model.mode == .week ? "Next week" : "Next month")
                 .keyboardShortcut(.rightArrow, modifiers: .command)
             Picker("Show", selection: $model.mode) {
                 Label("Day", systemImage: "calendar.day.timeline.left").tag(CalendarModel.Mode.day)
-                Label("Week", systemImage: "calendar").tag(CalendarModel.Mode.week)
+                Label("Week", systemImage: "calendar.day.timeline.leading").tag(CalendarModel.Mode.week)
+                Label("Month", systemImage: "calendar").tag(CalendarModel.Mode.month)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -298,56 +322,152 @@ struct CalendarGrid: View {
     }
 
     private func timed(_ days: [Date], _ events: [CalEvent]) -> some View {
-        GeometryReader { geo in
-            let width = max(0, (geo.size.width - gutter) / CGFloat(days.count))
-            ZStack(alignment: .topLeading) {
-                // Hour lines and labels.
-                ForEach(0..<24, id: \.self) { h in
-                    HStack(alignment: .top, spacing: 0) {
-                        Text(h == 0 ? "" : String(format: "%02d:00", h))
-                            .font(.caption2).foregroundStyle(.secondary)
-                            .frame(width: gutter - 6, alignment: .trailing)
-                            .offset(y: -7)
-                        Rectangle().fill(Look.line.opacity(0.6)).frame(height: 0.5).padding(.leading, 6)
-                    }
-                    .frame(height: hourHeight, alignment: .top)
-                    .offset(y: CGFloat(h) * hourHeight)
-                    .id("hour-\(h)")
+        // The hours are laid out for real (so the list can scroll to 8am); events sit on top of them.
+        VStack(spacing: 0) {
+            ForEach(0..<24, id: \.self) { h in
+                HStack(alignment: .top, spacing: 0) {
+                    Text(h == 0 ? "" : String(format: "%02d:00", h))
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .frame(width: gutter - 6, alignment: .trailing)
+                        .offset(y: -7)
+                    Rectangle().fill(Look.line.opacity(0.6)).frame(height: 0.5).padding(.leading, 6)
                 }
-                // Lines between days.
-                ForEach(1..<max(1, days.count), id: \.self) { i in
-                    Rectangle().fill(Look.line.opacity(0.4)).frame(width: 0.5, height: hourHeight * 24)
-                        .offset(x: gutter + CGFloat(i) * width)
-                }
-                ForEach(days.indices, id: \.self) { i in
-                    let placed = DayLayout.place(events, on: days[i])
-                    ForEach(placed, id: \.event.id) { p in
-                        let top = CGFloat(p.startMinutes) / 60 * hourHeight
-                        let height = max(20, CGFloat(p.endMinutes - p.startMinutes) / 60 * hourHeight - 2)
-                        let colWidth = (width - 4) / CGFloat(p.columns)
-                        Button { chosen = p.event } label: {
-                            EventBlock(event: p.event, colour: model.colour(p.event.calendar), compact: height < 36 || colWidth < 60)
-                                .frame(width: max(0, colWidth - 2), height: height, alignment: .topLeading)
-                        }
-                        .buttonStyle(.plain)
-                        .help("\(p.event.title), \(p.event.timeText)")
-                        .offset(x: gutter + CGFloat(i) * width + 2 + CGFloat(p.column) * colWidth, y: top + 1)
+                .frame(height: hourHeight, alignment: .top)
+                .id("hour-\(h)")
+            }
+        }
+        .padding(.top, 8)
+        .overlay(alignment: .topLeading) {
+            GeometryReader { geo in
+                let width = max(0, (geo.size.width - gutter) / CGFloat(days.count))
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    // Lines between days.
+                    ForEach(1..<max(1, days.count), id: \.self) { i in
+                        Rectangle().fill(Look.line.opacity(0.4)).frame(width: 0.5, height: hourHeight * 24)
+                            .offset(x: gutter + CGFloat(i) * width)
                     }
-                    if Calendar.current.isDateInToday(days[i]) {
-                        TimelineView(.periodic(from: .now, by: 60)) { context in
-                            let now = Calendar.current.dateComponents([.hour, .minute], from: context.date)
-                            let y = (CGFloat(now.hour ?? 0) + CGFloat(now.minute ?? 0) / 60) * hourHeight
-                            HStack(spacing: 0) {
-                                Circle().fill(Color.red).frame(width: 7, height: 7)
-                                Rectangle().fill(Color.red).frame(height: 1.5)
+                    ForEach(days.indices, id: \.self) { i in
+                        let placed = DayLayout.place(events, on: days[i])
+                        ForEach(placed, id: \.event.id) { p in
+                            let top = CGFloat(p.startMinutes) / 60 * hourHeight
+                            let height = max(20, CGFloat(p.endMinutes - p.startMinutes) / 60 * hourHeight - 2)
+                            let colWidth = (width - 4) / CGFloat(p.columns)
+                            Button { chosen = p.event } label: {
+                                EventBlock(event: p.event, colour: model.colour(p.event.calendar), compact: height < 36 || colWidth < 60)
+                                    .frame(width: max(0, colWidth - 2), height: height, alignment: .topLeading)
                             }
-                            .frame(width: width + 4)
-                            .offset(x: gutter + CGFloat(i) * width - 3, y: y - 3.5)
+                            .buttonStyle(.plain)
+                            .help("\(p.event.title), \(p.event.timeText)")
+                            .offset(x: gutter + CGFloat(i) * width + 2 + CGFloat(p.column) * colWidth, y: top + 1)
+                        }
+                        if Calendar.current.isDateInToday(days[i]) {
+                            TimelineView(.periodic(from: .now, by: 60)) { context in
+                                let now = Calendar.current.dateComponents([.hour, .minute], from: context.date)
+                                let y = (CGFloat(now.hour ?? 0) + CGFloat(now.minute ?? 0) / 60) * hourHeight
+                                HStack(spacing: 0) {
+                                    Circle().fill(Color.red).frame(width: 7, height: 7)
+                                    Rectangle().fill(Color.red).frame(height: 1.5)
+                                }
+                                .frame(width: width + 4)
+                                .offset(x: gutter + CGFloat(i) * width - 3, y: y - 3.5)
+                            }
                         }
                     }
                 }
             }
+            .padding(.top, 8)
         }
+    }
+}
+
+/// A month at a glance: six weeks, each day with as many events as fit and "n more" after.
+private struct MonthView: View {
+    @ObservedObject var model: CalendarModel
+    let events: [CalEvent]
+    let open: (CalEvent) -> Void
+
+    var body: some View {
+        let days = model.days
+        let cal = Calendar.current
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(0..<7, id: \.self) { i in
+                    Text(CalText.weekday.string(from: days[i])).font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 6)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            GeometryReader { geo in
+                let rowHeight = geo.size.height / 6
+                let fits = max(0, Int((rowHeight - 26) / 17))
+                VStack(spacing: 0) {
+                    ForEach(0..<6, id: \.self) { row in
+                        HStack(spacing: 0) {
+                            ForEach(0..<7, id: \.self) { col in
+                                let d = days[row * 7 + col]
+                                let next = cal.date(byAdding: .day, value: 1, to: d) ?? d
+                                let on = events.filter { $0.start < next && ($0.end > d || $0.start >= d) }
+                                cell(d, on, fits: fits)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                    .overlay(alignment: .trailing) { Rectangle().fill(Look.line.opacity(0.4)).frame(width: 0.5) }
+                            }
+                        }
+                        .frame(height: rowHeight)
+                        .overlay(alignment: .bottom) { Rectangle().fill(Look.line.opacity(0.5)).frame(height: 0.5) }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func cell(_ d: Date, _ on: [CalEvent], fits: Int) -> some View {
+        let cal = Calendar.current
+        let inMonth = cal.isDate(d, equalTo: model.date, toGranularity: .month)
+        let today = cal.isDateInToday(d)
+        VStack(alignment: .leading, spacing: 1) {
+            Button { model.date = d; model.mode = .day } label: {
+                Text(CalText.dayNumber.string(from: d))
+                    .font(.callout.weight(today ? .bold : .regular))
+                    .foregroundStyle(today ? Color.white : inMonth ? Color.primary : Color.secondary.opacity(0.6))
+                    .frame(minWidth: 24, minHeight: 22)
+                    .background(Circle().fill(today ? Look.accent : .clear))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(CalText.longDay.string(from: d))
+            let shown = on.count > fits ? Array(on.prefix(max(0, fits - 1))) : on
+            ForEach(shown) { e in
+                Button { open(e) } label: {
+                    HStack(spacing: 4) {
+                        if e.allDay {
+                            Text(e.title).lineLimit(1)
+                                .padding(.horizontal, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 3).fill(model.colour(e.calendar).opacity(0.25)))
+                        } else {
+                            Circle().fill(model.colour(e.calendar)).frame(width: 6, height: 6)
+                            Text(CalText.time.string(from: e.start)).foregroundStyle(.secondary)
+                            Text(e.title).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .font(.caption)
+                    .frame(height: 16)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("\(e.title), \(e.timeText)")
+            }
+            if on.count > shown.count {
+                Button { model.date = d; model.mode = .day } label: {
+                    Text("\(on.count - shown.count) more").font(.caption2).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .opacity(inMonth ? 1 : 0.55)
     }
 }
 
@@ -434,6 +554,8 @@ struct EventDetail: View {
     @State private var working: String?
     @State private var problem: String?
     @State private var answered: String?
+    @State private var editing: DraftBox?
+    @State private var confirmDelete = false
 
     private var account: AccountState? { store.state(id: event.calendar.accountId) }
     private var me: CalPerson? {
@@ -484,6 +606,9 @@ struct EventDetail: View {
                 if !event.notes.isEmpty {
                     Section("Notes") { Text(event.notes).textSelection(.enabled) }
                 }
+                if me == nil, let problem {
+                    Section { Text(problem).font(.callout).foregroundStyle(.red) }
+                }
             }
             .navigationTitle("Event")
             #if os(iOS)
@@ -493,11 +618,38 @@ struct EventDetail: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button { dismiss() } label: { Label("Done", systemImage: "checkmark") }
                 }
+                if model.canEdit(event) {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { editing = DraftBox(draft: model.draft(editing: event)) } label: { Label("Edit", systemImage: "pencil") }
+                    }
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
             }
+            .confirmationDialog(event.repeats ? "Delete this repeating event?" : "Delete this event?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                if event.repeats {
+                    Button("Delete this one only", role: .destructive) { Task { await remove(onlyThis: true) } }
+                    Button("Delete all repeats", role: .destructive) { Task { await remove(onlyThis: false) } }
+                } else {
+                    Button("Delete", role: .destructive) { Task { await remove(onlyThis: false) } }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(item: $editing) { box in EventEditor(model: model, draft: box.draft, saved: { dismiss() }).environmentObject(store) }
         }
         #if os(macOS)
         .frame(minWidth: 420, minHeight: 440)
         #endif
+    }
+
+    private func remove(onlyThis: Bool) async {
+        do {
+            try await model.delete(event, onlyThis: onlyThis, store: store)
+            dismiss()
+        } catch {
+            problem = error.localizedDescription
+        }
     }
 
     private func answer(_ status: String) async {
@@ -573,5 +725,98 @@ struct AnswerButtons: View {
         .tint(on ? tint : .secondary)
         .disabled(working != nil)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+
+/// Wraps a draft so a sheet can be shown for it.
+struct DraftBox: Identifiable {
+    let id = UUID()
+    let draft: CalendarModel.Draft
+}
+
+/// New event, or changing one: title, all day, start and end, calendar, place and notes.
+struct EventEditor: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject var model: CalendarModel
+    @State var draft: CalendarModel.Draft
+    var saved: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+    @State private var working = false
+    @State private var problem: String?
+
+    private var repeats: Bool { draft.editing?.repeats == true }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Title", text: $draft.title)
+                    TextField("Place or video call link", text: $draft.location)
+                }
+                Section {
+                    Toggle("All day", isOn: $draft.allDay).disabled(repeats)
+                    DatePicker("Starts", selection: $draft.start, displayedComponents: draft.allDay ? [.date] : [.date, .hourAndMinute])
+                        .disabled(repeats)
+                        .onChange(of: draft.start) { old, new in
+                            // Moving the start moves the end with it, keeping the length.
+                            draft.end = draft.end.addingTimeInterval(new.timeIntervalSince(old))
+                        }
+                    DatePicker("Ends", selection: $draft.end, in: draft.start..., displayedComponents: draft.allDay ? [.date] : [.date, .hourAndMinute])
+                        .disabled(repeats)
+                } footer: {
+                    if repeats { Text("This event repeats, so its times stay as they are. You can change its title, place and notes.") }
+                }
+                if draft.editing == nil && model.writableCalendars.count > 1 {
+                    Section {
+                        Picker("Calendar", selection: $draft.calendarId) {
+                            ForEach(model.writableCalendars) { c in
+                                HStack {
+                                    Circle().fill(model.colour(c)).frame(width: 9, height: 9)
+                                    Text(c.name)
+                                }
+                                .tag(c.id)
+                            }
+                        }
+                    }
+                }
+                Section("Notes") {
+                    TextField("Notes", text: $draft.notes, axis: .vertical).lineLimit(3...10)
+                }
+                if let problem { Section { Text(problem).foregroundStyle(.red) } }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(draft.editing == nil ? "New event" : "Edit event")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { Task { await save() } } label: {
+                        if working { ProgressView().controlSize(.small) } else { Label("Save", systemImage: "checkmark") }
+                    }
+                    .disabled(working || draft.title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .keyboardShortcut(.return, modifiers: .command)
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 440, minHeight: 480)
+        #endif
+    }
+
+    private func save() async {
+        working = true; problem = nil
+        defer { working = false }
+        do {
+            try await model.save(draft, store: store)
+            dismiss()
+            saved()
+        } catch {
+            problem = error.localizedDescription
+        }
     }
 }

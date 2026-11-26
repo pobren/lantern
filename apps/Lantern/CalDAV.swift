@@ -206,6 +206,14 @@ final class CalDAVClient: @unchecked Sendable {
         guard (200..<300).contains(r.code) else { throw CalDAVError.http(r.code) }
         return r.etag
     }
+
+    /// Deletes an event, only if it hasn't changed since we read it.
+    func delete(_ href: String, etag: String?) async throws {
+        var headers: [String: String] = [:]
+        if let etag { headers["If-Match"] = etag }
+        let r = try await send("DELETE", href, headers: headers)
+        guard (200..<300).contains(r.code) || r.code == 404 else { throw CalDAVError.http(r.code) }
+    }
 }
 
 private final class NoRedirects: NSObject, URLSessionTaskDelegate {

@@ -162,7 +162,7 @@ final class CalendarModel: ObservableObject {
     /// One for the app, so an invitation in any window (a Mac email in its own window too) can reach the calendar.
     static let shared = CalendarModel()
 
-    enum Mode: String { case day, week }
+    enum Mode: String { case day, week, month }
 
     @Published var calendars: [CalendarInfo] = []
     @Published var hidden: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "calendarHidden") ?? []) {
@@ -263,6 +263,7 @@ final class CalendarModel: ObservableObject {
 
     /// Opens what's saved on the device, then checks the servers for changes.
     func start(_ store: Store) async {
+        self.store = store
         if !loaded {
             loaded = true
             window = Self.makeWindow()
@@ -384,6 +385,12 @@ final class CalendarModel: ObservableObject {
         cal.timeZone = .current
         let day = cal.startOfDay(for: date)
         if mode == .day { return [day] }
+        if mode == .month {
+            // Six weeks from the Monday on or before the 1st, so every month fits the same grid.
+            let first = cal.dateInterval(of: .month, for: day)?.start ?? day
+            let start = cal.dateInterval(of: .weekOfYear, for: first)?.start ?? first
+            return (0..<42).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+        }
         let start = cal.dateInterval(of: .weekOfYear, for: day)?.start ?? day
         return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
     }
@@ -395,7 +402,9 @@ final class CalendarModel: ObservableObject {
     }
 
     func move(_ steps: Int) {
-        date = Foundation.Calendar.current.date(byAdding: .day, value: steps * (mode == .day ? 1 : 7), to: date) ?? date
+        let cal = Foundation.Calendar.current
+        if mode == .month { date = cal.date(byAdding: .month, value: steps, to: date) ?? date; return }
+        date = cal.date(byAdding: .day, value: steps * (mode == .day ? 1 : 7), to: date) ?? date
     }
 
     func colour(_ c: CalendarInfo) -> Color {
@@ -491,6 +500,189 @@ final class CalendarModel: ObservableObject {
             }
         }
         return changed
+    }
+
+    // MARK: Making, changing and deleting events
+
+    struct Draft {
+        var title = ""
+        var location = ""
+        var notes = ""
+        var allDay = false
+        var start = Date()
+        var end = Date().addingTimeInterval(3_600)
+        var calendarId = ""
+        /// The event being changed, or nil for a new one.
+        var editing: CalEvent?
+    }
+
+    var writableCalendars: [CalendarInfo] { calendars.filter { $0.events && $0.writable } }
+
+    /// A new event on the day on show: the next hour if it's today, otherwise 9am, for an hour.
+    func newDraft() -> Draft {
+        let cal = Foundation.Calendar.current
+        var d = Draft()
+        let day = cal.startOfDay(for: date)
+        let hour = cal.isDateInToday(day) ? min(23, cal.component(.hour, from: Date()) + 1) : 9
+        d.start = cal.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? date
+        d.end = d.start.addingTimeInterval(3_600)
+        let last = UserDefaults.standard.string(forKey: "calendarLastUsed")
+        d.calendarId = writableCalendars.first { $0.id == last }?.id ?? writableCalendars.first { !hidden.contains($0.id) }?.id
+            ?? writableCalendars.first?.id ?? ""
+        return d
+    }
+
+    func draft(editing e: CalEvent) -> Draft {
+        var d = Draft()
+        d.title = e.title == "(No title)" ? "" : e.title
+        d.location = e.location
+        d.notes = e.notes
+        d.allDay = e.allDay
+        d.start = e.start
+        d.end = e.allDay ? e.end.addingTimeInterval(-86_400) : e.end
+        d.calendarId = e.calendar.id
+        d.editing = e
+        return d
+    }
+
+    /// Whether you can change an event: it's in a calendar you can write to, and you organised it (or nobody did).
+    func canEdit(_ e: CalEvent) -> Bool {
+        guard e.calendar.writable, calendars.contains(where: { $0.id == e.calendar.id }) else { return false }
+        guard let o = e.organizer, let s = account(e.calendar.accountId) else { return true }
+        return myAddresses(s).contains(o.email.lowercased())
+    }
+
+    private weak var store: Store?
+    private func account(_ id: String) -> AccountState? { store?.state(id: id) }
+
+    private func dateLines(_ d: Draft) -> [String] {
+        if d.allDay {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.calendar = Foundation.Calendar(identifier: .gregorian)
+            f.dateFormat = "yyyyMMdd"
+            let cal = Foundation.Calendar.current
+            let first = cal.startOfDay(for: d.start)
+            let last = max(first, cal.startOfDay(for: d.end))
+            let after = cal.date(byAdding: .day, value: 1, to: last) ?? last
+            return ["DTSTART;VALUE=DATE:\(f.string(from: first))", "DTEND;VALUE=DATE:\(f.string(from: after))"]
+        }
+        let end = d.end > d.start ? d.end : d.start.addingTimeInterval(1_800)
+        return ["DTSTART:\(ICal.stamp(d.start))", "DTEND:\(ICal.stamp(end))"]
+    }
+
+    private func line(_ text: String) -> ICalProperty? { ICal.property(text) }
+
+    func save(_ d: Draft, store: Store) async throws {
+        self.store = store
+        UserDefaults.standard.set(d.calendarId, forKey: "calendarLastUsed")
+        let title = d.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let e = d.editing {
+            try await change(e) { v in
+                guard let master = v.events.first(where: { $0.text("UID") == e.uid && $0.prop("RECURRENCE-ID") == nil }) ?? v.events.first else { return }
+                func set(_ name: String, _ value: String) {
+                    master.properties.removeAll { $0.name == name }
+                    if !value.isEmpty, let p = self.line("\(name):\(ICal.escape(value))") { master.properties.append(p) }
+                }
+                set("SUMMARY", title)
+                set("LOCATION", d.location)
+                set("DESCRIPTION", d.notes)
+                // A repeating event keeps its times (changing the whole series's times needs more care than a form).
+                if !e.repeats {
+                    master.properties.removeAll { ["DTSTART", "DTEND", "DURATION"].contains($0.name) }
+                    master.properties += self.dateLines(d).compactMap(self.line)
+                }
+                master.properties.removeAll { $0.name == "DTSTAMP" || $0.name == "LAST-MODIFIED" }
+                master.properties += ["DTSTAMP:\(ICal.stamp(Date()))", "LAST-MODIFIED:\(ICal.stamp(Date()))"].compactMap(self.line)
+                let seq = Int(master.text("SEQUENCE") ?? "") ?? 0
+                master.properties.removeAll { $0.name == "SEQUENCE" }
+                if let p = self.line("SEQUENCE:\(seq + 1)") { master.properties.append(p) }
+            }
+            return
+        }
+        guard let c = calendars.first(where: { $0.id == d.calendarId }) else { throw CalDAVError.notFound }
+        let uid = UUID().uuidString.lowercased()
+        var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//JMAP Connect//EN", "BEGIN:VEVENT", "UID:\(uid)",
+                     "DTSTAMP:\(ICal.stamp(Date()))", "CREATED:\(ICal.stamp(Date()))", "SUMMARY:\(ICal.escape(title))"]
+        lines += dateLines(d)
+        if !d.location.isEmpty { lines.append("LOCATION:\(ICal.escape(d.location))") }
+        if !d.notes.isEmpty { lines.append("DESCRIPTION:\(ICal.escape(d.notes))") }
+        lines += ["END:VEVENT", "END:VCALENDAR"]
+        guard let v = ICal.parse(lines.joined(separator: "\r\n")) else { return }
+        let text = ICal.serialize(v)
+        let folder = c.href.hasSuffix("/") ? c.href : c.href + "/"
+        let href = folder + uid + ".ics"
+        if let s = account(c.accountId), s.account.kind == Demo.kind {
+            resources[c.id, default: []].append(CalendarResource(href: href, etag: nil, ics: text))
+            reparse()
+            return
+        }
+        guard let s = account(c.accountId), let client = Self.client(for: s) else { throw CalDAVError.http(401) }
+        try await client.put(href, ics: text, etag: nil)
+        try await reload(c, client: client)
+    }
+
+    /// Deletes an event, or with `onlyThis` just this one time of a repeating event.
+    func delete(_ e: CalEvent, onlyThis: Bool, store: Store) async throws {
+        self.store = store
+        if onlyThis && e.repeats {
+            try await change(e) { v in
+                guard let master = v.events.first(where: { $0.text("UID") == e.uid && $0.prop("RECURRENCE-ID") == nil }) else { return }
+                let when: String
+                if e.allDay {
+                    let f = DateFormatter()
+                    f.locale = Locale(identifier: "en_US_POSIX")
+                    f.dateFormat = "yyyyMMdd"
+                    when = "EXDATE;VALUE=DATE:\(f.string(from: e.start))"
+                } else {
+                    when = "EXDATE:\(ICal.stamp(e.start))"
+                }
+                if let p = self.line(when) { master.properties.append(p) }
+                // A moved copy of this one time goes too.
+                v.children.removeAll { c in
+                    c.name == "VEVENT" && c.text("UID") == e.uid && c.prop("RECURRENCE-ID").flatMap { ICal.when($0)?.date } == e.start
+                }
+            }
+            return
+        }
+        guard let c = calendars.first(where: { $0.id == e.calendar.id }) else { return }
+        if let s = account(c.accountId), s.account.kind == Demo.kind {
+            resources[c.id]?.removeAll { $0.href == e.href }
+            reparse()
+            return
+        }
+        guard let s = account(c.accountId), let client = Self.client(for: s) else { throw CalDAVError.http(401) }
+        try await client.delete(e.href, etag: resources[c.id]?.first { $0.href == e.href }?.etag)
+        try await reload(c, client: client)
+    }
+
+    /// Reads an event's file, changes it and saves it back (only if nobody changed it meanwhile).
+    private func change(_ e: CalEvent, _ edit: (ICalComponent) -> Void) async throws {
+        guard let c = calendars.first(where: { $0.id == e.calendar.id }),
+              let i = resources[c.id]?.firstIndex(where: { $0.href == e.href }),
+              let r = resources[c.id]?[i], let v = ICal.parse(r.ics) else { throw CalDAVError.notFound }
+        edit(v)
+        let text = ICal.serialize(v)
+        if let s = account(c.accountId), s.account.kind == Demo.kind {
+            resources[c.id]?[i].ics = text
+            reparse()
+            return
+        }
+        guard let s = account(c.accountId), let client = Self.client(for: s) else { throw CalDAVError.http(401) }
+        try await client.put(r.href, ics: text, etag: r.etag)
+        try await reload(c, client: client)
+    }
+
+    private func reload(_ c: CalendarInfo, client: CalDAVClient) async throws {
+        resources[c.id] = try await client.events(c.href, from: window.start, to: window.end)
+        if let home = homes[c.accountId] {
+            let mine = calendars.filter { $0.accountId == c.accountId }
+            CalendarDisk.write(c.accountId, CalendarDisk.Saved(home: home, calendars: mine,
+                                                                 resources: resources.filter { k, _ in mine.contains { $0.id == k } }))
+        }
+        extra = [:]
+        fetchedExtra = []
+        reparse()
     }
 
     // MARK: Sample mail (App Review and screenshots)
