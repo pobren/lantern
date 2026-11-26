@@ -63,7 +63,7 @@ struct MessageCommands: Commands {
             Button("Archive") { a?.archive() }.keyboardShortcut("a", modifiers: [.command, .control])
             Button("Delete") { a?.delete() }.keyboardShortcut(.delete, modifiers: .command)
             Button(a?.inSpam == true ? "Not spam" : "Mark as spam") { a?.spam() }.keyboardShortcut("j", modifiers: [.command, .shift])
-            Button(a?.moveAgainName.map { "Move again to \($0)" } ?? "Move again") { a?.moveAgain?() }
+            Button(a?.moveAgainName.map { String(localized: "Move again to \($0)") } ?? "Move again") { a?.moveAgain?() }
                 .keyboardShortcut("t", modifiers: [.command, .option])
                 .disabled(a?.moveAgain == nil)
             Divider()

@@ -173,7 +173,7 @@ extension Store {
                 if Self.isOffline(error) { goOffline(); break }
                 // The server said no (the email was deleted elsewhere, say). Drop it so it doesn't hold up the rest.
                 await cache.done(p)
-                if p.kind == "send" { problem = "An email in the Outbox couldn't be sent: \(error.localizedDescription)" }
+                if p.kind == "send" { problem = String(localized: "An email in the Outbox couldn't be sent: \(error.localizedDescription)") }
             }
         }
         await countOutbox()

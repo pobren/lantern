@@ -1,5 +1,6 @@
-// JMAP Connect for Apple Watch (1.2): every inbox in one list, read an email, star it, archive it and reply by voice.
-// The iPhone app hands over its Fastmail accounts; the Watch then talks to Fastmail itself.
+// JMAP Connect for Apple Watch (1.2): every inbox in one list, read an email, star it, archive it and reply by voice
+// or with a quick reply. The iPhone app hands over its accounts; the Watch then talks to the mail server itself, and
+// with its own Fastmail sign in (Settings, Apple Watch on the iPhone) it keeps working away from the iPhone.
 
 import SwiftUI
 import WatchConnectivity
@@ -28,6 +29,13 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
 
     override init() {
         super.init()
+        WatchAccounts.canRefresh = true
+        // The last inbox, so the list shows at once (and without signal) while the new one loads.
+        if !sample, let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+           let saved = try? JSONDecoder().decode([WatchEmail].self, from: data) {
+            emails = saved
+            unread = UserDefaults.standard.integer(forKey: Self.cacheKey + ".unread")
+        }
         if WCSession.isSupported() {
             WCSession.default.delegate = self
             WCSession.default.activate()
@@ -35,6 +43,8 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     var hasMail: Bool { !accounts.isEmpty || sample }
+    private static let cacheKey = "watch.inbox"
+    @Published var replies: [String] = WatchAccounts.replies
 
     private func client(_ id: String) -> WatchJMAP? {
         if let c = clients[id] { return c }
@@ -73,6 +83,10 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         if !all.isEmpty || problem == nil {
             emails = all.sorted { $0.date > $1.date }
             unread = count
+            if let data = try? JSONEncoder().encode(emails) {
+                UserDefaults.standard.set(data, forKey: Self.cacheKey)
+                UserDefaults.standard.set(count, forKey: Self.cacheKey + ".unread")
+            }
         }
         loading = false
         WidgetCenter.shared.reloadAllTimelines()
@@ -126,6 +140,9 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         guard !words.isEmpty else { return nil }
         if e.account == WatchSample.account { return nil }
         guard let c = client(e.account) else { return "Open JMAP Connect on your iPhone first." }
+        if !text.isEmpty, let i = emails.firstIndex(where: { $0.key == e.key }) {
+            emails[i].keywords = (emails[i].keywords ?? [:]).merging(["$answered": true]) { _, n in n }
+        }
         do { try await c.reply(to: e, text: words); return nil } catch { return error.localizedDescription }
     }
 
@@ -137,6 +154,11 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         clients = [:]
         accounts = WatchAccounts.all
         sample = WatchAccounts.sample
+        replies = WatchAccounts.replies
+        if accounts.isEmpty {
+            emails = []
+            UserDefaults.standard.removeObject(forKey: Self.cacheKey)
+        }
         Task { await refresh() }
     }
 
@@ -166,6 +188,15 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         Task { @MainActor in self.take(applicationContext) }
     }
+
+    /// The Watch's own Fastmail sign in (or a request to forget it), sent from the iPhone's Settings, Apple Watch.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        WatchAccounts.takeGrant(userInfo)
+        Task { @MainActor in
+            self.clients = [:]
+            await self.refresh()
+        }
+    }
 }
 
 struct InboxView: View {
@@ -179,7 +210,7 @@ struct InboxView: View {
                     ScrollView {
                         VStack(spacing: 10) {
                             Image(systemName: "iphone").font(.title2).foregroundStyle(.tint)
-                            Text("Open JMAP Connect on your iPhone and add your Fastmail account. Your inbox then shows here.")
+                            Text("Open JMAP Connect on your iPhone and add your mail account. Your inbox then shows here.")
                                 .font(.footnote).multilineTextAlignment(.center)
                             Button { mail.askPhone() } label: { Label("Try again", systemImage: "arrow.clockwise") }
                         }
@@ -258,13 +289,8 @@ struct MessageView: View {
                 if let text { Text(text).font(.footnote) } else { ProgressView() }
                 if let note { Label(note, systemImage: "info.circle").font(.footnote).foregroundStyle(.secondary) }
                 Divider()
-                TextFieldLink(prompt: Text("Reply to \(current.sender.display)")) {
+                NavigationLink { ReplyView(email: current, note: $note) } label: {
                     Label("Reply", systemImage: "arrowshape.turn.up.left")
-                } onSubmit: { words in
-                    Task {
-                        note = "Sending…"
-                        note = await mail.reply(current, words) ?? "Sent."
-                    }
                 }
                 Button { Task { await mail.star(current) } } label: {
                     Label(current.starred ? "Remove star" : "Star", systemImage: current.starred ? "star.slash" : "star")
@@ -280,5 +306,42 @@ struct MessageView: View {
             text = await mail.text(current)
             await mail.markRead(current)
         }
+    }
+}
+
+/// Reply: say or type something, or tap one of the quick replies (set on the iPhone in Settings, Apple Watch).
+struct ReplyView: View {
+    @EnvironmentObject var mail: WatchStore
+    @Environment(\.dismiss) private var dismiss
+    let email: WatchEmail
+    @Binding var note: String?
+    @State private var sending = false
+
+    private func send(_ words: String) {
+        guard !sending else { return }
+        sending = true
+        Task {
+            note = "Sending…"
+            let problem = await mail.reply(email, words)
+            note = problem ?? "Sent."
+            sending = false
+            dismiss()
+        }
+    }
+
+    var body: some View {
+        List {
+            TextFieldLink(prompt: Text("Reply to \(email.sender.display)")) {
+                Label("Say or type", systemImage: "mic")
+            } onSubmit: { words in send(words) }
+            Section("Quick replies") {
+                ForEach(mail.replies, id: \.self) { r in
+                    Button { send(r) } label: { Text(r).lineLimit(3) }
+                }
+            }
+        }
+        .disabled(sending)
+        .overlay { if sending { ProgressView() } }
+        .navigationTitle("Reply")
     }
 }

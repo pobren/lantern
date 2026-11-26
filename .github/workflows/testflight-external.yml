@@ -1,0 +1,139 @@
+# Puts a TestFlight build in front of external testers: adds it to an external group, fills in "What to test"
+# and sends it for Apple's beta review if it needs one. Run it by hand from the Actions tab, or from any branch by
+# changing .github/testflight-external.txt to the build number (optionally followed by the group name) and pushing.
+# With no group named it lists the groups and uses the external group with testers in it (if only one has any).
+#
+# Secrets: ASC_KEY (the .p8 file's text), ASC_KEY_ID, ASC_ISSUER_ID.
+name: TestFlight external testers
+
+on:
+  push:
+    paths: [".github/testflight-external.txt", ".github/workflows/testflight-external.yml"]
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Build number (as TestFlight shows it, e.g. 280)
+        type: string
+        required: true
+      group:
+        description: External group name (empty picks the external group that has testers)
+        type: string
+        default: ""
+      what_to_test:
+        description: What to test (shown to testers)
+        type: string
+        default: "Everything new: calendar with invitations and guests, the Apple Watch app with quick replies, Reply from alerts and the app in 40 languages."
+      platform:
+        description: Which build
+        type: choice
+        options: [IOS, MAC_OS]
+        default: IOS
+
+jobs:
+  external:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.ASC_KEY }}
+      BUILD: ${{ inputs.build }}
+      GROUP: ${{ inputs.group }}
+      WHAT: "${{ inputs.what_to_test || 'Everything new: calendar with invitations and guests, the Apple Watch app with quick replies, Reply from alerts and the app in 40 languages.' }}"
+      PLATFORM: ${{ inputs.platform || 'IOS' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add the build to the external group
+        run: |
+          pip install -q pyjwt cryptography
+          cat > /tmp/ext.py <<'PY'
+          import json, os, sys, time, urllib.request, urllib.error, jwt
+          key = os.environ["ASC_KEY"]
+          def token():
+              now = int(time.time())
+              return jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 900, "aud": "appstoreconnect-v1"},
+                                key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          def api(path, body=None, method=None):
+              r = urllib.request.Request("https://api.appstoreconnect.apple.com/" + path,
+                                         data=json.dumps(body).encode() if body is not None else None,
+                                         method=method or ("POST" if body is not None else "GET"))
+              r.add_header("Authorization", "Bearer " + token()); r.add_header("Content-Type", "application/json")
+              try:
+                  with urllib.request.urlopen(r) as f:
+                      t = f.read(); return f.status, (json.loads(t) if t else {})
+              except urllib.error.HTTPError as e:
+                  t = e.read(); return e.code, (json.loads(t) if t else {})
+          def detail(j): return "; ".join(e.get("detail", "") for e in j.get("errors", []))
+
+          if not os.environ.get("BUILD"):
+              parts = open(".github/testflight-external.txt").read().strip().split(None, 1)
+              if not parts or not parts[0].isdigit(): sys.exit("::error::No build number in .github/testflight-external.txt")
+              os.environ["BUILD"] = parts[0]
+              if len(parts) > 1: os.environ["GROUP"] = parts[1]
+          code, j = api("v1/apps?filter[bundleId]=dev.paulobrien.lantern&fields[apps]=name")
+          app = j["data"][0]["id"]; print("App", j["data"][0]["attributes"]["name"])
+
+          # The build, waiting for Apple to finish processing it.
+          build = None
+          for i in range(40):
+              code, j = api(f"v1/builds?filter[app]={app}&filter[version]={os.environ['BUILD']}"
+                            f"&filter[preReleaseVersion.platform]={os.environ['PLATFORM']}&fields[builds]=version,processingState,expired")
+              if j.get("data"):
+                  build = j["data"][0]; st = build["attributes"]["processingState"]
+                  print("Build", build["attributes"]["version"], st)
+                  if st == "VALID": break
+                  if st in ("FAILED", "INVALID"): sys.exit(f"::error::Build {os.environ['BUILD']} is {st}")
+              else:
+                  print("Build not in App Store Connect yet")
+              time.sleep(30)
+          else:
+              sys.exit("::error::Build didn't finish processing in 20 minutes; run this again later")
+
+          # Groups.
+          code, j = api(f"v1/apps/{app}/betaGroups?fields[betaGroups]=name,isInternalGroup&limit=50")
+          groups = [g for g in j["data"] if not g["attributes"]["isInternalGroup"]]
+          for g in groups:
+              c, t = api(f"v1/betaGroups/{g['id']}/betaTesters?limit=200&fields[betaTesters]=email")
+              g["testers"] = len(t.get("data", []))
+              print(f"External group: {g['attributes']['name']} ({g['testers']} testers)")
+          want = os.environ["GROUP"].strip()
+          if want:
+              pick = [g for g in groups if g["attributes"]["name"].lower() == want.lower()]
+          else:
+              pick = [g for g in groups if g["testers"]] if len([g for g in groups if g["testers"]]) == 1 else []
+          if len(pick) != 1:
+              sys.exit("::error::Couldn't pick one external group; run again with the group name from the list above")
+          group = pick[0]; print("Using", group["attributes"]["name"])
+
+          # What to test (English).
+          code, j = api(f"v1/builds/{build['id']}/betaBuildLocalizations")
+          loc = next((l for l in j.get("data", []) if l["attributes"]["locale"].startswith("en")), None)
+          if loc:
+              code, j = api(f"v1/betaBuildLocalizations/{loc['id']}", {"data": {"type": "betaBuildLocalizations", "id": loc["id"],
+                            "attributes": {"whatsNew": os.environ["WHAT"]}}}, "PATCH")
+          else:
+              code, j = api("v1/betaBuildLocalizations", {"data": {"type": "betaBuildLocalizations",
+                            "attributes": {"locale": "en-GB", "whatsNew": os.environ["WHAT"]},
+                            "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
+          print("What to test:", code, detail(j))
+
+          # Into the group.
+          code, j = api(f"v1/betaGroups/{group['id']}/relationships/builds", {"data": [{"type": "builds", "id": build["id"]}]})
+          print("Added to group:", code, detail(j))
+          if code not in (204, 409): sys.exit("::error::Couldn't add the build to the group")
+
+          # Apple's beta review (needed for external testers; quick once a version has passed before).
+          # Only one build of a version can be in review at a time, so wait (up to about 5 hours) for an earlier one.
+          for i in range(60):
+              code, j = api("v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions",
+                            "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
+              print("Beta review:", code, detail(j) or j.get("data", {}).get("attributes", {}).get("betaReviewState", ""), flush=True)
+              if code == 201 or "already" in detail(j).lower() and "this build" in detail(j).lower(): break
+              if "another build" not in detail(j).lower(): sys.exit("::error::Apple didn't take the build for beta review")
+              time.sleep(300)
+          else:
+              sys.exit("::error::An earlier build was still in beta review after 5 hours; run this again")
+          code, j = api(f"v1/builds/{build['id']}/buildBetaDetail")
+          print("External state:", j.get("data", {}).get("attributes", {}).get("externalBuildState"))
+          PY
+          python3 /tmp/ext.py

@@ -83,7 +83,7 @@ enum FastmailOAuth {
         var errorDescription: String? {
             switch self {
             case .cancelled: return "Sign in was cancelled."
-            case .refused(let why): return "Fastmail didn't sign you in (\(why)). Try again, or use an API token instead."
+            case .refused(let why): return String(localized: "Fastmail didn't sign you in (\(why)). Try again, or use an API token instead.")
             case .mixUp: return "That sign in didn't come back from Fastmail as expected, so it wasn't used. Please try again."
             case .signedOut(let why): return why ?? "Fastmail signed this account out. Sign in again to carry on."
             }

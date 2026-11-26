@@ -352,6 +352,9 @@ struct SettingsView: View {
                     NavigationLink { page("Sending and signatures") { sending; addresses } } label: { Row(title: "Sending and signatures", icon: "paperplane.fill", tint: Look.accent) }
                     NavigationLink { page("Reading") { reading } } label: { Row(title: "Reading", icon: "eye.fill", tint: .teal) }
                     NavigationLink { page("Offline") { OfflineSection() } } label: { Row(title: "Offline", icon: "arrow.down.circle.fill", tint: .green) }
+                    if WatchLink.shared.watchReady {
+                        NavigationLink { WatchSettingsPage().environmentObject(store) } label: { Row(title: "Apple Watch", icon: "applewatch", tint: .orange) }
+                    }
                 }
                 fastmailTools
                 Section("Accounts") { accounts }
@@ -577,13 +580,13 @@ struct SettingsView: View {
                 // Separate ids for the two lists: with the same account id twice, the Mac drew Masked Email twice.
                 ForEach(fastmail, id: \.maskKey) { s in
                     Button { masking = s } label: {
-                        Row(title: store.accounts.count > 1 ? "Masked Email, \(s.account.label)" : "Masked Email", icon: "theatermasks.fill", tint: .indigo, opens: true)
+                        Row(title: store.accounts.count > 1 ? String(localized: "Masked Email, \(s.account.label)") : "Masked Email", icon: "theatermasks.fill", tint: .indigo, opens: true)
                     }
                     .buttonStyle(.plain)
                 }
                 ForEach(canAway, id: \.awayKey) { s in
                     Button { away = s } label: {
-                        Row(title: store.accounts.count > 1 ? "Out of office, \(s.account.label)" : "Out of office", icon: "airplane.departure", tint: .orange, opens: true)
+                        Row(title: store.accounts.count > 1 ? String(localized: "Out of office, \(s.account.label)") : "Out of office", icon: "airplane.departure", tint: .orange, opens: true)
                     }
                     .buttonStyle(.plain)
                 }
@@ -591,7 +594,9 @@ struct SettingsView: View {
                 if fastmail.isEmpty {
                     Text("Out of office replies are saved on your mail server, so they work with every device switched off.")
                 } else {
-                    Text("Masked Email makes a private address for each website. Out of office replies are saved \(onlyFastmail ? "in Fastmail" : "on your mail server"), so they work with every device switched off.")
+                    Text(onlyFastmail
+                         ? "Masked Email makes a private address for each website. Out of office replies are saved in Fastmail, so they work with every device switched off."
+                         : "Masked Email makes a private address for each website. Out of office replies are saved on your mail server, so they work with every device switched off.")
                 }
             }
         }
@@ -619,7 +624,9 @@ struct SettingsView: View {
                 Button(role: .destructive) { remove(forgetKey: true) } label: { Label("Remove and forget the key", systemImage: "key.slash") }
                 Button("Cancel", role: .cancel) { removing = nil }
             } message: {
-                Text("Your mail stays \(onlyFastmail ? "in Fastmail" : "with your provider"). Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.")
+                Text(onlyFastmail
+                     ? "Your mail stays in Fastmail. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time."
+                     : "Your mail stays with your provider. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.")
             }
         Button { adding = .fastmail } label: { Label("Add a Fastmail account", systemImage: "plus.circle.fill") }
         if ServerKind.otherProviders {

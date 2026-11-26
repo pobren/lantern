@@ -336,12 +336,13 @@ struct Naming: Identifiable {
     let state: AccountState
     let box: Mailbox?
     let renaming: Bool
-    var title: String { renaming ? "Rename folder" : box.map { "New folder in \($0.name)" } ?? "New folder" }
+    var title: String { renaming ? "Rename folder" : box.map { String(localized: "New folder in \($0.name)") } ?? "New folder" }
 }
 
 /// One folder in the sidebar: its unread count, an arrow to fold its subfolders away, a menu to add or rename
 /// folders, and a place to drop conversations.
 struct FolderRow: View {
+    @Environment(\.layoutDirection) private var direction
     @EnvironmentObject var store: Store
     let entry: FolderEntry
     let state: AccountState
@@ -353,15 +354,16 @@ struct FolderRow: View {
         HStack(spacing: 2) {
             if entry.hasChildren {
                 Button { withAnimation(.snappy) { store.toggleCollapsed(box, in: state) } } label: {
-                    Image(systemName: "chevron.right")
+                    // Forward points left in Arabic, Hebrew, Persian and Urdu, so it turns the other way to point down.
+                    Image(systemName: "chevron.forward")
                         .font(Look.size(10, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : 90))
+                        .rotationEffect(.degrees(store.isCollapsed(box, in: state) ? 0 : (direction == .rightToLeft ? -90 : 90)))
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(store.isCollapsed(box, in: state) ? "Show folders inside \(box.name)" : "Hide folders inside \(box.name)")
+                .accessibilityLabel(store.isCollapsed(box, in: state) ? String(localized: "Show folders inside \(box.name)") : String(localized: "Hide folders inside \(box.name)"))
             } else {
                 Color.clear.frame(width: 14, height: 14)
             }
@@ -596,7 +598,7 @@ private struct OfflineBar: View {
         let waiting = store.outbox == 1 ? "1 email waiting to send" : "\(store.outbox) emails waiting to send"
         HStack(spacing: 7) {
             Image(systemName: store.offline ? "wifi.slash" : "paperplane")
-            Text(store.offline ? (store.outbox > 0 ? "Offline. \(waiting)" : "Offline. Showing mail saved on this device")
+            Text(store.offline ? (store.outbox > 0 ? String(localized: "Offline. \(waiting)") : "Offline. Showing mail saved on this device")
                                : "Sending \(waiting.replacingOccurrences(of: " waiting to send", with: ""))")
                 .lineLimit(1)
             Spacer(minLength: 0)

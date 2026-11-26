@@ -29,11 +29,11 @@ enum Formatting {
                 out.append("<li>\(inline(item))</li>")
             } else {
                 close()
-                out.append(raw.isEmpty ? "<br>" : "<div>\(inline(raw))</div>")
+                out.append(raw.isEmpty ? "<br>" : "<div dir=\"auto\">\(inline(raw))</div>")
             }
         }
         close()
-        return "<!DOCTYPE html><html><body style=\"font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px;\">"
+        return "<!DOCTYPE html><html><body dir=\"auto\" style=\"font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 14px;\">"
             + out.joined(separator: "\n") + "</body></html>"
     }
 
