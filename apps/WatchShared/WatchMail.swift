@@ -161,7 +161,7 @@ enum WatchError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .signIn: return "Your mail server didn't accept the sign in. Open JMAP Connect on your iPhone, or let the Watch sign in on its own in Settings, Apple Watch."
-        case .server(let c): return "Your mail server answered with an error (\(c))."
+        case .server(let c): return String(localized: "Your mail server answered with an error (\(c)).")
         case .failed(let why): return why
         }
     }
@@ -459,5 +459,5 @@ actor WatchRefresher {
 
 /// Short replies to send with one tap, from the Watch and from alerts.
 enum QuickReplies {
-    static let defaults = ["Thanks!", "Will do.", "Sounds good.", "On my way.", "Can I get back to you later?", "Yes", "No"]
+    static let defaults = [String(localized: "Thanks!"), String(localized: "Will do."), String(localized: "Sounds good."), String(localized: "On my way."), String(localized: "Can I get back to you later?"), String(localized: "Yes"), String(localized: "No")]
 }

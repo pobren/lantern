@@ -101,7 +101,7 @@ struct ReadingPane: View {
             } else if let waiting {
                 HStack(spacing: 10) {
                     Image(systemName: "clock")
-                    Text(waiting.sendAt.map { "Sends \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Waiting to send")
+                    Text(waiting.sendAt.map { String(localized: "Sends \($0.formatted(date: .abbreviated, time: .shortened))") } ?? "Waiting to send")
                         .font(.callout)
                     Spacer()
                     Button { editScheduled(waiting) } label: { Label("Edit", systemImage: "pencil") }

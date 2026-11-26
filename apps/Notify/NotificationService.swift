@@ -1,6 +1,6 @@
 // JMAP Connect's notification extension. iOS wakes it for each instant alert from our relay, before the alert
-// shows. It fetches the newest email from Fastmail with the token on this device and swaps "New mail" for the
-// sender and subject. If anything goes wrong or takes too long, the plain "New mail" alert shows instead.
+// shows. It fetches the newest email from Fastmail with the token on this device and swaps String(localized: "New mail") for the
+// sender and subject. If anything goes wrong or takes too long, the plain String(localized: "New mail") alert shows instead.
 
 import Foundation
 import UserNotifications
@@ -55,8 +55,8 @@ enum NewMail {
         // Already shown, or old (mail that went straight to a folder we don't show, such as Spam): keep "New mail".
         if newest.id == r.lastEmail || newest.received.timeIntervalSinceNow < -15 * 60 { return }
         c.title = newest.sender
-        c.body = newest.subject.isEmpty ? "(no subject)" : newest.subject
-        if let folder = newest.folder { c.subtitle = "In \(folder)" }
+        c.body = newest.subject.isEmpty ? String(localized: "(no subject)") : newest.subject
+        if let folder = newest.folder { c.subtitle = String(localized: "In \(folder)") }
         c.userInfo["account"] = r.accountId
         c.userInfo["email"] = newest.id
         r.lastEmail = newest.id
@@ -106,7 +106,7 @@ enum NewMail {
             guard let id = e["id"] as? String else { continue }
             let from = (e["from"] as? [[String: Any]])?.first
             let name = (from?["name"] as? String)?.trimmingCharacters(in: .whitespaces)
-            let sender = (name?.isEmpty == false ? name : nil) ?? (from?["email"] as? String) ?? "New mail"
+            let sender = (name?.isEmpty == false ? name : nil) ?? (from?["email"] as? String) ?? String(localized: "New mail")
             let received = (e["receivedAt"] as? String).flatMap { iso.date(from: $0) } ?? Date()
             let inInbox = boxes.contains { roles[$0] == "inbox" }
             let folder = inInbox ? nil : boxes.compactMap { names[$0] }.first

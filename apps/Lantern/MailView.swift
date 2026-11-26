@@ -336,7 +336,7 @@ struct Naming: Identifiable {
     let state: AccountState
     let box: Mailbox?
     let renaming: Bool
-    var title: String { renaming ? "Rename folder" : box.map { "New folder in \($0.name)" } ?? "New folder" }
+    var title: String { renaming ? "Rename folder" : box.map { String(localized: "New folder in \($0.name)") } ?? "New folder" }
 }
 
 /// One folder in the sidebar: its unread count, an arrow to fold its subfolders away, a menu to add or rename
@@ -361,7 +361,7 @@ struct FolderRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(store.isCollapsed(box, in: state) ? "Show folders inside \(box.name)" : "Hide folders inside \(box.name)")
+                .accessibilityLabel(store.isCollapsed(box, in: state) ? String(localized: "Show folders inside \(box.name)") : String(localized: "Hide folders inside \(box.name)"))
             } else {
                 Color.clear.frame(width: 14, height: 14)
             }
@@ -596,7 +596,7 @@ private struct OfflineBar: View {
         let waiting = store.outbox == 1 ? "1 email waiting to send" : "\(store.outbox) emails waiting to send"
         HStack(spacing: 7) {
             Image(systemName: store.offline ? "wifi.slash" : "paperplane")
-            Text(store.offline ? (store.outbox > 0 ? "Offline. \(waiting)" : "Offline. Showing mail saved on this device")
+            Text(store.offline ? (store.outbox > 0 ? String(localized: "Offline. \(waiting)") : "Offline. Showing mail saved on this device")
                                : "Sending \(waiting.replacingOccurrences(of: " waiting to send", with: ""))")
                 .lineLimit(1)
             Spacer(minLength: 0)

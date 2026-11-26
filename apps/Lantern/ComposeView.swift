@@ -129,7 +129,7 @@ struct ComposeDraft: Identifiable {
     /// "On Wed 18 Nov 2026 at 10:47, Maya Chen wrote:" and the email below it, each line marked with >.
     private static func quote(_ e: Email, _ text: String) -> String {
         let lines = text.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n").map { $0.isEmpty ? ">" : "> " + $0 }
-        return "On \(When.long(e.date)), \(e.sender.display) wrote:\n" + lines.joined(separator: "\n")
+        return String(localized: "On \(When.long(e.date)), \(e.sender.display) wrote:\n") + lines.joined(separator: "\n")
     }
 }
 
@@ -190,7 +190,7 @@ struct ComposeView: View {
                                       threading: draft.threading, attachments: files, replacing: draft.draftId)
             dismiss()
         } catch {
-            problem = "Couldn't save the draft: \(error.localizedDescription)"
+            problem = String(localized: "Couldn't save the draft: \(error.localizedDescription)")
         }
         savingDraft = false
     }
@@ -496,7 +496,7 @@ struct ComposeView: View {
                                 }
                                 draft.unmatched = nil
                             } catch {
-                                problem = "Couldn't add \(address): \(error.localizedDescription)"
+                                problem = String(localized: "Couldn't add \(address): \(error.localizedDescription)")
                             }
                         }
                     } label: { Label("Reply from it", systemImage: "plus.circle") }
@@ -643,7 +643,7 @@ struct ComposeView: View {
     private func addFile(_ url: URL) async {
         let open = url.startAccessingSecurityScopedResource()
         defer { if open { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { problem = "Couldn't read \(url.lastPathComponent)."; return }
+        guard let data = try? Data(contentsOf: url) else { problem = String(localized: "Couldn't read \(url.lastPathComponent)."); return }
         let type = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
         await upload(data, name: url.lastPathComponent, type: type)
     }

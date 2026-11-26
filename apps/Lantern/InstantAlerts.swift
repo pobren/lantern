@@ -26,10 +26,10 @@ final class InstantAlerts: ObservableObject {
         case relay(Int), paused, noAppleAddress, refused(String), noCode
         var errorDescription: String? {
             switch self {
-            case .relay(let code): "The alerts relay didn't answer (\(code)). Try again later."
+            case .relay(let code): String(localized: "The alerts relay didn't answer (\(code)). Try again later.")
             case .paused: "Instant alerts are paused for now. New mail is still checked in the background."
             case .noAppleAddress: "Apple didn't give this device a push address. Check notifications are on for JMAP Connect in the Settings app."
-            case .refused(let why): "Your mail server turned down the request: \(why)"
+            case .refused(let why): String(localized: "Your mail server turned down the request: \(why)")
             case .noCode: "Your mail server didn't confirm in time. Try turning instant alerts off and on again."
             }
         }
@@ -272,12 +272,12 @@ enum AlertActions {
 
     static func register() {
         // Reply first: on Apple Watch it offers dictation, scribble and suggested replies.
-        let replyButton = UNTextInputNotificationAction(identifier: reply, title: "Reply", options: [],
+        let replyButton = UNTextInputNotificationAction(identifier: reply, title: String(localized: "Reply"), options: [],
                                                         icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
-                                                        textInputButtonTitle: "Send", textInputPlaceholder: "Your reply")
-        let archiveButton = UNNotificationAction(identifier: archive, title: "Archive", options: [],
+                                                        textInputButtonTitle: String(localized: "Send"), textInputPlaceholder: String(localized: "Your reply"))
+        let archiveButton = UNNotificationAction(identifier: archive, title: String(localized: "Archive"), options: [],
                                                  icon: UNNotificationActionIcon(systemImageName: "archivebox"))
-        let readButton = UNNotificationAction(identifier: read, title: "Mark as read", options: [],
+        let readButton = UNNotificationAction(identifier: read, title: String(localized: "Mark as read"), options: [],
                                               icon: UNNotificationActionIcon(systemImageName: "envelope.open"))
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: category, actions: [replyButton, archiveButton, readButton], intentIdentifiers: []),
@@ -290,7 +290,7 @@ enum AlertActions {
         guard !words.isEmpty else { return nil }
         let saved = UserDefaults.standard.data(forKey: "accounts").flatMap { try? JSONDecoder().decode([Account].self, from: $0) } ?? []
         guard let a = saved.first(where: { $0.id == account }), let secret = Keychain.read(a.id) else {
-            return "Open JMAP Connect to reply."
+            return String(localized: "Open JMAP Connect to reply.")
         }
         let client = WatchJMAP(WatchAccount(id: a.id, label: a.label, session: a.sessionURL)) { force in
             try await FastmailOAuth.header(secret, force: force)

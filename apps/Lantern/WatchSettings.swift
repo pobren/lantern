@@ -130,7 +130,7 @@ struct WatchSettingsPage: View {
                 let who = await username(tokens.access)
                 guard who == nil || who?.lowercased() == s.account.username.lowercased() else {
                     await FastmailOAuth.signOut(secret)
-                    problem = "That was \(who ?? "another account"). Sign in as \(s.account.username) for this one."
+                    problem = String(localized: "That was \(who ?? "another account"). Sign in as \(s.account.username) for this one.")
                     return
                 }
                 guard WatchLink.shared.sendGrant(account: s.account.id, tokens) else {

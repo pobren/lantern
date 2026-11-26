@@ -1,0 +1,2422 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "\n\nSent from my %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    " Write only the reply's words: no subject line, no signature, no placeholders in brackets.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    " https: http:": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "#, with: ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ %lld from %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ (shared)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ has no Archive folder.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ has no Inbox folder.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ has no Spam folder.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ hasn't been opened before, so it needs a connection.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ is over 25 MB, too big to email.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@ · you read %lld of %lld": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%@: this server doesn't offer instant alerts, so new mail is checked in the background.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld emails waiting to send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld new emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld newsletters in the last three months": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld seconds": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "%lld unread": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(?i)(/open(\\.gif|\\.png|\\.aspx|\\?|/)|/track/open|/wf/open|/pixel(\\.gif|\\.png|/|\\?)|/beacon|/trk\\?|/openrate|/o\\.gif|[?&](utm_medium=email&)?.*open_tracking)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(?i)<br\\s*/?>|</p>|</div>|</li>|</tr>|</h\\d>": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(?i)<img[^>]+src=[": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(?is)<(style|script|head)[^>]*>.*?</\\1>": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(No subject)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(no subject)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "(width|height)\\s*:\\s*[01]px": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    ", options: .regularExpression)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "---------- Forwarded message ----------": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "-----Original Message-----": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "1 email waiting to send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "1 month": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "12 months": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "3 months": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "A private address for each website, delivered to your inbox. Turn any of them off when the spam starts.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "A quick summary of your unread email, made on this device": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "API key": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "API token": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "About ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "About %lld a day": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "About %lld a month": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "About %lld a week": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Accept": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Accounts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add %@ to Calendar": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add Mail App or another JMAP provider": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add a Fastmail account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add a link": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add a private note": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add email": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add phone": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add sender to Contacts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Add your Fastmail account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Adding…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Address book": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "AddressBook/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Adds Newsletters to the sidebar: every mailing list that's emailed you lately, how often it sends and how much you read, with Unsubscribe and Archive all.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "After you press Send, there's an Undo button for this long. Your mail server holds the email meanwhile, so it still goes if you close the app.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "All": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "All accounts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "All inboxes": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "All mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "All read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "An automatic reply, saved in Fastmail, so it works with every device switched off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "An email asking to unsubscribe opens, ready to send.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "An email in the Outbox couldn't be sent: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Another JMAP server": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "App password": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Apple Intelligence": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Apple Intelligence is still getting ready on this device. Try again later.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Apple Intelligence isn't available on this device.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Apple Watch": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Apple didn't give this device a push address. Check notifications are on for JMAP Connect in the Settings app.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archive": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archive (⌃⌘A)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archive all": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archive all and Delete all only touch this sender's emails still in your inbox. Undo puts them back.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archived": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archived %lld conversations": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Archived 1 conversation": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "As": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Ask the community": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Attach": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Attach files (⇧⌘A)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Attachment": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Authorization": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Away from your iPhone": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "BEGIN:VCALENDAR": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "BEGIN:VEVENT": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Back to the starting list": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Bad server address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Bcc": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Block trackers": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Blocked %lld trackers": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Blocked 1 tracker": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Bold": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Bulleted list": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Call": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Can I get back to you later?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cancel": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Card": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Carry on writing this draft (⌘E)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Catch up": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cc": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cc ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cc, Bcc and From: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cc/Bcc, From:": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Check for new mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Choose a time": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Choose which mail accounts JMAP Connect shows while this Focus is on.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Choose who it's from first.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Clear saved mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Clear search": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Clearing": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Close": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Company": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Contact": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "ContactCard/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "ContactCard/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Contacts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Contacts need Contacts access. Sign in again with Fastmail, or make a new API token with Contacts ticked.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Copied %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Copy": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Copy address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't add %@: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't attach the original email.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't draft a reply: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't find a JMAP server for that email address. Enter the server's address instead.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't find that server. Check the address.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't load the whole email.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't make a catch up: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't open %@: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't read %@.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't read that photo.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't save the draft: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't save the email: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't save the reply to address: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't save the signature: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Couldn't summarise: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Create": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Cyrus": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "DTSTAMP:%@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete %@?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete (⌘⌫)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete all": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete contact": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Delete every email from %@ in your inbox?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Deleted": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Deleted %lld conversations": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Deleted 1 conversation": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Discard changes": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Don't send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Done": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Draft a reply": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Drafts or Sent": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "END:VCALENDAR": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "END:VEVENT": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Edit": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Edit contact": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Edit draft": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email,Mailbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email/changes": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email/query": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Email/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "EmailSubmission/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "EmailSubmission/query": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "EmailSubmission/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "End on a date": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "English": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Enter your email address or the server's address.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Error": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Every email's sender, subject and preview is kept so lists and search work offline, plus the full text of emails from the time above and any attachments you've opened. Full emails download on Wi-Fi only. Saved mail stays on this device, isn't backed up to iCloud, and downloads again after clearing.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Extras": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail didn't make the address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail didn't sign you in (%@). Try again, or use an API token instead.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail makes a new random address that delivers to your inbox. You can turn it off any time.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail makes the address, and we copy it for you.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail signed this account out. Sign in again to carry on.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fastmail uses folders unless you switch to labels in its settings. Turn this on if you use labels, and the More menu gets a Labels list for adding and removing them.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Files": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Filter": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "First name": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Forward": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Forward (⇧⌘F)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Forward as attachment": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Found in ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "From": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "From ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "From %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "From a mailing list.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Fwd:": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Help": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Hide folders inside": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Hide folders inside %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "How JMAP Connect tells you about new mail.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "How many emails in your inboxes are unread.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "I use labels, not folders": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "I'm away until Monday and will reply when I'm back.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Identity/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Identity/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In Fastmail, open Settings, then Privacy & Security, then Manage API tokens. Make a new token with Email access, Email submission so you can send, and Masked Email and Contacts if you use them.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In Mail App, open Admin, then API & webhooks, and make a new key with Read, Organise, Send and Delete for your mailboxes. Use your email address, the key as the password and your Mail App address as the server.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In Stalwart's web interface, open your account's security settings and make an app password for JMAP Connect. The server is the address you open Stalwart's web interface on.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In an hour": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "In your Thundermail dashboard, open Email Settings and press Create app password. Use your Thundermail address and that app password.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Inbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Inbox (%lld)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Inbox all read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Instant": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Instant alerts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Instant alerts are paused for now. New mail is still checked in the background.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "It's removed from your address book everywhere, including Fastmail on the web.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Italic": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "JMAP Connect": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "JMAP Connect Help": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "JMAP Connect iOS": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "JMAP session address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Job title": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Keep full emails for": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Keep this search in the sidebar as a smart folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Keep writing": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Labels": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Last name": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Latest emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Least read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Let replies to this conversation into the inbox again": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Link": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "List-Unsubscribe=One-Click": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Load pictures from the web": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Logo": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mac (%@)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Made on this device. Your email didn't leave it.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail App": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail App address, such as mail.example.com": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail App address, such as mail.yourdomain.com": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mail kept on this Mac, so you can read and search without a connection.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mailbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mailbox/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mailbox/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mailbux": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Make and copy": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Making": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Map": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mark as read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mark as spam": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mark as spam (⇧⌘J)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mark as unread": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Marked as spam": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Masked Email": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Masked Email and Out of office, saved in your Fastmail account.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Masked Email makes a private address for each website. Out of office replies are saved in Fastmail, so they work with every device switched off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Masked Email makes a private address for each website. Out of office replies are saved on your mail server, so they work with every device switched off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Masked Email, %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "MaskedEmail/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "MaskedEmail/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Message": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Message (further down)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Monday at 8am": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "More": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Most often": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Move again": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Move again (⌥⌘T)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Move again to %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Move to": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Move to a folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Moved %lld to %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Moved to %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Moved to Inbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Must end @%@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Mute conversation": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Muted": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Name": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Needs Apple Intelligence (macOS 26 or iOS 26 on a recent device).": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New contact": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New emails from": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New emails from (%@)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New folder in %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New folder inside": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New mail arrives instantly": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New masked address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New message": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New message (⌘N)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "New quick reply": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Newsletter manager": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Newsletters": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No %@ emails here": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No Drafts or Sent folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No address to send from": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No contact selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No contacts yet. Press + to add one.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No conversation selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No emails match": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No emails yet.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No inbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No name": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No newsletter selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No newsletters in the last three months.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No server": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "No unsubscribe link found": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "None": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "None left in the inbox": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Not affiliated with Fastmail. Fastmail is a trademark of its owner.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Not selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Not sent. It's back in Drafts.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Not spam": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Not spam: move back to the Inbox (⇧⌘J)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Note": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Nothing here": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Notifications": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Now and then": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Numbered list": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Off": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Off: mail to these goes to the bin": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Offline": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Offline. %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Offline. Showing mail saved on this device": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "On": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "On ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "On %@, %@ wrote:\n": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "On my way.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "On. New mail shows the moment it arrives.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Only you see this.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Only you see this. It's saved with the contact in your address book.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open JMAP Connect on your iPhone and add your mail account. Your inbox then shows here.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open JMAP Connect on your iPhone first.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open JMAP Connect to fill this in.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open JMAP Connect to reply.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open in Maps": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Open in new window": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Opens Calendar with \"%@\" ready to add": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Opens the JMAP Connect community, where people help each other and we answer.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Or add a new account:": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Or use a new key:": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Out of office": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Out of office replies are saved on your mail server, so they work with every device switched off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Out of office, %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "PRODID:-//JMAP Connect//EN": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Phone": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Phone number": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Photo %lld.%@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Photos": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Pictures and sender photos in the emails you open.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Pictures from the web are hidden.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Print…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Privacy": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Private AI": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Private note": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Provider": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "PushSubscription/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Quick replies": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reading": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reading your unread email on this device…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Recent emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Refresh": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove %@?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove and forget the key": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove smart folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove star": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove this search from the sidebar": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Remove, keep the key": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Rename": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Rename folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Rename smart folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Replies go out from the address the email was sent to, when you can send from it.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Replies to this conversation skip the inbox (⇧⌘M)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply (⌘R)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply all": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply all (⇧⌘R)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply from it": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply to": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Reply to %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Report a problem": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Same address": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sample mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Save": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Save as smart folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Save as…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Save this email to Drafts?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Save to Drafts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Saved to your Fastmail account, so they match on the web and in other apps.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Saved to your mail account, so they match on the web and in other apps.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Saving": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Say or type": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Schedule": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Scheduled": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Search": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Search contacts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Search in": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Search masked addresses": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Search, or try from: to: subject: has:attachment": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Select": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Select emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Select several emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Selected": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Send an automatic reply": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Send at": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Send later": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Send now instead": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sending": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sending %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sending and signatures": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sending in %llds": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sending…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sends %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sent": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sent to %@, which isn't set up for sending.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Server, such as mail.example.com (optional)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Set time": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Setting up with Fastmail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Settings": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Share…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show accounts": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show folders inside": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show folders inside %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show only unread, starred or with attachments": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show pictures": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Show senders' Gravatar pictures": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Showing: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sign back in as %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sign in": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sign in on Fastmail's own page. JMAP Connect never sees your password.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sign in was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sign in with Fastmail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Signature": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Signature and Reply to": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Smart folders": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sort": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Sounds good.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Space used on this device": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Spam": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Stalwart": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Star": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Starred": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Starred only": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Start on a date": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Stop selecting": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Subject": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Subject ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Subject (optional)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Subject contains \"%@\"": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Suggest an idea": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Summarise": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Summarise emails, catch up on what's unread and draft replies, using Apple Intelligence on this device. Your email never leaves it and nothing is sent to us or anyone else.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Summarising on this device…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Summary, made on this device": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Takes out the hidden pictures that tell senders when and where you opened their email, and says how many were blocked. Done on this device.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Tap one on your Apple Watch under Reply to send it straight away. Swipe left to remove one.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Tell me about new mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Thanks!": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That conversation is already in the bin.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That doesn't look like a JMAP server address.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That email has gone": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That sign in didn't come back from Fastmail as expected, so it wasn't used. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That was %@. Sign in as %@ for this one.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "That's the only label on this email. Archive or move it instead.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The accounts on this Mac, and the app version.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The alerts relay didn't answer (%lld). Try again later.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The native mail app for Fastmail. Fast, simple and private.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The selected words link to this address.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The sender's unsubscribe page opens in your browser.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server answered with an error (%lld). Try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server couldn't do that (%@%@).": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server didn't accept that sign in. Check the token or app password and try again.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server didn't answer. Check the address, or try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server left out %@.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The server's security certificate isn't valid, so JMAP Connect won't connect. Check the server address, or ask whoever runs the server to fix its certificate.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "The unsubscribe page opened in your browser.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "They go to the Bin, and Undo puts them back.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This device doesn't support Apple Intelligence.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This email had %lld hidden pictures that would tell the sender when and where you opened it. JMAP Connect took them out before showing the email, so the sender doesn't know. You can turn this off in Settings.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This email had a hidden picture that would tell the sender when and where you opened it. JMAP Connect took it out before showing the email, so the sender doesn't know. You can turn this off in Settings.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This email had hidden pictures that tell the sender when you open it. They were removed.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This email isn't there any more.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "This evening at 6pm": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Thread/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Thundermail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "To": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "To ": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "To %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Tomorrow at 8am": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Too late to undo: the email has gone.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Trackers blocked": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Try again": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Try it with sample mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Turn off": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Turn on": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Turn on Apple Intelligence in System Settings to use this.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Turn this off to stop senders seeing when you open their emails. You can still show pictures on any email.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Underline": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Undo": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Undo send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unknown sender": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unmute conversation": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unread": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unread count on the app icon": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unread mail": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unread only": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unstar": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribe": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribe by email from the newsletter itself": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribe from %@?": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribe page opened": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribed": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Unsubscribed. It can take the sender a few days to stop.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Until": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use Mail App or another JMAP provider": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use Move to first, then Move again repeats it.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use an API token instead": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use the email address and password (or app password) from whoever runs your Cyrus server, and its address.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use your Mailbux email address and password, or an app password if you've made one.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Use your email address and an app password. Leave the server empty to find it from your email address, or enter the address your provider gives for JMAP. If your provider gives you an API token instead, leave the email address empty.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "VERSION:2.0": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "VacationResponse/get": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "VacationResponse/set": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Version %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Waiting to send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "We'll tell the sender to stop, straight away.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Website (optional)": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Welcome to JMAP Connect": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "What it's for, such as Netflix": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Who your emails come from, where replies go and your signatures.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Will do.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "With attachments": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Without dates, the reply goes out from now until you turn it off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Without instant alerts, iPhone and iPad check for mail in the background when iOS allows, usually every 15 minutes or so.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Without this, your Watch uses your iPhone's Fastmail sign in, which lasts about an hour once your iPhone is out of reach. Sign in once more here and the Watch gets a sign in of its own, so it keeps checking mail over Wi-Fi or mobile signal. It goes straight to your Watch; nothing is kept on this iPhone or sent anywhere else.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Working it out": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Writing a draft on this device…": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Yes": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Yesterday": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "You can pick it up again from your Drafts folder.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "You're all caught up. Nothing unread in your inbox.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "You're offline. Check your connection and try again.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "You're offline. Try that again once you're connected.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your Fastmail API token doesn't allow Masked Email. In Fastmail, make a new token with Masked Email ticked as well, then remove this account and add it again with the new token.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your Fastmail API token doesn't allow this. You can set an out of office reply in Fastmail on the web, under Settings, then Vacation response.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your Watch isn't connected. Open JMAP Connect on your Watch, then try again.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your inbox is empty.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail goes straight between this device and your provider. Not affiliated with any provider.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail goes straight to your provider": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server answered with an error (%lld).": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server didn't accept the sign in. Open JMAP Connect on your iPhone, or let the Watch sign in on its own in Settings, Apple Watch.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server didn't confirm in time. Try turning instant alerts off and on again.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server keeps the email and sends it then, even if this device is off.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server tells our relay the moment mail arrives, and the relay wakes this device. Your email never passes through us: the server encrypts the notice for this device, which then fetches the sender and subject from the server itself.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail server turned down the request: %@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail stays in Fastmail. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your mail stays with your provider. Keep the key and you can sign back in with one tap, here or on your other devices. Forget it and you'll need a new key next time.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your reply": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your reply didn't send": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your sending addresses show here once your account has loaded.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "Your unread count and latest emails.": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "a Drafts folder": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "a mail account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "a state": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "a working key: it was deleted in %@, so make a new one": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "an account": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "an address book": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "an answer": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "any address @%@": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "d MMM": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "d MMM yyyy": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "event: state": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 12px; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 12px;": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "font-size: 16px; font-weight: 600; margin-bottom: 6px;": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "how often": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "in 3 months": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "light only": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "no reason given": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "out of office": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "the address it was written from": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "the code wasn't accepted": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "the original email": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "the saved key": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "the uploaded file": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "unread email": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "unread emails": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "width=device-width, initial-scale=1": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "with attachments": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "you read": {
+      "extractionState": "manual",
+      "localizations": {}
+    },
+    "⌘↩ to send": {
+      "extractionState": "manual",
+      "localizations": {}
+    }
+  },
+  "version": "1.0"
+}

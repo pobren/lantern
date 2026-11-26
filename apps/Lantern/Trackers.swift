@@ -82,7 +82,9 @@ struct TrackersBlocked: View {
         .alert("Trackers blocked", isPresented: $explaining) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("This email had \(count == 1 ? "a hidden picture" : "\(count) hidden pictures") that would tell the sender when and where you opened it. JMAP Connect took \(count == 1 ? "it" : "them") out before showing the email, so the sender doesn't know. You can turn this off in Settings.")
+            Text(count == 1
+                 ? "This email had a hidden picture that would tell the sender when and where you opened it. JMAP Connect took it out before showing the email, so the sender doesn't know. You can turn this off in Settings."
+                 : "This email had \(count) hidden pictures that would tell the sender when and where you opened it. JMAP Connect took them out before showing the email, so the sender doesn't know. You can turn this off in Settings.")
         }
     }
 }
