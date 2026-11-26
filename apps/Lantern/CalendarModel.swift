@@ -162,7 +162,7 @@ final class CalendarModel: ObservableObject {
     /// One for the app, so an invitation in any window (a Mac email in its own window too) can reach the calendar.
     static let shared = CalendarModel()
 
-    enum Mode: String { case day, week, month }
+    enum Mode: String { case day, week, month, list }
 
     @Published var calendars: [CalendarInfo] = []
     @Published var hidden: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "calendarHidden") ?? []) {
@@ -385,6 +385,8 @@ final class CalendarModel: ObservableObject {
         cal.timeZone = .current
         let day = cal.startOfDay(for: date)
         if mode == .day { return [day] }
+        // The list runs for twelve weeks from the chosen day, like Apple's list of upcoming events.
+        if mode == .list { return (0..<84).compactMap { cal.date(byAdding: .day, value: $0, to: day) } }
         if mode == .month {
             // Six weeks from the Monday on or before the 1st, so every month fits the same grid.
             let first = cal.dateInterval(of: .month, for: day)?.start ?? day
@@ -403,7 +405,7 @@ final class CalendarModel: ObservableObject {
 
     func move(_ steps: Int) {
         let cal = Foundation.Calendar.current
-        if mode == .month { date = cal.date(byAdding: .month, value: steps, to: date) ?? date; return }
+        if mode == .month || mode == .list { date = cal.date(byAdding: .month, value: steps, to: date) ?? date; return }
         date = cal.date(byAdding: .day, value: steps * (mode == .day ? 1 : 7), to: date) ?? date
     }
 

@@ -25,29 +25,6 @@ struct CalendarSide: View {
                 MonthGrid(model: model, pick: { d in model.date = d; openDay() })
                     .listRowInsets(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
             }
-            ForEach(model.needsApproval, id: \.self) { id in
-                if let s = store.state(id: id) {
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Show your Fastmail calendar").font(.headline)
-                            Text("Fastmail asks you to approve calendar access once. Your mail stays signed in.")
-                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            Button {
-                                turningOn = id
-                                Task { await model.turnOn(s, using: webAuth, store: store); turningOn = nil }
-                            } label: {
-                                Label(turningOn == id ? "Waiting for Fastmail" : "Turn on calendar", systemImage: "calendar.badge.plus")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(turningOn != nil)
-                        }
-                        .padding(.vertical, 4)
-                    } header: { Text(s.account.label) }
-                }
-            }
-            if let p = model.problem {
-                Section { Label(p, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.secondary) }
-            }
             let day = model.events(in: DateInterval(start: Calendar.current.startOfDay(for: model.date), duration: 86_400))
             Section {
                 if day.isEmpty {
@@ -92,9 +69,9 @@ private struct AgendaRow: View {
             RoundedRectangle(cornerRadius: 2).fill(model.colour(event.calendar)).frame(width: 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.body.weight(.medium)).lineLimit(2)
-                Text(event.timeText).font(.caption).foregroundStyle(.secondary)
+                Text(event.timeText).font(Look.size(13)).foregroundStyle(.secondary)
                 if !event.location.isEmpty && event.joinLink?.absoluteString != event.location {
-                    Text(event.location).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(event.location).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
@@ -140,7 +117,7 @@ struct MonthGrid: View {
             let cols = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
             LazyVGrid(columns: cols, spacing: 4) {
                 ForEach(0..<7, id: \.self) { i in
-                    Text(CalText.weekday.string(from: days[i]).prefix(2)).font(.caption2).foregroundStyle(.secondary)
+                    Text(CalText.weekday.string(from: days[i]).prefix(2)).font(Look.size(11.5)).foregroundStyle(.secondary)
                 }
                 ForEach(days, id: \.self) { d in
                     let inMonth = cal.isDate(d, equalTo: month, toGranularity: .month)
@@ -149,7 +126,7 @@ struct MonthGrid: View {
                     Button { pick(d) } label: {
                         VStack(spacing: 2) {
                             Text(CalText.dayNumber.string(from: d))
-                                .font(.callout.weight(today ? .bold : .regular))
+                                .font(Look.size(15, weight: today ? .bold : .regular))
                                 .foregroundStyle(chosen ? Color.white : today ? Look.accent : inMonth ? Color.primary : Color.secondary.opacity(0.6))
                                 .frame(width: 28, height: 28)
                                 .background(Circle().fill(chosen ? Look.accent : .clear))
@@ -173,12 +150,14 @@ struct MonthGrid: View {
 struct CalendarGrid: View {
     @EnvironmentObject var store: Store
     @ObservedObject var model: CalendarModel
+    /// Mac and iPad: brings back the folders (the calendar fills the window on its own).
+    var folders: (() -> Void)? = nil
     @State private var chosen: CalEvent?
     @State private var drafting: DraftBox?
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
-    private let hourHeight: CGFloat = 52
+    private let hourHeight: CGFloat = 58
     private var gutter: CGFloat { compact ? 40 : 46 }
 
     var body: some View {
@@ -187,8 +166,11 @@ struct CalendarGrid: View {
         VStack(spacing: 0) {
             header.fixedSize(horizontal: false, vertical: true)
             Divider()
+            CalendarBanner(model: model)
             if model.mode == .month {
                 MonthView(model: model, events: events, open: { chosen = $0 })
+            } else if model.mode == .list {
+                ListView(model: model, days: days, events: events, open: { chosen = $0 })
             } else {
                 dayHeadings(days).fixedSize(horizontal: false, vertical: true)
                 allDayRow(days, events.filter(\.allDay)).fixedSize(horizontal: false, vertical: true)
@@ -208,6 +190,7 @@ struct CalendarGrid: View {
         .background(Look.paper)
         .sheet(item: $chosen) { e in EventDetail(event: e, model: model).environmentObject(store) }
         .sheet(item: $drafting) { box in EventEditor(model: model, draft: box.draft).environmentObject(store) }
+        .task { await model.start(store) }
         .task(id: model.range) { await model.ensure(model.range, store: store) }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -229,7 +212,7 @@ struct CalendarGrid: View {
     private var title: String {
         switch model.mode {
         case .day: return CalText.longDay.string(from: model.date)
-        case .month: return CalText.month.string(from: model.date)
+        case .month, .list: return CalText.month.string(from: model.date)
         case .week: return CalText.month.string(from: model.days.first ?? model.date)
         }
     }
@@ -258,6 +241,7 @@ struct CalendarGrid: View {
             Text("Day").tag(CalendarModel.Mode.day)
             Text("Week").tag(CalendarModel.Mode.week)
             Text("Month").tag(CalendarModel.Mode.month)
+            Text("List").tag(CalendarModel.Mode.list)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
@@ -285,6 +269,11 @@ struct CalendarGrid: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
         } else {
             HStack(spacing: 10) {
+                if let folders {
+                    Button(action: folders) { Label("Folders", systemImage: "sidebar.left") }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        .help("Show folders")
+                }
                 #if os(macOS)
                 Text(title).font(.title3.weight(.semibold)).lineLimit(1)
                 #endif
@@ -328,7 +317,7 @@ struct CalendarGrid: View {
                             .padding(.horizontal, today ? 6 : 0).padding(.vertical, today ? 1 : 0)
                             .background(Capsule().fill(today ? Look.accent : .clear))
                     }
-                    .font(.callout)
+                    .font(Look.size(14.5))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity)
@@ -345,12 +334,12 @@ struct CalendarGrid: View {
         return Group {
             if perDay.contains(where: { !$0.isEmpty }) {
                 HStack(alignment: .top, spacing: 0) {
-                    Text("All day").font(.caption2).foregroundStyle(.secondary).frame(width: gutter)
+                    Text("All day").font(Look.size(11.5)).foregroundStyle(.secondary).frame(width: gutter)
                     ForEach(days.indices, id: \.self) { i in
                         VStack(spacing: 2) {
                             ForEach(perDay[i]) { e in
                                 Button { chosen = e } label: {
-                                    Text(e.title).font(.caption.weight(.medium)).lineLimit(1)
+                                    Text(e.title).font(Look.size(13, weight: .medium)).lineLimit(1)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.horizontal, 5).padding(.vertical, 2)
                                         .background(RoundedRectangle(cornerRadius: 4).fill(model.colour(e.calendar).opacity(0.25)))
@@ -376,7 +365,7 @@ struct CalendarGrid: View {
             ForEach(0..<24, id: \.self) { h in
                 HStack(alignment: .top, spacing: 0) {
                     Text(h == 0 ? "" : String(format: "%02d:00", h))
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(Look.size(11.5)).foregroundStyle(.secondary)
                         .frame(width: gutter - 6, alignment: .trailing)
                         .offset(y: -7)
                     Rectangle().fill(Look.line.opacity(0.6)).frame(height: 0.5).padding(.leading, 6)
@@ -431,6 +420,130 @@ struct CalendarGrid: View {
 }
 
 /// A month at a glance: six weeks, each day with as many events as fit and "n more" after.
+/// Above the calendar: approving calendar access for an account, or a problem reaching the server.
+private struct CalendarBanner: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject var model: CalendarModel
+    @Environment(\.webAuthenticationSession) private var webAuth
+    @State private var turningOn: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(model.needsApproval, id: \.self) { id in
+                if let s = store.state(id: id) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.plus").font(Look.size(20)).foregroundStyle(Look.accent)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show your calendar for \(s.account.label)").font(Look.size(15, weight: .semibold))
+                            Text("Fastmail asks you to approve calendar access once. Your mail stays signed in.")
+                                .font(Look.size(13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        Button {
+                            turningOn = id
+                            Task { await model.turnOn(s, using: webAuth, store: store); turningOn = nil }
+                        } label: {
+                            Label(turningOn == id ? "Waiting" : "Turn on", systemImage: "checkmark.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(turningOn != nil)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(Look.accent.opacity(0.08))
+                    Divider()
+                }
+            }
+            if let p = model.problem {
+                Label(p, systemImage: "exclamationmark.triangle")
+                    .font(Look.size(13)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                Divider()
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Upcoming events a day at a time, like Apple Calendar's list: a heading for each day with something on, then each
+/// event with its colour, title, place and times.
+private struct ListView: View {
+    @ObservedObject var model: CalendarModel
+    let days: [Date]
+    let events: [CalEvent]
+    let open: (CalEvent) -> Void
+
+    var body: some View {
+        let groups: [(Date, [CalEvent])] = days.compactMap { d in
+            let end = d.addingTimeInterval(86_400)
+            let on = events.filter { $0.start < end && $0.end > d && !($0.allDay && $0.end <= d) }
+                .sorted { ($0.allDay ? 0 : 1, $0.start) < ($1.allDay ? 0 : 1, $1.start) }
+            return on.isEmpty ? nil : (d, on)
+        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if groups.isEmpty {
+                    Text("Nothing on in the next twelve weeks")
+                        .font(Look.size(15)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.top, 40)
+                }
+                ForEach(groups.indices, id: \.self) { i in
+                    let day = groups[i].0, list = groups[i].1
+                    Section {
+                        ForEach(list) { e in
+                            Button { open(e) } label: { row(e, on: day) }
+                                .buttonStyle(.plain)
+                            Divider().padding(.leading, 30)
+                        }
+                    } header: { heading(day) }
+                }
+            }
+            .padding(.bottom, 20)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func heading(_ d: Date) -> some View {
+        let today = Calendar.current.isDateInToday(d)
+        return HStack(spacing: 6) {
+            Text(CalText.f("EEEE").string(from: d)).font(Look.size(16, weight: .bold))
+            Text(CalText.f("d MMM").string(from: d)).font(Look.size(16))
+            if today { Text("Today").font(Look.size(13, weight: .semibold)).foregroundStyle(Look.accent) }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(today ? Look.accent : Color.primary)
+        .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Look.paper)
+    }
+
+    private func row(_ e: CalEvent, on day: Date) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 2).fill(model.colour(e.calendar)).frame(width: 4)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(e.title).font(Look.size(16, weight: .medium)).lineLimit(2)
+                if !e.location.isEmpty && e.joinLink?.absoluteString != e.location {
+                    Text(e.location).font(Look.size(14)).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 3) {
+                if e.allDay {
+                    Text("All day").font(Look.size(14)).foregroundStyle(.secondary)
+                } else {
+                    let starts = Calendar.current.isDate(e.start, inSameDayAs: day)
+                    let ends = Calendar.current.isDate(e.end.addingTimeInterval(-1), inSameDayAs: day)
+                    Text(starts ? CalText.time.string(from: e.start) : "Continues").font(Look.size(14))
+                    Text(ends ? CalText.time.string(from: e.end) : "").font(Look.size(14)).foregroundStyle(.secondary)
+                }
+            }
+            .monospacedDigit()
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+}
+
 private struct MonthView: View {
     @ObservedObject var model: CalendarModel
     let events: [CalEvent]
@@ -442,7 +555,7 @@ private struct MonthView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(0..<7, id: \.self) { i in
-                    Text(CalText.weekday.string(from: days[i])).font(.caption).foregroundStyle(.secondary)
+                    Text(CalText.weekday.string(from: days[i])).font(Look.size(13)).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
             }
@@ -450,7 +563,7 @@ private struct MonthView: View {
             Divider()
             GeometryReader { geo in
                 let rowHeight = geo.size.height / 6
-                let fits = max(0, Int((rowHeight - 26) / 17))
+                let fits = max(0, Int((rowHeight - 30) / 20))
                 VStack(spacing: 0) {
                     ForEach(0..<6, id: \.self) { row in
                         HStack(spacing: 0) {
@@ -478,7 +591,7 @@ private struct MonthView: View {
         VStack(alignment: .leading, spacing: 1) {
             Button { model.date = d; model.mode = .day } label: {
                 Text(CalText.dayNumber.string(from: d))
-                    .font(.callout.weight(today ? .bold : .regular))
+                    .font(Look.size(15, weight: today ? .bold : .regular))
                     .foregroundStyle(today ? Color.white : inMonth ? Color.primary : Color.secondary.opacity(0.6))
                     .frame(minWidth: 24, minHeight: 22)
                     .background(Circle().fill(today ? Look.accent : .clear))
@@ -501,8 +614,8 @@ private struct MonthView: View {
                             Spacer(minLength: 0)
                         }
                     }
-                    .font(.caption)
-                    .frame(height: 16)
+                    .font(Look.size(13))
+                    .frame(height: 19)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -510,7 +623,7 @@ private struct MonthView: View {
             }
             if on.count > shown.count {
                 Button { model.date = d; model.mode = .day } label: {
-                    Text("\(on.count - shown.count) more").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(on.count - shown.count) more").font(Look.size(11.5)).foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -526,11 +639,11 @@ private struct EventBlock: View {
     let compact: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(event.title).font(.caption.weight(.semibold)).lineLimit(compact ? 1 : 3)
+            Text(event.title).font(Look.size(13, weight: .semibold)).lineLimit(compact ? 1 : 3)
             if !compact {
-                Text(CalText.time.string(from: event.start)).font(.caption2).foregroundStyle(.secondary)
+                Text(CalText.time.string(from: event.start)).font(Look.size(11.5)).foregroundStyle(.secondary)
                 if !event.location.isEmpty && event.joinLink == nil {
-                    Text(event.location).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    Text(event.location).font(Look.size(11.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
         }
@@ -639,7 +752,7 @@ struct EventDetail: View {
                         AnswerButtons(current: answered ?? me.status, working: working) { status in
                             Task { await answer(status) }
                         }
-                        if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
+                        if let problem { Text(problem).font(Look.size(14.5)).foregroundStyle(.red) }
                     } header: { Text("Going?") }
                 }
                 if event.organizer != nil || !event.attendees.isEmpty {
@@ -656,7 +769,7 @@ struct EventDetail: View {
                     Section("Notes") { Text(event.notes).textSelection(.enabled) }
                 }
                 if me == nil, let problem {
-                    Section { Text(problem).font(.callout).foregroundStyle(.red) }
+                    Section { Text(problem).font(Look.size(14.5)).foregroundStyle(.red) }
                 }
             }
             .navigationTitle("Event")
@@ -722,10 +835,10 @@ private struct PersonRow: View {
             Image(systemName: icon).foregroundStyle(tint).frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
                 Text(person.label).lineLimit(1)
-                if !person.name.isEmpty { Text(person.email).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if !person.name.isEmpty { Text(person.email).font(Look.size(13)).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer()
-            if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+            if let note { Text(note).font(Look.size(13)).foregroundStyle(.secondary) }
         }
         .accessibilityElement(children: .combine)
     }

@@ -21,6 +21,9 @@ struct RootView: View {
     @State private var calendar = false
     @ObservedObject private var cal = CalendarModel.shared
     @State private var columns: NavigationSplitViewVisibility = .all
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
     @State private var compact: NavigationSplitViewColumn = {
         switch Demo.screen {
         case "folders": return .sidebar
@@ -33,11 +36,14 @@ struct RootView: View {
         Sidebar(compose: { composing = ComposeDraft.new(store: store) }, settings: { settings = true },
                 contacts: { showContacts() }, showingContacts: $contacts,
                 newsletters: { newsletters = true; contacts = false; calendar = false; compact = .content }, showingNewsletters: $newsletters,
-                calendar: { calendar = true; contacts = false; newsletters = false; compact = .content }, showingCalendar: $calendar,
+                calendar: { openCalendar() }, showingCalendar: $calendar,
                 column: $compact)
     }
     @ViewBuilder private var middle: some View {
-        if calendar {
+        if calendar && !regular {
+            // iPhone: the calendar itself, full screen, with Back to the folders.
+            CalendarGrid(model: cal)
+        } else if calendar {
             CalendarSide(model: cal, openDay: { compact = .detail })
         } else if newsletters {
             NewslettersList(model: lists)
@@ -47,6 +53,19 @@ struct RootView: View {
             MessageList(compose: { composing = ComposeDraft.new(store: store) })
         }
     }
+    /// The calendar fills the window: on Mac and iPad the folders tuck away (the button at its top left brings them
+    /// back); on iPhone it opens straight on the calendar.
+    private func openCalendar() {
+        calendar = true; contacts = false; newsletters = false
+        if regular { columns = .detailOnly; compact = .detail } else { compact = .content }
+    }
+    private var regular: Bool {
+        #if os(iOS)
+        return sizeClass != .compact
+        #else
+        return true
+        #endif
+    }
     private func showContacts() {
         newsletters = false
         calendar = false
@@ -55,7 +74,7 @@ struct RootView: View {
     }
     @ViewBuilder private var detail: some View {
         if calendar {
-            CalendarGrid(model: cal)
+            CalendarGrid(model: cal, folders: regular ? { columns = .all } : nil)
         } else if newsletters {
             NewsletterDetail(model: lists, open: { ref in
                 newsletters = false
@@ -124,6 +143,8 @@ struct RootView: View {
                     // and tapping a folder always moves on to its conversations.
                     NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compact) { sidebar } content: { middle } detail: { detail }
                 }
+                // Leaving the calendar brings the mail columns back.
+                .onChange(of: calendar) { _, on in if !on && columns == .detailOnly { columns = .all } }
                 .task {
                     await store.start()
                     if Demo.launchedForScreens { await showScreen() }
