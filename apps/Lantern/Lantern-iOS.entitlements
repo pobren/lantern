@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!-- Instant alerts: Apple push (switched to production when the app is exported for TestFlight and the App Store) -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Instant alerts: shared with the notification extension, which fetches the sender and subject -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)dev.paulobrien.lantern</string>
+		<string>$(AppIdentifierPrefix)dev.paulobrien.lantern.shared</string>
+	</array>
+</dict>
 </plist>

@@ -19,6 +19,12 @@ struct ReadingPane: View {
     @State private var preview: URL?
     @State private var saving: EmailFile?
     @State private var failed = false
+    @State private var unsub: Unsubscribe?
+    @State private var askingUnsub = false
+    @State private var unsubDone: String?
+    @State private var waiting: Waiting?
+    @State private var cancelled = false
+    @Environment(\.openURL) private var openURL
 
     private var shown: Email { thread.first { $0.id == open } ?? thread.last ?? item.email }
     private var earlier: [Email] { thread.filter { $0.id != shown.id } }
@@ -77,6 +83,51 @@ struct ReadingPane: View {
                     .padding(.horizontal, 22)
                 }
                 .padding(.bottom, 10)
+            }
+
+            if cancelled {
+                Label("Not sent. It's back in Drafts.", systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            } else if let waiting {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock")
+                    Text(waiting.sendAt.map { "Sends \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Waiting to send")
+                        .font(.callout)
+                    Spacer()
+                    Button { editScheduled(waiting) } label: { Label("Edit", systemImage: "pencil") }
+                        .buttonStyle(.borderless)
+                    Button {
+                        Task { if await store.cancelScheduled(shown, waiting: waiting, account: item.account) { cancelled = true } }
+                    } label: { Label("Don't send", systemImage: "xmark.circle") }
+                        .buttonStyle(.borderless)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 22).padding(.bottom, 8)
+            }
+
+            if let unsubDone {
+                Label(unsubDone, systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .padding(.horizontal, 22).padding(.bottom, 8)
+            } else if let unsub {
+                HStack(spacing: 10) {
+                    Image(systemName: "envelope.badge")
+                    Text("From a mailing list.").font(.callout)
+                    Spacer()
+                    Button { askingUnsub = true } label: { Label("Unsubscribe", systemImage: "hand.raised") }
+                        .buttonStyle(.borderless)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 22).padding(.bottom, 8)
+                .confirmationDialog("Unsubscribe from \(shown.sender.display)?", isPresented: $askingUnsub, titleVisibility: .visible) {
+                    Button { Task { await leave(unsub) } } label: { Label("Unsubscribe", systemImage: "hand.raised") }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(unsub.oneClick != nil ? "We'll tell the sender to stop, straight away."
+                         : unsub.web != nil ? "The sender's unsubscribe page opens in your browser."
+                         : "An email asking to unsubscribe opens, ready to send.")
+                }
             }
 
             if !remoteImages && !showImagesOnce && (page?.html.contains("http") ?? false) {
@@ -142,12 +193,46 @@ struct ReadingPane: View {
         Task { await load() }
     }
 
+    private func leave(_ u: Unsubscribe) async {
+        if let url = u.oneClick {
+            do {
+                try await JMAPClient.oneClickUnsubscribe(url)
+                unsubDone = "Unsubscribed. It can take the sender a few days to stop."
+                return
+            } catch {
+                // The one click address didn't answer: fall back to the page or an email.
+            }
+        }
+        if let url = u.web {
+            openURL(url)
+            unsubDone = "The unsubscribe page opened in your browser."
+        } else if let address = u.mail {
+            var d = ComposeDraft.new(store: store)
+            d.to = address
+            d.subject = "Unsubscribe"
+            d.text = "Unsubscribe" + d.text
+            compose(d)
+        }
+    }
+
     private func load() async {
         loading = true
         page = nil
         failed = false
         showImagesOnce = false
+        unsub = nil
+        unsubDone = nil
+        waiting = nil
+        cancelled = false
         let e = shown, account = item.account
+        Task { @MainActor in
+            let w = await store.waiting(e, account: account)
+            if open == e.id || (open == nil && e.id == shown.id) { waiting = w }
+        }
+        Task { @MainActor in
+            let u = await store.unsubscribe(e, account: account)
+            if open == e.id || (open == nil && e.id == shown.id) { unsub = u }
+        }
         // Fetched outside this view's task, so a list refresh that redraws the view can't cancel it halfway
         // and leave only the preview line showing. Tried twice before giving up.
         page = await Task { @MainActor () -> (html: String, attachments: [Attachment])? in
@@ -229,6 +314,21 @@ struct ReadingPane: View {
                        inSpam: store.inSpam(item), unread: item.email.isUnread, starred: item.email.isFlagged)
     }
 
+    /// Paul: scheduled emails sit in Scheduled "so you can edit them". Stops the send, then opens it to change,
+    /// with the same send time already set. Sending or scheduling it again replaces the copy in Drafts.
+    private func editScheduled(_ w: Waiting) {
+        let e = shown
+        Task {
+            let text = await store.text(e, account: item.account)
+            let files = page?.attachments ?? []
+            guard await store.cancelScheduled(e, waiting: w, account: item.account) else { return }
+            cancelled = true
+            var d = ComposeDraft.editing(e, account: item.account, text: text, attachments: files, store: store)
+            d.sendAt = w.sendAt
+            compose(d)
+        }
+    }
+
     /// Opens a saved draft for writing again; saving or sending it replaces the old copy.
     private func editDraft() {
         let e = shown
@@ -245,6 +345,14 @@ struct ReadingPane: View {
                 Label(item.email.isFlagged ? "Remove star" : "Star", systemImage: item.email.isFlagged ? "star.slash" : "star")
             }
             Button { Task { await store.setUnread(item, true) } } label: { Label("Mark as unread", systemImage: "envelope.badge") }
+            Menu {
+                ForEach(store.labels(for: item)) { entry in
+                    let on = item.email.mailboxIds[entry.box.id] == true
+                    Button { Task { await store.setLabel(item, entry.box, on: !on) } } label: {
+                        Label(String(repeating: "  ", count: entry.depth) + entry.box.name, systemImage: on ? "checkmark" : "tag")
+                    }
+                }
+            } label: { Label("Labels", systemImage: "tag") }
             #if os(iOS)
             spamButton
             #endif

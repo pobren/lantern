@@ -11,6 +11,7 @@ struct Account: Codable, Identifiable, Hashable {
     let sessionURL: String
     var username: String
 
+    var saved: SavedKeys.Saved { SavedKeys.Saved(kind: kind, sessionURL: sessionURL, username: username) }
     var colour: Color { kind == "fastmail" || kind == Demo.kind ? Look.fastmail : kind == "mailapp" ? Look.mailApp : Look.other }
     var kindName: String { kind == Demo.kind ? "Sample mail" : kind == "fastmail" ? "Fastmail" : kind == "mailapp" ? "Mail App" : "JMAP" }
     var label: String {
@@ -45,7 +46,21 @@ final class AccountState: ObservableObject, Identifiable {
     @Published var mailboxes: [Mailbox] = []
     @Published var identities: [Identity] = []
     @Published var inbox: [Email] = []
+    /// The address book (Fastmail contacts) plus people in the inbox, for filling in To, Cc and Bcc.
+    @Published var contacts: [Contact] = []
+    var contactsLoaded = false
     var id: String { account.id }
+
+    func loadContacts() async {
+        guard !contactsLoaded else { return }
+        contactsLoaded = true
+        var seen = Set<String>()
+        var all: [Contact] = []
+        let book = (try? await client.contactList()) ?? []
+        let people = inbox.flatMap { ($0.from ?? []) + ($0.to ?? []) + ($0.cc ?? []) }.map { Contact(name: $0.name ?? "", email: $0.email) }
+        for c in book + people where seen.insert(c.id).inserted { all.append(c) }
+        contacts = all
+    }
 
     init(account: Account, client: JMAPClient) {
         self.account = account
@@ -53,6 +68,8 @@ final class AccountState: ObservableObject, Identifiable {
     }
 
     func box(_ role: String) -> Mailbox? { mailboxes.first { $0.role == role } }
+    /// Fastmail's Scheduled folder, where mail waits to send later.
+    var scheduledBox: Mailbox? { box("scheduled") ?? mailboxes.first { $0.parentId == nil && $0.name == "Scheduled" } }
     func box(id: String) -> Mailbox? { mailboxes.first { $0.id == id } }
 
     /// Folders in sidebar order, each with how deep it sits under its parents.
@@ -110,6 +127,17 @@ final class Store: ObservableObject {
     }
 
     private var listeners: [String: Task<Void, Never>] = [:]
+
+    // Mail kept on the device (Offline.swift does the filling and the catching up).
+    let cache = MailCache.shared
+    /// No connection to the server right now: lists, reading and search come from the device.
+    @Published var offline = false
+    /// Emails written offline, waiting to send.
+    @Published var outbox = 0
+    var syncs: [String: Task<Void, Never>] = [:]
+    var resync: Set<String> = []
+    var flushing = false
+    var network: NetworkWatch?
     private let savedKey = "accounts"
 
     init() {
@@ -150,11 +178,13 @@ final class Store: ObservableObject {
         let s = try await client.connect()
         let account = Account(id: UUID().uuidString, kind: kind.id, sessionURL: session, username: s.username)
         Keychain.save(account.id, secret)
+        SavedKeys.save(account.saved, token: secret)
         let state = AccountState(account: account, client: client)
         accounts.append(state)
         save()
         await load(state)
         listen(state)
+        keepSynced(state)
         await reloadList()
     }
 
@@ -168,9 +198,33 @@ final class Store: ObservableObject {
         await reloadList()
     }
 
-    func remove(_ state: AccountState) {
+    /// Saved keys (iCloud Keychain) for accounts that aren't added on this device, so they can come back in one tap.
+    func savedKeys(kind: ServerKind) -> [SavedKeys.Saved] {
+        let here = Set(accounts.map(\.account.saved.id))
+        return SavedKeys.all().filter { $0.kind == kind.id && !here.contains($0.id) }.sorted { $0.username < $1.username }
+    }
+
+    /// Signs back in with a saved key. If Fastmail no longer accepts it (deleted on the website), it's forgotten.
+    func add(saved: SavedKeys.Saved) async throws {
+        guard let token = SavedKeys.token(saved), let kind = [ServerKind.fastmail, .mailApp, .other].first(where: { $0.id == saved.kind }) else {
+            throw JMAPError.missing("the saved key")
+        }
+        do {
+            try await add(kind: kind, address: saved.sessionURL, token: token)
+        } catch JMAPError.signIn {
+            SavedKeys.delete(saved)
+            throw JMAPError.missing("a working key: it was deleted in \(kind.name), so make a new one")
+        }
+    }
+
+    func remove(_ state: AccountState, forgetKey: Bool = false) {
+        if forgetKey { SavedKeys.delete(state.account.saved) }
         listeners[state.id]?.cancel()
         listeners[state.id] = nil
+        syncs[state.id]?.cancel()
+        syncs[state.id] = nil
+        let gone = state.id
+        Task { await cache.clear(account: gone, keepPending: false); await countOutbox() }
         Keychain.delete(state.id)
         accounts.removeAll { $0.id == state.id }
         if case .mailbox(let account, _) = folder, account == state.id { folder = .allInboxes }
@@ -180,13 +234,19 @@ final class Store: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(accounts.map(\.account)) { UserDefaults.standard.set(data, forKey: savedKey) }
+        #if os(iOS)
+        WatchLink.shared.start(self)
+        #endif
     }
 
     // MARK: Loading
 
     func start() async {
+        await loadSaved()
+        watchNetwork()
         await refresh()
         for state in accounts { listen(state) }
+        for state in accounts { keepSynced(state) }
     }
 
     func refresh() async {
@@ -201,14 +261,19 @@ final class Store: ObservableObject {
         do {
             if state.client.session == nil { try await state.client.connect() }
             state.mailboxes = try await state.client.mailboxes()
+            if let scheduled = state.scheduledBox, let sent = state.box("sent"), !isSample(state) {
+                try? await state.client.releaseScheduled(scheduled: scheduled.id, sent: sent.id)
+            }
             if state.identities.isEmpty { state.identities = (try? await state.client.identities()) ?? [] }
             if let inbox = state.box("inbox") {
                 state.inbox = try await state.client.emails(filter: ["inMailbox": inbox.id], limit: 100)
                 Notifier.newMail(in: state.inbox, account: state.account)
             }
             problem = nil
+            backOnline()
+            await remember(state)
         } catch {
-            problem = "\(state.account.label): \(error.localizedDescription)"
+            report(state, error)
         }
         objectWillChange.send()
         Notifier.badge(unreadInboxes)
@@ -234,6 +299,7 @@ final class Store: ObservableObject {
     private func changed(_ id: String) async {
         guard let state = state(id: id) else { return }
         await load(state)
+        keepSynced(state)
         switch folder {
         case .allInboxes: await reloadList(quietly: true)
         case .mailbox(let account, _) where account == id: await reloadList(quietly: true)
@@ -259,13 +325,26 @@ final class Store: ObservableObject {
     }
 
     /// Fetches the middle column again: the folder on screen, narrowed by the search box if anything is typed in it.
+    /// Mail saved on the device shows first when the list is empty (opening a folder, a new search, starting up,
+    /// or offline), then the server's answer replaces it.
     func reloadList(quietly: Bool = false) async {
-        if !quietly { listLoading = true }
-        defer { listLoading = false }
         let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let wanted = folder
         let scope = searchScope
+        func current() -> Bool {
+            wanted == folder && scope == searchScope && words == search.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if list.isEmpty || offline {
+            let saved = await savedItems(words: words, folder: wanted, scope: scope, limit: listLimit)
+            if current() && (!saved.isEmpty || offline) {
+                list = saved
+                mayHaveMore = saved.count >= listLimit
+            }
+        }
+        if !quietly && list.isEmpty { listLoading = true }
+        defer { listLoading = false }
         var items: [Item] = []
+        var reached = false
         if !words.isEmpty && scope == .allMail {
             for s in accounts {
                 var filter: [String: Any] = ["text": words]
@@ -273,13 +352,15 @@ final class Store: ObservableObject {
                 if !skip.isEmpty { filter["inMailboxOtherThan"] = skip }
                 do {
                     items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
-                } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+                    reached = true
+                } catch { report(s, error) }
             }
         } else {
             switch wanted {
             case .allInboxes:
                 if words.isEmpty && listLimit <= 100 {
                     items = accounts.flatMap { s in s.inbox.map { Item(account: s.account, email: $0) } }
+                    reached = !offline
                 } else {
                     for s in accounts {
                         guard let inbox = s.box("inbox") else { continue }
@@ -287,7 +368,8 @@ final class Store: ObservableObject {
                         if !words.isEmpty { filter["text"] = words }
                         do {
                             items += try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
-                        } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+                            reached = true
+                        } catch { report(s, error) }
                     }
                 }
             case .mailbox(let accountId, let boxId):
@@ -296,12 +378,50 @@ final class Store: ObservableObject {
                 if !words.isEmpty { filter["text"] = words }
                 do {
                     items = try await s.client.emails(filter: filter, limit: listLimit).map { Item(account: s.account, email: $0) }
-                } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+                    reached = true
+                } catch { report(s, error) }
             }
         }
-        guard wanted == folder, scope == searchScope, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }  // the person moved on while this was loading
+        guard current() else { return }  // the person moved on while this was loading
+        guard reached else { return }     // offline: the saved list stays on screen
+        backOnline()
         list = items.sorted { $0.email.date > $1.email.date }
         mayHaveMore = items.count >= listLimit
+        await remember(items)
+    }
+
+    /// Searches saved mail as you type, before anything goes to the server.
+    func searchSaved() async {
+        let words = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return }
+        let found = await savedItems(words: words, folder: folder, scope: searchScope, limit: listLimit)
+        // Nothing saved yet (a new account, or sample mail): leave the list for the server's search.
+        guard !found.isEmpty, words == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        list = found
+        mayHaveMore = false
+    }
+
+    /// The middle column from mail saved on the device.
+    func savedItems(words: String, folder wanted: Folder, scope: SearchScope, limit: Int) async -> [Item] {
+        var items: [Item] = []
+        for s in accounts where !isSample(s) {
+            let id = s.id
+            let skip = [s.box("trash")?.id, s.box("junk")?.id].compactMap { $0 }
+            var box: String?
+            switch wanted {
+            case .allInboxes: box = s.box("inbox")?.id
+            case .mailbox(let a, let b): box = a == id ? b : nil
+            }
+            if words.isEmpty {
+                guard let box else { continue }
+                items += await cache.list(box: box, account: id, limit: limit).map { Item(account: s.account, email: $0) }
+            } else if scope == .allMail {
+                items += await cache.search(words, account: id, box: nil, skip: skip, limit: limit).map { Item(account: s.account, email: $0) }
+            } else if let box {
+                items += await cache.search(words, account: id, box: box, skip: [], limit: limit).map { Item(account: s.account, email: $0) }
+            }
+        }
+        return Array(items.sorted { $0.email.date > $1.email.date }.prefix(limit))
     }
 
     var folderTitle: String {
@@ -345,10 +465,19 @@ final class Store: ObservableObject {
     // MARK: Reading
 
     private var pages: [String: (html: String, attachments: [Attachment])] = [:]
+    func clearPages() { pages = [:] }
 
     func conversation(_ item: Item) async -> [Email] {
         guard let s = state(for: item.account) else { return [item.email] }
-        let all = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
+        var all: [Email]
+        do {
+            all = try await s.client.thread(item.email.threadId)
+            await remember(all, in: s)
+        } catch {
+            report(s, error, quietly: true)
+            all = isSample(s) ? [] : await cache.thread(item.email.threadId, account: s.id)
+            if all.isEmpty { all = [item.email] }
+        }
         // Keep drafts and anything in the bin out of a conversation, unless that's where you're looking.
         let trash = s.box("trash")?.id
         let lookingInTrash = source(for: item, in: s)?.role == "trash"
@@ -357,32 +486,84 @@ final class Store: ObservableObject {
     }
 
     /// The email laid out as its sender designed it, plus its attachments.
+    /// How to leave the mailing list an email came from, if it says. Nothing while offline or for sample mail.
+    /// When this email is waiting to send later, the pending send.
+    func waiting(_ email: Email, account: Account) async -> Waiting? {
+        guard let s = state(for: account), !isSample(s), !offline else { return nil }
+        let held = email.mailboxIds.keys.contains { $0 == s.scheduledBox?.id || $0 == s.box("sent")?.id }
+        guard held else { return nil }
+        return try? await s.client.waiting(email.id)
+    }
+
+    /// Stops a scheduled email and puts it back in Drafts.
+    func cancelScheduled(_ email: Email, waiting: Waiting, account: Account) async -> Bool {
+        guard let s = state(for: account), let drafts = s.box("drafts") else { return false }
+        do {
+            try await s.client.cancelScheduled(email.id, waiting: waiting, scheduled: s.scheduledBox?.id, drafts: drafts.id)
+            await refresh()
+            return true
+        } catch {
+            report(s, error)
+            return false
+        }
+    }
+
+    func unsubscribe(_ email: Email, account: Account) async -> Unsubscribe? {
+        guard let s = state(for: account), !isSample(s), !offline else { return nil }
+        let u = try? await s.client.unsubscribe(for: email.id)
+        return u?.any == true ? u : nil
+    }
+
     func page(_ email: Email, account: Account) async -> (html: String, attachments: [Attachment])? {
         let key = account.id + "/" + email.id
         if let cached = pages[key] { return cached }
-        guard let s = state(for: account), let page = try? await s.client.page(of: email.id) else { return nil }
-        pages[key] = page
-        return page
+        guard let s = state(for: account) else { return nil }
+        let saved = isSample(s) ? nil : await cache.page(email.id, account: account.id)
+        if let saved, saved.complete {
+            pages[key] = (saved.html, saved.attachments)
+            return pages[key]
+        }
+        do {
+            let page = try await s.client.page(of: email.id)
+            pages[key] = page
+            if !isSample(s) {
+                let text = saved?.text ?? JMAPClient.plain(page.html)
+                await cache.savePage(SavedPage(html: page.html, text: text, attachments: page.attachments, complete: true),
+                                     id: email.id, account: account.id)
+            }
+            return page
+        } catch {
+            report(s, error, quietly: true)
+            guard let saved else { return nil }
+            return (saved.html, saved.attachments)
+        }
     }
 
     func text(_ email: Email, account: Account) async -> String {
         guard let s = state(for: account) else { return email.preview ?? "" }
-        return (try? await s.client.body(of: email.id)) ?? (email.preview ?? "")
+        do { return try await s.client.body(of: email.id) } catch {
+            report(s, error, quietly: true)
+            if let saved = await cache.page(email.id, account: account.id), !saved.text.isEmpty { return saved.text }
+            return email.preview ?? ""
+        }
     }
 
     /// Saves an attachment to a temporary file, ready to preview or share.
     func file(_ a: Attachment, account: Account) async -> URL? {
         guard let s = state(for: account) else { return nil }
+        // Kept with the saved mail, so an attachment opened once opens again offline.
+        let folder = MailCache.files.appendingPathComponent(account.id, isDirectory: true).appendingPathComponent(a.blobId, isDirectory: true)
+        let safe = a.name.replacingOccurrences(of: "/", with: "-")
+        let url = folder.appendingPathComponent(safe.isEmpty ? "Attachment" : safe)
+        if FileManager.default.fileExists(atPath: url.path) { return url }
         do {
             let data = try await s.client.download(blobId: a.blobId, type: a.type)
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(a.blobId, isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let safe = a.name.replacingOccurrences(of: "/", with: "-")
-            let url = folder.appendingPathComponent(safe.isEmpty ? "Attachment" : safe)
             try data.write(to: url)
             return url
         } catch {
-            problem = "Couldn't open \(a.name): \(error.localizedDescription)"
+            if Self.isOffline(error) { goOffline(); problem = "\(a.name) hasn't been opened before, so it needs a connection." }
+            else { problem = "Couldn't open \(a.name): \(error.localizedDescription)" }
             return nil
         }
     }
@@ -393,22 +574,20 @@ final class Store: ObservableObject {
         let ids = emails.filter(\.isUnread).map(\.id)
         guard !ids.isEmpty, let s = state(for: account) else { return }
         replace(account: account, ids: Set(ids)) { $0.with(keyword: "$seen", on: true) }
-        await act(s, reloadList: false) {
-            try await s.client.update(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$seen": true] as [String: Any]) }))
-        }
+        await apply(Dictionary(uniqueKeysWithValues: ids.map { ($0, ["keywords/$seen": true] as [String: Any]) }), in: s)
     }
 
     func setUnread(_ item: Item, _ unread: Bool) async {
         guard let s = state(for: item.account) else { return }
         replace(account: item.account, ids: [item.email.id]) { $0.with(keyword: "$seen", on: !unread) }
-        await act(s, reloadList: false) { try await s.client.update([item.email.id: ["keywords/$seen": unread ? NSNull() as Any : true as Any]]) }
+        await apply([item.email.id: ["keywords/$seen": unread ? NSNull() as Any : true as Any]], in: s)
     }
 
     func flag(_ item: Item) async {
         guard let s = state(for: item.account) else { return }
         let on = !item.email.isFlagged
         replace(account: item.account, ids: [item.email.id]) { $0.with(keyword: "$flagged", on: on) }
-        await act(s, reloadList: false) { try await s.client.update([item.email.id: ["keywords/$flagged": on ? true as Any : NSNull() as Any]]) }
+        await apply([item.email.id: ["keywords/$flagged": on ? true as Any : NSNull() as Any]], in: s)
     }
 
     func archive(_ item: Item) async {
@@ -450,7 +629,12 @@ final class Store: ObservableObject {
     /// With folders an email is only ever in one mailbox, so all three come out the same as a plain move.
     func move(_ item: Item, to target: Mailbox, also extra: [String: Any] = [:], keepLabels: Bool = false) async {
         guard let s = state(for: item.account), let from = source(for: item, in: s), from.id != target.id else { return }
-        let thread = (try? await s.client.thread(item.email.threadId)) ?? [item.email]
+        var thread: [Email]
+        do { thread = try await s.client.thread(item.email.threadId) } catch {
+            report(s, error, quietly: true)
+            thread = isSample(s) ? [] : await cache.thread(item.email.threadId, account: s.id)
+            if thread.isEmpty { thread = [item.email] }
+        }
         var emails = thread.filter { $0.mailboxIds[from.id] == true }
         if emails.isEmpty { emails = [item.email] }
         let exclusive = target.role == "trash" || target.role == "junk"
@@ -468,9 +652,34 @@ final class Store: ObservableObject {
         }
         takeOut(item)
         if from.role == "inbox" || exclusive { s.inbox.removeAll { $0.threadId == item.email.threadId } }
-        await act(s, reloadList: false) {
-            try await s.client.update(patches)
+        await apply(patches, in: s)
+    }
+
+    /// Adds or takes off a label (Fastmail mailbox) on the whole conversation, keeping its other labels.
+    /// An email has to stay somewhere, so the last label can't come off (archive it instead).
+    func setLabel(_ item: Item, _ box: Mailbox, on: Bool) async {
+        guard let s = state(for: item.account) else { return }
+        var thread = (try? await s.client.thread(item.email.threadId)) ?? []
+        if thread.isEmpty { thread = [item.email] }
+        var patches: [String: [String: Any]] = [:]
+        for e in thread {
+            if on, e.mailboxIds[box.id] != true { patches[e.id] = ["mailboxIds/\(box.id)": true] }
+            if !on, e.mailboxIds[box.id] == true {
+                guard e.mailboxIds.keys.contains(where: { $0 != box.id }) else {
+                    problem = "That's the only label on this email. Archive or move it instead."
+                    return
+                }
+                patches[e.id] = ["mailboxIds/\(box.id)": NSNull()]
+            }
         }
+        await apply(patches, in: s)
+        await reloadList(quietly: true)
+    }
+
+    /// The labels an email can take: every folder except Bin, Spam, Drafts and Sent.
+    func labels(for item: Item) -> [FolderEntry] {
+        guard let s = state(for: item.account) else { return [] }
+        return s.tree.filter { !["trash", "junk", "drafts", "sent"].contains($0.box.role ?? "") }
     }
 
     /// The In-Reply-To and References headers for an answer to this email.
@@ -479,11 +688,25 @@ final class Store: ObservableObject {
     }
 
     func send(account: Account, identity: Identity, as address: String? = nil, to: [EmailAddress], cc: [EmailAddress], bcc: [EmailAddress] = [], subject: String, text: String,
-              threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil) async throws {
+              threading: (inReplyTo: String?, references: [String]), attachments: [Outgoing] = [], replacing: String? = nil,
+              sendAt: Date? = nil) async throws {
         guard let s = state(for: account), let drafts = s.box("drafts"), let sent = s.box("sent") else { throw JMAPError.missing("Drafts or Sent") }
-        try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
-                                inReplyTo: threading.inReplyTo, references: threading.references,
-                                attachments: attachments, drafts: drafts.id, sent: sent.id, replacing: replacing)
+        do {
+            try await s.client.send(from: identity, as: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+                                    inReplyTo: threading.inReplyTo, references: threading.references,
+                                    attachments: attachments, drafts: drafts.id, sent: sent.id, scheduled: s.scheduledBox?.id,
+                                    replacing: replacing, sendAt: sendAt)
+        } catch let error where Self.isOffline(error) && !isSample(s) && sendAt == nil {
+            // No connection: it waits in the Outbox and sends itself when the connection is back.
+            goOffline()
+            let mail = OutboxEmail(identityId: identity.id, address: address, to: to, cc: cc, bcc: bcc, subject: subject, text: text,
+                                   inReplyTo: threading.inReplyTo, references: threading.references,
+                                   attachments: attachments.map { OutgoingFile(blobId: $0.blobId, name: $0.name, type: $0.type, size: $0.size) },
+                                   replacing: replacing)
+            await cache.queue(Pending(account: s.id, kind: "send", data: try JSONEncoder().encode(mail)))
+            await countOutbox()
+            return
+        }
         await load(s)
     }
 
@@ -556,6 +779,15 @@ final class Store: ObservableObject {
     }
 
     // MARK: Opening and saving one email
+
+    /// Opens an email from a tapped alert: every inbox on screen, with that email selected.
+    func show(_ ref: MessageRef) async {
+        if search.isEmpty == false { search = "" }
+        if folder != .allInboxes { await open(.allInboxes) } else if list.isEmpty { await reloadList() }
+        guard let item = await item(ref) else { return }
+        if !list.contains(where: { $0.id == item.id }) { list.insert(item, at: 0) }
+        selection = item.id
+    }
 
     /// An email for its own window: from the list if it's there, otherwise fetched.
     func item(_ ref: MessageRef) async -> Item? {
@@ -646,7 +878,10 @@ final class Store: ObservableObject {
     }
 
     private func act(_ s: AccountState, reloadList again: Bool = true, _ work: () async throws -> Void) async {
-        do { try await work() } catch { problem = "\(s.account.label): \(error.localizedDescription)" }
+        do { try await work() } catch {
+            if Self.isOffline(error) { goOffline(); problem = "You're offline. Try that again once you're connected." }
+            else { report(s, error) }
+        }
         // Unread counts and folders come back from the server; the list itself was already changed on screen.
         if let boxes = try? await s.client.mailboxes() { s.mailboxes = boxes; objectWillChange.send() }
         if again { await reloadList(quietly: true) }

@@ -26,6 +26,8 @@ struct ComposeDraft: Identifiable {
     var savedThreading: (inReplyTo: String?, references: [String])?
     /// Files already on a saved draft.
     var attachments: [Outgoing] = []
+    /// For a scheduled email opened to edit: the time it was due to go, kept unless changed.
+    var sendAt: Date?
 
     var threading: (inReplyTo: String?, references: [String]) { savedThreading ?? Store.threading(replyTo) }
 
@@ -135,8 +137,8 @@ struct ComposeView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var draft: ComposeDraft
-    @State private var showCc = false
-    @State private var showBcc = false
+    /// Cc, Bcc and From shown in full, rather than folded into one line under To.
+    @State private var more = false
     @State private var sending = false
     @State private var problem: String?
     @FocusState private var focus: Field?
@@ -151,13 +153,17 @@ struct ComposeView: View {
     @State private var photos: [PhotosPickerItem] = []
     #endif
 
-    private enum Field { case to, body }
+    private enum Field { case to, cc, bcc, body }
+    /// When to send, for Send later. Nil sends now.
+    @State private var sendAt: Date?
+    @State private var pickingTime = false
+    @State private var pickedTime = Date().addingTimeInterval(3600)
 
     init(draft: ComposeDraft) {
         _draft = State(initialValue: draft)
-        _showCc = State(initialValue: !draft.cc.isEmpty)
-        _showBcc = State(initialValue: !draft.bcc.isEmpty)
+        _more = State(initialValue: !draft.cc.isEmpty || !draft.bcc.isEmpty)
         _files = State(initialValue: draft.attachments)
+        _sendAt = State(initialValue: draft.sendAt.flatMap { $0 > Date() ? $0 : nil })
         _start = State(initialValue: Self.snapshot(draft, draft.attachments))
     }
 
@@ -264,6 +270,7 @@ struct ComposeView: View {
         .frame(width: 680, height: 580)
         .background(Look.paper)
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
+        .task { for s in store.accounts { await s.loadContacts() } }
         .confirmationDialog("Save this email to Drafts?", isPresented: $askingToClose, titleVisibility: .visible) { closeChoices }
             message: { Text("You can pick it up again from your Drafts folder.") }
         .interactiveDismissDisabled(changed)
@@ -297,6 +304,7 @@ struct ComposeView: View {
             }
         }
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
+        .task { for s in store.accounts { await s.loadContacts() } }
         .confirmationDialog("Save this email to Drafts?", isPresented: $askingToClose, titleVisibility: .visible) { closeChoices }
             message: { Text("You can pick it up again from your Drafts folder.") }
         .interactiveDismissDisabled(changed)
@@ -312,11 +320,165 @@ struct ComposeView: View {
     }
 
     private var sendButton: some View {
-        Button { Task { await send() } } label: {
-            if sending { ProgressView().controlSize(.small) } else { Label("Send", systemImage: "paperplane") }
+        HStack(spacing: 8) {
+            if canSendLater { laterMenu }
+            Button { Task { await send() } } label: {
+                if sending { ProgressView().controlSize(.small) }
+                // Spelt out, not just an icon: Paul picked "In an hour" and couldn't tell which clock sends it.
+                else if sendAt != nil { Label("Schedule", systemImage: "clock.badge.checkmark").labelStyle(.titleAndIcon).bold() }
+                else { Label("Send", systemImage: "paperplane") }
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(!canSend)
         }
-        .keyboardShortcut(.return, modifiers: .command)
-        .disabled(!canSend)
+        .sheet(isPresented: $pickingTime) { timePicker }
+    }
+
+    // MARK: Send later
+
+    /// Fastmail holds the email and sends it at the time chosen. Shown only when the server says it can.
+    private var canSendLater: Bool {
+        guard let account = draft.account, let s = store.state(for: account) else { return false }
+        return s.client.maxDelayedSend > 0
+    }
+
+    private var laterLimit: Date {
+        guard let account = draft.account, let s = store.state(for: account) else { return Date() }
+        return Date().addingTimeInterval(TimeInterval(s.client.maxDelayedSend))
+    }
+
+    private var laterMenu: some View {
+        Menu {
+            ForEach(Self.laterChoices(), id: \.1) { name, date in
+                if date <= laterLimit {
+                    Button { sendAt = date } label: { Label(name, systemImage: "clock") }
+                }
+            }
+            Button { pickedTime = sendAt ?? Date().addingTimeInterval(3600); pickingTime = true } label: {
+                Label("Choose a time", systemImage: "calendar")
+            }
+            if sendAt != nil {
+                Button { sendAt = nil } label: { Label("Send now instead", systemImage: "paperplane") }
+            }
+        } label: {
+            Label("Send later", systemImage: "clock")
+        }
+        .help("Send later")
+        #if os(macOS)
+        .menuStyle(.borderlessButton).fixedSize()
+        #endif
+    }
+
+    /// Later today, this evening, tomorrow morning and Monday morning, whichever are still ahead.
+    static func laterChoices(now: Date = Date()) -> [(String, Date)] {
+        let cal = Calendar.current
+        func at(_ day: Date, _ hour: Int) -> Date { cal.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day }
+        var out: [(String, Date)] = []
+        let inHour = now.addingTimeInterval(3600)
+        out.append(("In an hour", inHour))
+        let evening = at(now, 18)
+        if evening > inHour { out.append(("This evening at 6pm", evening)) }
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: now) ?? now
+        out.append(("Tomorrow at 8am", at(tomorrow, 8)))
+        if let monday = cal.nextDate(after: now, matching: DateComponents(weekday: 2), matchingPolicy: .nextTime),
+           !cal.isDate(monday, inSameDayAs: tomorrow) {
+            out.append(("Monday at 8am", at(monday, 8)))
+        }
+        return out
+    }
+
+    private var timePicker: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Send at", selection: $pickedTime, in: Date().addingTimeInterval(120)...laterLimit)
+                    #if os(iOS)
+                    .datePickerStyle(.graphical)
+                    #endif
+                Text("Fastmail keeps the email and sends it then, even if this device is off.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Send later")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { sendAt = pickedTime; pickingTime = false } label: { Label("Set time", systemImage: "checkmark") }
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { pickingTime = false } label: { Label("Cancel", systemImage: "xmark") }
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 380, minHeight: 300)
+        #endif
+    }
+
+    // MARK: Contacts
+
+    private func text(_ field: Field) -> Binding<String> {
+        switch field {
+        case .cc: return $draft.cc
+        case .bcc: return $draft.bcc
+        default: return $draft.to
+        }
+    }
+
+    /// People matching what's being typed after the last comma, from Fastmail contacts and the inbox.
+    private func matches(_ field: Field) -> [Contact] {
+        let typed = text(field).wrappedValue.split(separator: ",", omittingEmptySubsequences: false).last
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+        guard typed.count >= 2, !typed.contains("<") else { return [] }
+        let already = Set(EmailAddress.parse(draft.to + "," + draft.cc + "," + draft.bcc).map { $0.email.lowercased() })
+        let all = store.accounts.flatMap(\.contacts)
+        var seen = Set<String>()
+        return all.filter { c in
+            !already.contains(c.id) && seen.insert(c.id).inserted
+                && (c.email.lowercased().hasPrefix(typed) || c.name.lowercased().split(separator: " ").contains { $0.hasPrefix(typed) }
+                    || c.name.lowercased().hasPrefix(typed))
+        }
+        .prefix(5).map { $0 }
+    }
+
+    @ViewBuilder private func suggestions(_ field: Field) -> some View {
+        let found = matches(field)
+        if !found.isEmpty {
+            VStack(spacing: 0) {
+                ForEach(found) { c in
+                    Button { pick(c, field) } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                if !c.name.isEmpty { Text(c.name).font(Look.size(14)) }
+                                Text(c.email).font(Look.size(12.5)).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                        .padding(.horizontal, 20).padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Divider().padding(.leading, 20)
+            }
+            .background(Look.ground.opacity(0.5))
+        }
+    }
+
+    private func pick(_ c: Contact, _ field: Field) {
+        var parts = text(field).wrappedValue.split(separator: ",", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
+        if !parts.isEmpty { parts.removeLast() }
+        parts.append(c.line)
+        text(field).wrappedValue = parts.filter { !$0.isEmpty }.joined(separator: ", ") + ", "
+    }
+
+    private func pickFirst(_ field: Field) {
+        if let first = matches(field).first { pick(first, field) }
+    }
+
+    /// The address this will be sent from, for the folded line under To.
+    private var fromAddress: String {
+        if !draft.fromEmail.isEmpty { return draft.fromEmail }
+        return chosen?.email ?? ""
     }
 
     private var form: some View {
@@ -343,7 +505,61 @@ struct ComposeView: View {
                 .padding(.horizontal, 20).frame(minHeight: 38)
                 Divider().padding(.leading, 20)
             }
-            if choices.count > 1 || chosen?.isWildcard == true {
+            row("To") {
+                TextField("", text: $draft.to)
+                    .textFieldStyle(.plain)
+                    .focused($focus, equals: .to)
+                    .onSubmit { pickFirst(.to) }
+                    #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    #endif
+            }
+            if focus == .to { suggestions(.to) }
+            // Like Apple Mail: Cc, Bcc and From fold into one quiet line under To until you tap it.
+            if !more {
+                Button { withAnimation(.snappy) { more = true } } label: {
+                    HStack(spacing: 6) {
+                        Text("Cc/Bcc, From:").foregroundStyle(.secondary)
+                        Text(fromAddress).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                    }
+                    .font(Look.size(14))
+                    .padding(.horizontal, 20).frame(minHeight: 42)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cc, Bcc and From: \(fromAddress)")
+                Divider().padding(.leading, 20)
+            }
+            if more {
+                row("Cc") {
+                    TextField("", text: $draft.cc)
+                        .textFieldStyle(.plain)
+                        .focused($focus, equals: .cc)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                }
+            }
+            if more && focus == .cc { suggestions(.cc) }
+            if more {
+                row("Bcc") {
+                    TextField("", text: $draft.bcc)
+                        .textFieldStyle(.plain)
+                        .focused($focus, equals: .bcc)
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                }
+            }
+            if more && focus == .bcc { suggestions(.bcc) }
+            if more && (choices.count > 1 || chosen?.isWildcard == true) {
                 row("From") {
                     Picker("From", selection: chosenKey) {
                         ForEach(choices.indices, id: \.self) { i in
@@ -356,7 +572,7 @@ struct ComposeView: View {
                     Spacer()
                 }
             }
-            if let id = chosen, id.isWildcard {
+            if more, let id = chosen, id.isWildcard {
                 row("As") {
                     TextField("you@\(id.domain)", text: $draft.fromEmail)
                         .textFieldStyle(.plain)
@@ -370,43 +586,20 @@ struct ComposeView: View {
                     }
                 }
             }
-            row("To") {
-                TextField("", text: $draft.to)
-                    .textFieldStyle(.plain)
-                    .focused($focus, equals: .to)
-                    #if os(iOS)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    #endif
-                if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
-                if !showBcc { Button("Bcc") { showBcc = true }.buttonStyle(.borderless) }
-            }
-            if showCc {
-                row("Cc") {
-                    TextField("", text: $draft.cc)
-                        .textFieldStyle(.plain)
-                        #if os(iOS)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
+            if let sendAt {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock").foregroundStyle(Look.accent)
+                    Text("Sends \(When.long(sendAt))").font(Look.size(13))
+                    Spacer()
+                    Button { self.sendAt = nil } label: { Label("Send now instead", systemImage: "xmark.circle") }
+                        .buttonStyle(.borderless).font(Look.size(13))
                 }
-            }
-            if showBcc {
-                row("Bcc") {
-                    TextField("", text: $draft.bcc)
-                        .textFieldStyle(.plain)
-                        #if os(iOS)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
-                }
+                .padding(.horizontal, 20).frame(minHeight: 38)
+                Divider().padding(.leading, 20)
             }
             row("Subject") { TextField("", text: $draft.subject).textFieldStyle(.plain) }
             if !files.isEmpty || uploading > 0 { attachments }
-            TextEditor(text: $draft.text)
+            BodyEditor(text: $draft.text, focused: focus == .body)
                 .font(Look.size(15)).lineSpacing(3)
                 .scrollContentBackground(.hidden)
                 .focused($focus, equals: .body)
@@ -491,11 +684,46 @@ struct ComposeView: View {
             let address = identity.isWildcard ? draft.fromEmail.trimmingCharacters(in: .whitespaces) : nil
             try await store.send(account: account, identity: identity, as: address, to: EmailAddress.parse(draft.to),
                                  cc: EmailAddress.parse(draft.cc), bcc: EmailAddress.parse(draft.bcc), subject: draft.subject, text: draft.text,
-                                 threading: draft.threading, attachments: files, replacing: draft.draftId)
+                                 threading: draft.threading, attachments: files, replacing: draft.draftId, sendAt: sendAt)
             dismiss()
         } catch {
             problem = error.localizedDescription
         }
         sending = false
+    }
+}
+
+/// The message body. When you first move into it (Tab from Subject, or a tap), the cursor goes to the top,
+/// on the blank line above the signature, rather than after "Paul" at the end. (Paul, 19 Nov.)
+struct BodyEditor: View {
+    @Binding var text: String
+    let focused: Bool
+
+    var body: some View {
+        if #available(iOS 18, macOS 15, *) {
+            TopCursorEditor(text: $text, focused: focused)
+        } else {
+            TextEditor(text: $text)
+        }
+    }
+}
+
+@available(iOS 18, macOS 15, *)
+private struct TopCursorEditor: View {
+    @Binding var text: String
+    let focused: Bool
+    @State private var selection: TextSelection?
+    @State private var placed = false
+
+    var body: some View {
+        TextEditor(text: $text, selection: $selection)
+            .onAppear { place(focused) }
+            .onChange(of: focused) { _, f in place(f) }
+    }
+
+    private func place(_ f: Bool) {
+        guard f, !placed else { return }
+        placed = true
+        selection = TextSelection(insertionPoint: text.startIndex)
     }
 }

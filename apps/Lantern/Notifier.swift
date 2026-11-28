@@ -1,7 +1,7 @@
 // New mail notifications and the unread badge.
 // On Mac, Lantern hears about new mail the moment it arrives (JMAP push) while it's open. On iPhone and iPad it
-// also checks in the background when iOS lets it, usually every 15 minutes or so; instant push on iPhone comes
-// with Mail App accounts, which send it from your own server.
+// also checks in the background when iOS lets it, usually every 15 minutes or so; with instant alerts switched on,
+// Fastmail's notices come through our relay (see InstantAlerts.swift).
 
 import Foundation
 import UserNotifications
@@ -37,6 +37,12 @@ enum Notifier {
         guard !fresh.isEmpty else { return }
         UserDefaults.standard.set(max(newest, last), forKey: key)
         guard enabled else { return }
+        #if os(iOS)
+        // Instant alerts already tell you about each email for this account, even once you've tapped the alert
+        // and it's gone from the lock screen. Telling you again from here would show the same email twice.
+        if UserDefaults.standard.bool(forKey: InstantAlerts.enabledKey),
+           PushRecords.all().contains(where: { $0.accountId == account.id && $0.live }) { return }
+        #endif
 
         let center = UNUserNotificationCenter.current()
         if fresh.count > 4 {
@@ -48,16 +54,28 @@ enum Notifier {
             center.add(UNNotificationRequest(identifier: "batch-\(account.id)-\(Int(newest.timeIntervalSince1970))", content: content, trigger: nil))
             return
         }
-        for e in fresh {
-            let content = UNMutableNotificationContent()
-            content.title = e.sender.display
-            content.subtitle = e.title
-            content.body = e.preview ?? ""
-            content.sound = .default
-            content.threadIdentifier = account.id + "/" + e.threadId
-            content.userInfo = ["account": account.id, "email": e.id]
-            center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
+        // Instant alerts may already have shown some of these: skip any already on screen.
+        Task {
+            let shown = Set(await center.deliveredNotifications().compactMap { $0.request.content.userInfo["email"] as? String })
+            for e in fresh where !shown.contains(e.id) {
+                post(e, account: account, center: center)
+            }
         }
+    }
+
+    private static func post(_ e: Email, account: Account, center: UNUserNotificationCenter) {
+        let content = UNMutableNotificationContent()
+        content.title = e.sender.display
+        content.subtitle = e.title
+        content.body = e.preview ?? ""
+        content.sound = .default
+        content.threadIdentifier = account.id + "/" + e.threadId
+        content.userInfo = ["account": account.id, "email": e.id]
+        content.summaryArgument = account.label
+        #if os(iOS)
+        content.categoryIdentifier = AlertActions.category
+        #endif
+        center.add(UNNotificationRequest(identifier: account.id + "/" + e.id, content: content, trigger: nil))
     }
 
     /// The unread count on the app icon (Dock on Mac, home screen on iPhone and iPad).
@@ -78,4 +96,25 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
+
+    /// A tap opens that email; Archive and Mark as read (on instant alerts) work without opening the app.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard let account = info["account"] as? String, let email = info["email"] as? String else { return }
+        #if os(iOS)
+        if response.actionIdentifier == AlertActions.archive || response.actionIdentifier == AlertActions.read {
+            await AlertActions.run(response.actionIdentifier, account: account, email: email)
+            return
+        }
+        #endif
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        await MainActor.run { AlertRouter.shared.pending = MessageRef(account: account, email: email) }
+    }
+}
+
+/// The email a tapped alert asked to open, for the main window to pick up (even if the app was closed).
+@MainActor
+final class AlertRouter: ObservableObject {
+    static let shared = AlertRouter()
+    @Published var pending: MessageRef?
 }
